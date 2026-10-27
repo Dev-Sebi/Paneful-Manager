@@ -13,7 +13,7 @@ test('app loads and redirects to workspaces with its empty state', async ({ page
   await expect(page).toHaveURL(/\/workspaces$/)
   await expect(page).toHaveTitle('Workspaces - Agent Hub')
   await expect(page.getByText('No sessions yet')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Open preset' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'New preset' })).toBeVisible()
 })
 
 test('navigates through every section via the sidebar', async ({ page }) => {

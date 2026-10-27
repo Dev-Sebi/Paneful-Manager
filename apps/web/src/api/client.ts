@@ -6,6 +6,7 @@ import type {
   PatchConfigRequest,
   RemoveMcpServerRequest,
   UpsertMcpServerRequestInput,
+  UpsertPresetRequest,
   WriteFileRequest,
   z,
 } from '@agent-hub/shared'
@@ -15,15 +16,18 @@ import {
   CreateFileResponseSchema,
   CreateSessionResponseSchema,
   DeleteFileResponseSchema,
+  DeletePresetResponseSchema,
   GetConfigResponseSchema,
   HealthResponseSchema,
   KillSessionResponseSchema,
+  LaunchPresetResponseSchema,
   ListFilesResponseSchema,
   ListMcpServersResponseSchema,
   ListPresetsResponseSchema,
   ListSessionsResponseSchema,
   ListTeamsResponseSchema,
   PatchConfigResponseSchema,
+  PresetResponseSchema,
   ReadFileResponseSchema,
   RemoveMcpServerResponseSchema,
   ScopesResponseSchema,
@@ -124,6 +128,14 @@ export const api = {
   killSession: (id: string) =>
     fetchJson(API_ROUTES.session.replace(':id', encodeURIComponent(id)), { schema: KillSessionResponseSchema, method: 'DELETE' }),
   listPresets: () => fetchJson(API_ROUTES.presets, { schema: ListPresetsResponseSchema }),
+  createPreset: (request: UpsertPresetRequest) =>
+    fetchJson(API_ROUTES.presets, { schema: PresetResponseSchema, method: 'POST', body: request }),
+  updatePreset: (name: string, request: UpsertPresetRequest) =>
+    fetchJson(API_ROUTES.preset.replace(':name', encodeURIComponent(name)), { schema: PresetResponseSchema, method: 'PUT', body: request }),
+  deletePreset: (name: string) =>
+    fetchJson(API_ROUTES.preset.replace(':name', encodeURIComponent(name)), { schema: DeletePresetResponseSchema, method: 'DELETE' }),
+  launchPreset: (name: string) =>
+    fetchJson(API_ROUTES.presetLaunch.replace(':name', encodeURIComponent(name)), { schema: LaunchPresetResponseSchema, method: 'POST' }),
   listFiles: () => fetchJson(API_ROUTES.files, { schema: ListFilesResponseSchema }),
   readFile: (path: string) =>
     fetchJson(`${API_ROUTES.fileContent}?${new URLSearchParams({ path })}`, { schema: ReadFileResponseSchema }),
