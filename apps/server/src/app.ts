@@ -53,7 +53,7 @@ export interface BuildAppOptions {
   /** MCP config service; the MCP routes are only registered when it is given. */
   mcp?: McpService
   /** Agent teams board; its route is only registered when `claudeDir` is given and reads nothing while the flag is off. */
-  teams?: { claudeDir: string, getConfig?: () => AppConfig }
+  teams?: { claudeDir: string }
 }
 
 function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): void {
@@ -145,7 +145,8 @@ export function buildApp({ config, logger, sessionToken, dev, engine, files, wor
   if (teams) {
     const service = createTeamsService({
       claudeDir: teams.claudeDir,
-      getConfig: teams.getConfig ?? (() => config),
+      getConfig: store.get,
+      onConfigChange: listener => store.onChange(listener),
       logger,
       broadcast: message => hub?.broadcast(message),
     })

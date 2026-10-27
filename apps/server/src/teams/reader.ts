@@ -16,6 +16,8 @@ import { readCurrent } from '../files/read.js'
 export const MAX_TEAM_FILE_BYTES = 256 * 1024
 /** Upper bound of task files read per team. */
 export const MAX_TASK_FILES = 500
+/** Task files read in parallel per team. */
+export const TASK_READ_CONCURRENCY = 8
 
 export interface ReadTeamsOptions {
   claudeDir: string
@@ -37,17 +39,49 @@ interface JsonFile {
   mtime: Date
 }
 
-/** Real directories below `dir` (symlinks and dot entries are skipped); empty when `dir` is no real directory. */
-async function listDirs(dir: string): Promise<string[]> {
+interface DirListing {
+  dirs: Set<string>
+  /** Entries that are symlinks or other non-directories (not dot entries). */
+  skipped: string[]
+}
+
+/** Real directories directly below `dir`, judged by `lstat` so symlinks never count; empty when `dir` is no real directory. */
+async function listDirs(dir: string): Promise<DirListing> {
+  const result: DirListing = { dirs: new Set(), skipped: [] }
   try {
     if (!(await lstat(dir)).isDirectory()) {
-      return []
+      return result
     }
-    const entries = await readdir(dir, { withFileTypes: true })
-    return entries.filter(entry => entry.isDirectory() && !entry.name.startsWith('.')).map(entry => entry.name)
+    for (const entry of await readdir(dir)) {
+      if (entry.startsWith('.')) {
+        continue
+      }
+      const real = (await lstat(join(dir, entry)).catch(() => undefined))?.isDirectory() === true
+      if (real) {
+        result.dirs.add(entry)
+      } else {
+        result.skipped.push(entry)
+      }
+    }
   } catch {
-    return []
+    return result
   }
+  return result
+}
+
+/** Runs `work` over `items` with at most `limit` in flight; results keep the input order. */
+async function mapLimit<T, R>(items: T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = Array.from({ length: items.length })
+  let next = 0
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const index = next
+      next += 1
+      results[index] = await work(items[index] as T)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
 }
 
 /** Reads one JSON file through the safe reader; returns a warning text instead of throwing. */
@@ -94,11 +128,11 @@ async function readTasks(dir: string, name: string, warnings: string[]): Promise
     warnings.push(`${name}: more than ${MAX_TASK_FILES} task files, the rest is ignored`)
     names = names.slice(0, MAX_TASK_FILES)
   }
+  const results = await mapLimit(names, TASK_READ_CONCURRENCY, async file => ({ file, result: await readJson(join(dir, file), `${name}/${file}`) }))
   const parsed: Array<Omit<TeamTask, 'blocked'>> = []
+  const seen = new Set<string>()
   let newest = 0
-  for (const file of names) {
-    const label = `${name}/${file}`
-    const result = await readJson(join(dir, file), label)
+  for (const { file, result } of results) {
     if (result === undefined) {
       continue
     }
@@ -107,11 +141,17 @@ async function readTasks(dir: string, name: string, warnings: string[]): Promise
       continue
     }
     newest = Math.max(newest, result.mtime.getTime())
-    const item = parseTeamTask(result.value, file.slice(0, -'.json'.length), result.mtime.toISOString())
-    warnings.push(...item.warnings.map(text => `${name}/${text}`))
-    if (item.value) {
-      parsed.push(item.value)
+    const item = parseTeamTask(result.value, file.slice(0, -'.json'.length), result.mtime.toISOString(), `${name}/${file}`)
+    warnings.push(...item.warnings)
+    if (!item.value) {
+      continue
     }
+    if (seen.has(item.value.id)) {
+      warnings.push(`${name}/${file}: duplicate task id ${item.value.id}, skipped`)
+      continue
+    }
+    seen.add(item.value.id)
+    parsed.push(item.value)
   }
   return { tasks: deriveBlocked(parsed), newest }
 }
@@ -127,7 +167,16 @@ async function readMembers(dir: string, name: string, warnings: string[]): Promi
   }
   const config = parseTeamConfig(result.value, `${name}/config.json`)
   warnings.push(...config.warnings)
-  return { members: config.members, newest: result.mtime.getTime() }
+  const seen = new Set<string>()
+  const members = config.members.filter(member => {
+    if (seen.has(member.name)) {
+      warnings.push(`${name}/config.json: duplicate member ${member.name}, skipped`)
+      return false
+    }
+    seen.add(member.name)
+    return true
+  })
+  return { members, newest: result.mtime.getTime() }
 }
 
 /** Reads `<claudeDir>/teams/<team>/config.json` and `<claudeDir>/tasks/<team>/*.json`; never throws on bad content. */
@@ -140,19 +189,22 @@ export async function readTeams({ claudeDir }: ReadTeamsOptions): Promise<ReadTe
   }
   const teamDirs = join(root, 'teams')
   const taskDirs = join(root, 'tasks')
-  const names = [...new Set([...(await listDirs(teamDirs)), ...(await listDirs(taskDirs))])].sort()
-  const warnings: string[] = []
+  const [teamList, taskList] = await Promise.all([listDirs(teamDirs), listDirs(taskDirs)])
+  const warnings: string[] = [
+    ...teamList.skipped.map(entry => `teams/${entry}: not a real directory, skipped`),
+    ...taskList.skipped.map(entry => `tasks/${entry}: not a real directory, skipped`),
+  ]
+  const names = [...new Set([...teamList.dirs, ...taskList.dirs])].sort()
   const teams: Team[] = []
   for (const name of names) {
-    const { members, newest: configTime } = await readMembers(join(teamDirs, name), name, warnings)
-    const { tasks, newest: taskTime } = await readTasks(join(taskDirs, name), name, warnings)
-    teams.push({
-      name,
-      dir: join(taskDirs, name),
-      members,
-      tasks,
-      lastUpdated: new Date(Math.max(configTime, taskTime)).toISOString(),
-    })
+    const { members, newest: configTime } = teamList.dirs.has(name)
+      ? await readMembers(join(teamDirs, name), name, warnings)
+      : { members: [], newest: 0 }
+    const { tasks, newest: taskTime } = taskList.dirs.has(name)
+      ? await readTasks(join(taskDirs, name), name, warnings)
+      : { tasks: [], newest: 0 }
+    const newest = Math.max(configTime, taskTime)
+    teams.push({ name, members, tasks, lastUpdated: newest > 0 ? new Date(newest).toISOString() : null })
   }
   return { teams, warnings }
 }

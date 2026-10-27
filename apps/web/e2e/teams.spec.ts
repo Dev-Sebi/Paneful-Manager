@@ -14,7 +14,6 @@ const board = {
   teams: [
     {
       name: 'session-1a2b3c4d',
-      dir: '/home/user/.claude/tasks/session-1a2b3c4d',
       members: [{ name: 'lead', agentType: 'team-lead' }, { name: 'tester' }],
       lastUpdated: NOW,
       tasks: [

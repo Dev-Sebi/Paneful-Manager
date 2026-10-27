@@ -25,7 +25,7 @@ describe('readTeams', () => {
     const { teams, warnings } = await readTeams({ claudeDir: dir })
     expect(warnings).toEqual([])
     expect(teams).toHaveLength(1)
-    expect(teams[0]).toMatchObject({ name: 'alpha', dir: paths.tasks })
+    expect(teams[0]).toMatchObject({ name: 'alpha' })
     expect(teams[0]?.members.map(member => member.name)).toEqual(['lead', 'dev'])
     expect(teams[0]?.tasks.map(item => [item.id, item.blocked])).toEqual([['1', false], ['2', false], ['3', true]])
     expect(teams[0]?.tasks[1]).toMatchObject({ owner: 'dev', activeForm: 'Working' })
@@ -51,8 +51,8 @@ describe('readTeams', () => {
     expect(teams[0]?.tasks.map(item => item.id)).toEqual(['7', '4'])
     expect(warnings).toEqual([
       'alpha/1.json: invalid JSON, skipped',
-      'alpha/2: missing or unknown status, skipped',
-      'alpha/3: file name differs from id 7, using id',
+      'alpha/2.json: missing or invalid status, skipped',
+      'alpha/3.json: file name differs from id 7, using id',
     ])
   })
 
@@ -80,10 +80,71 @@ describe('readTeams', () => {
       const { teams, warnings } = await readTeams({ claudeDir: dir })
       expect(teams.map(item => item.name)).toEqual(['alpha'])
       expect(teams[0]?.tasks.map(item => item.id)).toEqual(['1'])
-      expect(warnings).toEqual(['alpha/99.json: not a regular file, skipped'])
+      expect(warnings).toEqual(['tasks/linked: not a real directory, skipped', 'alpha/99.json: not a regular file, skipped'])
     } finally {
       rmSync(outside, { recursive: true, force: true })
     }
+  })
+
+  it('never follows a symlinked tasks dir even when teams/<name> is real', async () => {
+    const outside = makeClaudeDir()
+    try {
+      writeJson(join(outside, 'stolen', '1.json'), task('1'))
+      writeJson(team('x').config, { members: [{ name: 'lead' }] })
+      mkdirSync(join(dir, 'tasks'), { recursive: true })
+      symlinkSync(join(outside, 'stolen'), join(dir, 'tasks', 'x'))
+      const { teams, warnings } = await readTeams({ claudeDir: dir })
+      expect(teams).toMatchObject([{ name: 'x', tasks: [] }])
+      expect(teams[0]?.members).toHaveLength(1)
+      expect(warnings).toContain('tasks/x: not a real directory, skipped')
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('never follows a symlinked teams dir even when tasks/<name> is real', async () => {
+    const outside = makeClaudeDir()
+    try {
+      writeJson(join(outside, 'stolen', 'config.json'), { members: [{ name: 'intruder' }] })
+      writeJson(join(team('x').tasks, '1.json'), task('1'))
+      mkdirSync(join(dir, 'teams'), { recursive: true })
+      symlinkSync(join(outside, 'stolen'), join(dir, 'teams', 'x'))
+      const { teams, warnings } = await readTeams({ claudeDir: dir })
+      expect(teams).toMatchObject([{ name: 'x', members: [], tasks: [{ id: '1' }] }])
+      expect(warnings).toContain('teams/x: not a real directory, skipped')
+    } finally {
+      rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps unknown statuses, drops duplicate ids and duplicate members with warnings', async () => {
+    const paths = team('alpha')
+    writeJson(paths.config, { members: [{ name: 'lead' }, { name: 'lead' }] })
+    writeJson(join(paths.tasks, '1.json'), task('1', { status: 'archived' }))
+    writeJson(join(paths.tasks, '2.json'), task('1'))
+    const { teams, warnings } = await readTeams({ claudeDir: dir })
+    expect(teams[0]?.members).toHaveLength(1)
+    expect(teams[0]?.tasks.map(item => [item.id, item.status])).toEqual([['1', 'unknown']])
+    expect(warnings).toEqual(expect.arrayContaining([
+      'alpha/config.json: duplicate member lead, skipped',
+
+      'alpha/2.json: duplicate task id 1, skipped',
+    ]))
+  })
+
+  it('reads many task files in order', async () => {
+    const paths = team('alpha')
+    for (let index = 1; index <= 20; index += 1) {
+      writeJson(join(paths.tasks, `${index}.json`), task(String(index)))
+    }
+    const { teams } = await readTeams({ claudeDir: dir })
+    expect(teams[0]?.tasks.map(item => item.id)).toEqual(Array.from({ length: 20 }, (_, index) => String(index + 1)))
+  })
+
+  it('reports lastUpdated null when nothing was read', async () => {
+    mkdirSync(team('empty').tasks, { recursive: true })
+    const { teams } = await readTeams({ claudeDir: dir })
+    expect(teams).toMatchObject([{ name: 'empty', lastUpdated: null }])
   })
 
   it('lists a team without tasks dir and a tasks dir without team config', async () => {

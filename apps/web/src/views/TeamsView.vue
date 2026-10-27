@@ -10,7 +10,7 @@
   <div v-else class="teams-view">
     <header class="teams-view__bar">
       <h1 class="teams-view__title">Teams</h1>
-      <AhStatusBadge :label="store.error ? 'Refresh failed' : 'Live'" size="sm" :state="store.error ? 'error' : 'idle'" />
+      <AhStatusBadge :label="badge.label" size="sm" :state="badge.state" />
     </header>
 
     <p v-if="store.error" class="teams-view__error" role="alert">{{ store.error }}</p>
@@ -19,7 +19,7 @@
       <p class="teams-view__warnings-title">Some files were skipped</p>
 
       <ul>
-        <li v-for="warning in store.warnings" :key="warning">{{ warning }}</li>
+        <li v-for="(warning, index) in store.warnings" :key="index">{{ warning }}</li>
       </ul>
     </div>
 
@@ -30,8 +30,10 @@
 </template>
 
 <script lang="ts" setup>
-  import { onBeforeUnmount, onMounted, ref } from 'vue'
+  import type { AhStatusBadgeState } from '@/components/ah'
+  import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
+  import { connection } from '@/api/connection'
   import { wsClient } from '@/api/ws'
   import { AhStatusBadge } from '@/components/ah'
   import EmptyState from '@/components/EmptyState.vue'
@@ -44,6 +46,13 @@
   const router = useRouter()
   const store = useTeamsStore()
   const now = ref(Date.now())
+
+  const badge = computed<{ label: string, state: AhStatusBadgeState }>(() => {
+    if (store.error) {
+      return { label: 'Refresh failed', state: 'error' }
+    }
+    return connection.value === 'connected' ? { label: 'Live', state: 'idle' } : { label: 'Reconnecting', state: 'waiting' }
+  })
   let unbind: (() => void) | undefined
   let clock: ReturnType<typeof setInterval> | undefined
 

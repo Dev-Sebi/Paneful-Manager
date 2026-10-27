@@ -29,8 +29,11 @@ const UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
   ['minute', 60],
 ]
 
-/** "5 minutes ago" style text; seconds below a minute read "just now". */
-export function relativeTime (iso: string, now: number = Date.now()): string {
+/** "5 minutes ago" style text; seconds below a minute read "just now", `null` reads "never". */
+export function relativeTime (iso: string | null, now: number = Date.now()): string {
+  if (iso === null) {
+    return 'never'
+  }
   const seconds = Math.round((new Date(iso).getTime() - now) / 1000)
   if (Number.isNaN(seconds)) {
     return 'unknown'
@@ -45,4 +48,9 @@ export function relativeTime (iso: string, now: number = Date.now()): string {
     }
   }
   return 'just now'
+}
+
+/** Id usable inside an HTML id attribute. */
+export function safeId (value: string): string {
+  return value.replaceAll(/[^\w-]/g, '_')
 }

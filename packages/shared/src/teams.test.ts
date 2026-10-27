@@ -41,17 +41,23 @@ describe('parseTeamTask', () => {
     ['numeric id', { id: 1, subject: 'S', status: 'pending' }],
     ['missing subject', { id: '1', status: 'pending' }],
     ['missing status', { id: '1', subject: 'S' }],
-    ['unknown status', { id: '1', subject: 'S', status: 'deleted' }],
+    ['non-string status', { id: '1', subject: 'S', status: 4 }],
   ])('skips a task with a warning: %s', (_name, raw) => {
     const result = parseTeamTask(raw, '1')
     expect(result.value).toBeUndefined()
     expect(result.warnings).toHaveLength(1)
   })
 
+  it('keeps a task with an unrecognized status as unknown', () => {
+    const result = parseTeamTask({ id: '1', subject: 'S', status: 'deleted' }, '1')
+    expect(result.value?.status).toBe('unknown')
+    expect(result.warnings).toEqual([])
+  })
+
   it('trusts the id when the file name differs and warns', () => {
     const result = parseTeamTask({ id: '9', subject: 'S', status: 'completed' }, '2')
     expect(result.value?.id).toBe('9')
-    expect(result.warnings).toEqual(['2: file name differs from id 9, using id'])
+    expect(result.warnings).toEqual(['2.json: file name differs from id 9, using id'])
   })
 })
 
@@ -93,11 +99,11 @@ describe('schemas', () => {
   it('validates a team and the list response', () => {
     const team = {
       name: 't',
-      dir: '/x/t',
       members: [{ name: 'lead' }],
       tasks: [{ id: '1', subject: 'S', status: 'pending', blocks: [], blockedBy: [], blocked: false }],
       lastUpdated: '2026-01-01T00:00:00.000Z',
     }
+    expect(TeamSchema.safeParse({ ...team, lastUpdated: null }).success).toBe(true)
     expect(TeamSchema.safeParse(team).success).toBe(true)
     expect(ListTeamsResponseSchema.safeParse({ enabled: true, teams: [team], warnings: [] }).success).toBe(true)
     expect(ListTeamsResponseSchema.safeParse({ enabled: false, teams: [] }).success).toBe(false)

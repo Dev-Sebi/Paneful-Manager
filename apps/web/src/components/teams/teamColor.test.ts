@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MEMBER_COLOR_TOKENS, memberColorIndex, memberColorVar, relativeTime } from './teamColor'
+import { MEMBER_COLOR_TOKENS, memberColorIndex, memberColorVar, relativeTime, safeId } from './teamColor'
 
 describe('memberColorVar', () => {
   it('maps a name to a stable token variable, never to a raw color', () => {
@@ -24,5 +24,12 @@ describe('relativeTime', () => {
     expect(relativeTime('2026-01-01T09:00:00.000Z', now)).toBe('3 hours ago')
     expect(relativeTime('2025-12-30T12:00:00.000Z', now)).toBe('2 days ago')
     expect(relativeTime('nope', now)).toBe('unknown')
+    expect(relativeTime(null, now)).toBe('never')
+  })
+})
+
+describe('safeId', () => {
+  it('replaces characters outside word and dash', () => {
+    expect(safeId('a b.c"d-1_')).toBe('a_b_c_d-1_')
   })
 })

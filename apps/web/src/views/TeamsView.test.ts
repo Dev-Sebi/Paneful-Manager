@@ -3,6 +3,7 @@ import { flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
+import { connection } from '@/api/connection'
 import { makeTask, makeTeam } from '@/components/teams/fixtures'
 import { createAppRouter } from '@/router'
 import { mountWithVuetify } from '@/test/mount'
@@ -25,6 +26,7 @@ describe('TeamsView', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
     listTeams.mockReset()
+    connection.value = 'connected'
   })
 
   it('shows the flag explanation with a settings link when disabled', async () => {
@@ -80,6 +82,35 @@ describe('TeamsView', () => {
     const { wrapper } = await mountView()
     expect(wrapper.find('[role="alert"]').text()).toBe('offline')
     expect(wrapper.find('.ah-status-badge--error').exists()).toBe(true)
+  })
+
+  it('shows only open blockers and an Unknown column for unrecognized statuses', async () => {
+    const team = makeTeam('alpha')
+    team.tasks = [
+      makeTask('1', { status: 'completed' }),
+      makeTask('2', { status: 'in_progress' }),
+      makeTask('3', { blockedBy: ['1', '2'], blocked: true }),
+      makeTask('4', { status: 'unknown' }),
+    ]
+    listTeams.mockResolvedValue({ enabled: true, teams: [team], warnings: [] })
+    const { wrapper } = await mountView()
+    expect(wrapper.find('[data-testid="task-3"]').text()).toContain('Blocked by #2')
+    expect(wrapper.find('[data-testid="task-3"]').text()).not.toContain('#1,')
+    expect(wrapper.findAll('h3').map(item => item.text())).toEqual(['Pending 1', 'In progress 1', 'Completed 1', 'Unknown 1'])
+  })
+
+  it('shows never for a team without files and reflects the WebSocket state in the badge', async () => {
+    connection.value = 'disconnected'
+    listTeams.mockResolvedValue({ enabled: true, teams: [{ ...makeTeam('alpha'), lastUpdated: null }], warnings: [] })
+    const { wrapper } = await mountView()
+    expect(wrapper.text()).toContain('Updated never')
+    expect(wrapper.text()).toContain('Reconnecting')
+  })
+
+  it('sanitizes ids used for aria references', async () => {
+    listTeams.mockResolvedValue({ enabled: true, teams: [makeTeam('my team.1')], warnings: [] })
+    const { wrapper } = await mountView()
+    expect(wrapper.find('section[aria-labelledby]').attributes('aria-labelledby')).toBe('team-my_team_1')
   })
 
   it('has no mutating controls beyond description toggles', async () => {

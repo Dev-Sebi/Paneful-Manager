@@ -13,7 +13,7 @@
         {{ task.owner }}
       </span>
 
-      <span v-if="task.blocked" class="task-card__blocked">Blocked by {{ blockers }}</span>
+      <span v-if="task.blocked" class="task-card__blocked">Blocked by {{ blockerText }}</span>
     </div>
 
     <template v-if="task.description">
@@ -35,13 +35,13 @@
 <script lang="ts" setup>
   import type { TeamTask } from '@agent-hub/shared'
   import { computed, ref } from 'vue'
-  import { memberColorVar } from './teamColor'
+  import { memberColorVar, safeId } from './teamColor'
 
-  const props = defineProps<{ task: TeamTask, team: string }>()
+  const props = defineProps<{ task: TeamTask, team: string, blockers: string[] }>()
 
   const open = ref(false)
-  const descriptionId = computed(() => `task-desc-${props.team}-${props.task.id}`)
-  const blockers = computed(() => props.task.blockedBy.map(id => `#${id}`).join(', '))
+  const descriptionId = computed(() => `task-desc-${safeId(props.team)}-${safeId(props.task.id)}`)
+  const blockerText = computed(() => props.blockers.map(id => `#${id}`).join(', '))
 </script>
 
 <style scoped>

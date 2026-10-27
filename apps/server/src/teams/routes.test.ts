@@ -5,15 +5,18 @@ import type { FastifyInstance } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../app.js'
+import { createConfigStore, type ConfigStore } from '../config/store.js'
 import { makeClaudeDir, task, writeJson } from './fixtures.js'
 
 const TOKEN = 'test-token'
 let dir: string
 let app: FastifyInstance
 let config: AppConfig
+let store: ConfigStore
 
 function build(): FastifyInstance {
-  app = buildApp({ config, logger: pino({ level: 'silent' }), sessionToken: TOKEN, dev: false, teams: { claudeDir: dir, getConfig: () => config } })
+  store = createConfigStore(config)
+  app = buildApp({ config, logger: pino({ level: 'silent' }), sessionToken: TOKEN, dev: false, configStore: store, teams: { claudeDir: dir } })
   return app
 }
 
@@ -59,7 +62,7 @@ describe('GET /api/teams', () => {
   it('follows the flag live', async () => {
     build()
     expect((await get()).json()).toMatchObject({ enabled: false })
-    config.experimental.agentTeams = true
+    await store.patch({ experimental: { agentTeams: true } })
     expect((await get()).json()).toMatchObject({ enabled: true })
   })
 })

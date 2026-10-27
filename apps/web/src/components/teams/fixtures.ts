@@ -7,7 +7,6 @@ export function makeTask (id: string, overrides: Partial<TeamTask> = {}): TeamTa
 export function makeTeam (name = 'session-1a2b3c4d'): Team {
   return {
     name,
-    dir: `/home/user/.claude/tasks/${name}`,
     members: [
       { name: 'lead', agentType: 'team-lead', color: 'url(javascript:alert(1))' },
       { name: 'tester' },

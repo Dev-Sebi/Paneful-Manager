@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { IsoDateTimeSchema } from './session.js'
 
-export const TeamTaskStatusSchema = z.enum(['pending', 'in_progress', 'completed'])
+export const TeamTaskStatusSchema = z.enum(['pending', 'in_progress', 'completed', 'unknown'])
+/** `unknown` is any status string outside the three Claude Code states. */
 export type TeamTaskStatus = z.infer<typeof TeamTaskStatusSchema>
 
 export const TeamTaskSchema = z.strictObject({
@@ -33,10 +34,10 @@ export type TeamMember = z.infer<typeof TeamMemberSchema>
 
 export const TeamSchema = z.strictObject({
   name: z.string().min(1),
-  dir: z.string().min(1),
   members: z.array(TeamMemberSchema),
   tasks: z.array(TeamTaskSchema),
-  lastUpdated: IsoDateTimeSchema,
+  /** Newest mtime of the files read; `null` when nothing was read. */
+  lastUpdated: IsoDateTimeSchema.nullable(),
 })
 export type Team = z.infer<typeof TeamSchema>
 
@@ -67,24 +68,30 @@ function stringList(value: unknown): string[] {
 
 /**
  * Tolerant task parser: unknown fields are ignored, optional fields default, an invalid
- * `id`, `subject` or `status` skips the task. `fileId` is the file name without `.json`.
+ * `id`, `subject` or a non-string `status` skips the task; an unrecognized status becomes `unknown`.
  */
-export function parseTeamTask(raw: unknown, fileId: string, updatedAt?: string): ParsedItem<Omit<TeamTask, 'blocked'>> {
+export function parseTeamTask(
+  raw: unknown,
+  fileId: string,
+  updatedAt?: string,
+  label = `${fileId}.json`,
+): ParsedItem<Omit<TeamTask, 'blocked'>> {
   if (!isRecord(raw)) {
-    return { warnings: [`${fileId}: task is not a JSON object, skipped`] }
+    return { warnings: [`${label}: task is not a JSON object, skipped`] }
   }
   const { id, subject, status } = raw
   if (typeof id !== 'string' || id === '') {
-    return { warnings: [`${fileId}: missing or invalid id, skipped`] }
+    return { warnings: [`${label}: missing or invalid id, skipped`] }
   }
   if (typeof subject !== 'string') {
-    return { warnings: [`${fileId}: missing or invalid subject, skipped`] }
+    return { warnings: [`${label}: missing or invalid subject, skipped`] }
   }
-  const parsedStatus = TeamTaskStatusSchema.safeParse(status)
-  if (!parsedStatus.success) {
-    return { warnings: [`${fileId}: missing or unknown status, skipped`] }
+  if (typeof status !== 'string') {
+    return { warnings: [`${label}: missing or invalid status, skipped`] }
   }
-  const warnings = id === fileId ? [] : [`${fileId}: file name differs from id ${id}, using id`]
+  const known = TeamTaskStatusSchema.safeParse(status)
+  const parsedStatus: TeamTaskStatus = known.success ? known.data : 'unknown'
+  const warnings = id === fileId ? [] : [`${label}: file name differs from id ${id}, using id`]
   const description = optionalString(raw.description)
   const owner = optionalString(raw.owner)
   const activeForm = optionalString(raw.activeForm)
@@ -92,7 +99,7 @@ export function parseTeamTask(raw: unknown, fileId: string, updatedAt?: string):
     value: {
       id,
       subject,
-      status: parsedStatus.data,
+      status: parsedStatus,
       blocks: stringList(raw.blocks),
       blockedBy: stringList(raw.blockedBy),
       ...(description === undefined ? {} : { description }),

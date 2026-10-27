@@ -14,14 +14,20 @@
     </header>
 
     <v-row class="team-board__columns">
-      <v-col v-for="column in columns" :key="column.status" cols="12" md="4">
+      <v-col v-for="column in columns" :key="column.status" cols="12" :md="column.status === 'unknown' || hasUnknown ? 3 : 4">
         <section :aria-labelledby="`${headingId}-${column.status}`" class="team-board__column">
           <h3 :id="`${headingId}-${column.status}`" class="team-board__column-title">
             {{ column.label }} <span class="team-board__count">{{ column.tasks.length }}</span>
           </h3>
 
           <ul v-if="column.tasks.length > 0" class="team-board__list">
-            <TeamTaskCard v-for="task in column.tasks" :key="task.id" :task="task" :team="team.name" />
+            <TeamTaskCard
+              v-for="task in column.tasks"
+              :key="task.id"
+              :blockers="openBlockers(task)"
+              :task="task"
+              :team="team.name"
+            />
           </ul>
 
           <p v-else class="team-board__empty">No tasks</p>
@@ -32,9 +38,9 @@
 </template>
 
 <script lang="ts" setup>
-  import type { Team, TeamTaskStatus } from '@agent-hub/shared'
+  import type { Team, TeamTask, TeamTaskStatus } from '@agent-hub/shared'
   import { computed } from 'vue'
-  import { memberColorVar, relativeTime } from './teamColor'
+  import { memberColorVar, relativeTime, safeId } from './teamColor'
   import TeamTaskCard from './TeamTaskCard.vue'
 
   const props = defineProps<{ team: Team, now: number }>()
@@ -43,10 +49,19 @@
     ['pending', 'Pending'],
     ['in_progress', 'In progress'],
     ['completed', 'Completed'],
+    ['unknown', 'Unknown'],
   ]
 
-  const headingId = computed(() => `team-${props.team.name}`)
-  const columns = computed(() => LABELS.map(([status, label]) => ({
+  const headingId = computed(() => `team-${safeId(props.team.name)}`)
+  const hasUnknown = computed(() => props.team.tasks.some(task => task.status === 'unknown'))
+  const completed = computed(() => new Set(props.team.tasks.filter(task => task.status === 'completed').map(task => task.id)))
+
+  /** Blocker ids that are not completed (unknown ids count as open). */
+  function openBlockers (task: TeamTask) {
+    return task.blockedBy.filter(id => !completed.value.has(id))
+  }
+
+  const columns = computed(() => LABELS.filter(([status]) => status !== 'unknown' || hasUnknown.value).map(([status, label]) => ({
     status,
     label,
     tasks: props.team.tasks.filter(task => task.status === status),
