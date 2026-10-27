@@ -11,7 +11,7 @@ pnpm install
 pnpm dev
 ```
 
-The app is served at `http://localhost:7337`.
+The UI is served at `http://localhost:3000` (Vite dev server). Port `7337` is the server port used by the installed app.
 
 ## Branch and PR Flow
 

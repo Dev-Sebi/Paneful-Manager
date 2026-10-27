@@ -15,5 +15,5 @@ tabs:
   - name: single
     layout: single
     panes:
-      - cwd: ~/git/project1
+      - cwd: ~/git/project2
         command: claude

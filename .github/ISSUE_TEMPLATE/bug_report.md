@@ -23,6 +23,8 @@ A clear description of the problem.
 - WSL version:
 - Node.js version:
 - pnpm version:
+- Claude Code version (`claude --version`):
+- tmux version (`tmux -V`):
 - Browser:
 - Agent Hub commit or version:
 

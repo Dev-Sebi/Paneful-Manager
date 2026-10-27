@@ -21,13 +21,13 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:7337` in your browser.
+Open `http://localhost:3000` in your browser (Vite dev server).
 
 ## Requirements
 
 - WSL2 with systemd enabled
-- Node.js 22
-- pnpm
+- Node.js 22 or later
+- pnpm 11 or later
 - tmux
 - git
 - Claude Code CLI
@@ -36,13 +36,13 @@ Open `http://localhost:7337` in your browser.
 
 - App config: `~/.config/agent-hub/config.yaml`
 - Workspace presets: `~/.config/agent-hub/workspaces/*.yaml`
-- Server port: `AGENT_HUB_PORT` (default `7337`)
+- Server port: `port` in `config.yaml` (default `7337`); the env var `AGENT_HUB_PORT` overrides it
 
 Example files are in `examples/`.
 
 ## Documentation
 
-- [Architecture](docs/architecture.md)
+- [Architecture](docs/architecture.md) (in progress)
 - [Contributing](CONTRIBUTING.md)
 
 ## License

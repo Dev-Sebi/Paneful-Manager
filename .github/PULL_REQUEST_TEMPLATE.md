@@ -12,6 +12,6 @@
 
 ## Checklist
 
-- [ ] `pnpm lint`, `pnpm typecheck` and `pnpm test` pass
+- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm build` pass
 - [ ] No new dependencies, or the reason is stated above
 - [ ] Docs updated where behavior or configuration changed
