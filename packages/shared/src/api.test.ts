@@ -11,6 +11,7 @@ import {
   ListSessionsResponseSchema,
   PatchConfigResponseSchema,
   PresetParamsSchema,
+  ScopesResponseSchema,
   isZodError,
   toValidationError,
   UpsertPresetRequestSchema,
@@ -123,5 +124,18 @@ describe('isZodError', () => {
     const result = z.string().safeParse(1)
     expect(!result.success && isZodError(result.error)).toBe(true)
     expect(isZodError(new Error('x'))).toBe(false)
+  })
+})
+
+describe('scopes API', () => {
+  it('parses all scope kinds and rejects unknown keys', () => {
+    roundTrip(ScopesResponseSchema, {
+      scopes: [
+        { kind: 'global', path: '~/.claude' },
+        { kind: 'project', path: '/p' },
+        { kind: 'worktree', path: '/p-wt', branch: 'feat', projectPath: '/p' },
+      ],
+    })
+    expect(ScopesResponseSchema.safeParse({ scopes: [], extra: 1 }).success).toBe(false)
   })
 })
