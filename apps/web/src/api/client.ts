@@ -7,6 +7,7 @@ import {
   HealthResponseSchema,
   ListPresetsResponseSchema,
   ListSessionsResponseSchema,
+  ListTeamsResponseSchema,
   PatchConfigResponseSchema,
   ScopesResponseSchema,
   SESSION_TOKEN_HEADER,
@@ -100,5 +101,6 @@ export const api = {
   listSessions: () => fetchJson(API_ROUTES.sessions, { schema: ListSessionsResponseSchema }),
   createSession: (request: CreateSessionRequestInput) =>
     fetchJson(API_ROUTES.sessions, { schema: CreateSessionResponseSchema, method: 'POST', body: request }),
+  listTeams: () => fetchJson(API_ROUTES.teams, { schema: ListTeamsResponseSchema }),
   listPresets: () => fetchJson(API_ROUTES.presets, { schema: ListPresetsResponseSchema }),
 }
