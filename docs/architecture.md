@@ -295,15 +295,15 @@ stateDiagram-v2
 
     state running {
         [*] --> idle
-        idle --> working: SessionStart / UserPromptSubmit
+        idle --> working: UserPromptSubmit
         working --> working: PreToolUse / PostToolUse / PostToolUseFailure
-        working --> waiting: PermissionRequest / Notification(permission_prompt, idle_prompt, elicitation_dialog)
-        idle --> waiting: Notification(idle_prompt)
-        waiting --> working: PostToolUse / UserPromptSubmit
-        working --> idle: Stop / SubagentStop / SessionEnd
-        waiting --> idle: Stop
+        working --> waiting: PermissionRequest / Notification(permission_prompt, elicitation_dialog, elicitation_url_dialog)
+        waiting --> working: PreToolUse / PostToolUse / UserPromptSubmit
+        working --> idle: Stop / SessionEnd / Notification(idle_prompt)
+        waiting --> idle: Stop / SessionEnd / Notification(idle_prompt)
         working --> error: StopFailure
         error --> working: UserPromptSubmit
+        error --> idle: SessionEnd
     }
 ```
 
@@ -321,7 +321,7 @@ Claude Code supports `http` hooks that POST the hook input JSON (`Content-Type: 
 }
 ```
 
-The `Notification` group carries `"matcher": "permission_prompt|idle_prompt|elicitation_dialog"` (exact match), all other groups have no matcher. Installing is explicit (`POST /api/hooks/install`, later a Settings toggle) and idempotent; `POST /api/hooks/uninstall` removes only these handlers; both back up the previous file first (see [File-write policy](#file-write-policy)). `GET /api/hooks/status` reports `installed`, `portMatches`, `installedEvents` and `statusAvailable` with `reasons`.
+The `Notification` group carries `"matcher": "permission_prompt|elicitation_dialog|elicitation_url_dialog|idle_prompt"` (exact match), all other groups have no matcher. `SessionStart` is not installed: it supports only `command` and `mcp_tool` hooks, not `http`. `SubagentStop` is not installed either, since a subagent finishing says nothing about the main agent. Install removes Agent Hub entries from any event that is no longer in the list. Installing is explicit (`POST /api/hooks/install`, later a Settings toggle) and idempotent; `POST /api/hooks/uninstall` removes only these handlers; both back up the previous file first (see [File-write policy](#file-write-policy)). `GET /api/hooks/status` reports `installed`, `portMatches`, `installedEvents` and `statusAvailable` with `reasons`.
 
 New sessions get `AGENT_HUB_SESSION_ID`, `AGENT_HUB_HOOK_TOKEN` and `AGENT_HUB_URL` through `tmux new-session -e`. Re-adopted sessions keep the environment they were started with; sessions started before the hook token existed, or whose server port changed, report nothing until they are restarted. Claude sessions not started by Agent Hub resolve both headers to empty strings and get `204`; they change nothing.
 
@@ -329,21 +329,22 @@ New sessions get `AGENT_HUB_SESSION_ID`, `AGENT_HUB_HOOK_TOKEN` and `AGENT_HUB_U
 
 | Hook event (matcher) | New `state` | Verified |
 | --- | --- | --- |
-| `SessionStart` | `working` | event yes; mapping per T26 brief, see ADR 0007 |
 | `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure` | `working` | events yes |
 | `PermissionRequest` | `waiting` | event yes |
-| `Notification` (`permission_prompt`, `idle_prompt`, `elicitation_dialog`) | `waiting` | matcher values and `notification_type` input field yes |
-| `Stop`, `SubagentStop` | `idle` | events yes |
+| `Notification` (`permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog`) | `waiting` | matcher values and `notification_type` input field yes |
+| `Notification` (`idle_prompt`) | `idle` | matcher value yes |
+| `Stop` | `idle` | event yes |
 | `StopFailure` | `error` | event yes |
 | `SessionEnd` | `idle`, plus an early exit poll (`engine.poll()`) | event yes |
-| all others | no change | - |
+| `SessionStart`, `SubagentStop` and all others | no change (not installed) | `SessionStart` has no `http` support: yes |
 
 `mapHookEvent` in `packages/shared/src/hooks.ts` is the single source of this table. Each accepted hook for a `starting` or `running` session sets `lastEventAt` (a hook can arrive before `tmux new-session` returns); only a changed `state` also sets `stateSince`, persists the record and broadcasts a `state` frame (so `lastEventAt` on disk may lag). Events for `exited` sessions are ignored.
 
-These Claude Code settings can disable status reporting; `GET /api/hooks/status` checks the user settings file plus `/etc/claude-code/managed-settings.json` and `managed-settings.d/*.json` and lists every hit: `disableAllHooks: true`, `allowManagedHooksOnly: true` (managed only), `allowedHttpHookUrls` without a pattern matching the hook URL (`*` wildcard, lists merged), `httpHookAllowedEnvVars` without both variables. Project settings depend on the session directory and are not checked.
+These Claude Code settings can disable status reporting; `GET /api/hooks/status` checks the user settings file plus `/etc/claude-code/managed-settings.json` and `managed-settings.d/*.json` (hidden drop-ins skipped) and lists every hit: `disableAllHooks: true`, `allowManagedHooksOnly: true` (managed only), `allowedHttpHookUrls` without a pattern matching the hook URL (`*` wildcard, matched case-sensitively, lists merged), `httpHookAllowedEnvVars` without both variables. An unreadable or invalid user or managed file is reported as `settings_invalid`. Project settings depend on the session directory and are not checked.
 
 Verified in the Claude Code hooks and settings references (2026-10-27):
 
+- `SessionStart` and `Setup` support only `command` and `mcp_tool` hooks.
 - `http` handler fields `url`, `headers` (`$VAR` / `${VAR}` interpolation), `allowedEnvVars` (unlisted variables become empty strings), `timeout` (seconds; default 600), the event names and `Notification` matcher values used above.
 - Non-2xx, connection failure and timeout are non-blocking errors; an empty 2xx is success.
 - Settings files are strict JSON; a value the schema rejects is a Settings Error for the whole file, so Agent Hub adds no marker keys to handlers.
