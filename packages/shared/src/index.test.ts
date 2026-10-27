@@ -19,6 +19,8 @@ describe('index', () => {
       'ServerMessageSchema',
       'FileEntrySchema',
       'FileChangedMessageSchema',
+      'TeamChangedMessageSchema',
+      'ListTeamsResponseSchema',
     ]) {
       expect(shared).toHaveProperty(name)
     }

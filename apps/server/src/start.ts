@@ -13,6 +13,7 @@ import { expandHome } from './paths.js'
 import { discoverScopes } from './scopes/discover.js'
 import { assertLoopbackAddress } from './security/origin.js'
 import { SessionEngine } from './sessions/engine.js'
+import { resolveClaudeDir } from './teams/reader.js'
 import type { Tmux } from './tmux/tmux.js'
 
 /** Backups live in `<stateDir>/backups` (see the file-write policy). */
@@ -56,7 +57,16 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
   const mcp = createMcpService({ getScopes, env, backupDir, logger })
-  const app = buildApp({ config, logger, files, engine, worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) }, mcp, configStore: store })
+  const app = buildApp({
+    config,
+    logger,
+    files,
+    engine,
+    worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) },
+    mcp,
+    configStore: store,
+    teams: { claudeDir: resolveClaudeDir(env) },
+  })
   try {
     await app.listen({ host: BIND_HOST, port: config.port })
   } catch (error) {

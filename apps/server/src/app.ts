@@ -26,8 +26,10 @@ import { createSessionToken } from './security/token.js'
 import { authorizeUpgrade } from './security/upgrade.js'
 import type { SessionEngine } from './sessions/engine.js'
 import { registerSessions } from './sessions/routes.js'
+import { registerTeams } from './teams/routes.js'
+import { createTeamsService } from './teams/service.js'
 import { registerWorktrees, type WorktreeDeps } from './worktrees/routes.js'
-import { registerWs } from './ws/plugin.js'
+import { registerWs, type WsHub } from './ws/plugin.js'
 
 export const BODY_LIMIT_BYTES = 1024 * 1024
 
@@ -50,6 +52,8 @@ export interface BuildAppOptions {
   worktrees?: Omit<WorktreeDeps, 'run'> & Partial<Pick<WorktreeDeps, 'run'>>
   /** MCP config service; the MCP routes are only registered when it is given. */
   mcp?: McpService
+  /** Agent teams board; its route is only registered when `claudeDir` is given and reads nothing while the flag is off. */
+  teams?: { claudeDir: string }
 }
 
 function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): void {
@@ -99,7 +103,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, engine, files, worktrees, mcp, configStore }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, engine, files, worktrees, mcp, configStore, teams }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -124,9 +128,10 @@ export function buildApp({ config, logger, sessionToken, dev, engine, files, wor
     app.addHook('onClose', async () => files.close())
   }
   // Registered after registerSecurity: its onRequest hook guards these routes, and /ws uses the same checks.
+  let hub: WsHub | undefined
   if (engine !== undefined) {
     registerSessions(app, { engine })
-    registerWs(app, { engine, authorizeUpgrade: request => authorizeUpgrade(request, { port: getPort(), token, dev: isDev }) })
+    hub = registerWs(app, { engine, authorizeUpgrade: request => authorizeUpgrade(request, { port: getPort(), token, dev: isDev }) })
     app.addHook('onClose', async () => {
       await engine.close()
     })
@@ -136,6 +141,18 @@ export function buildApp({ config, logger, sessionToken, dev, engine, files, wor
   }
   if (mcp) {
     registerMcp(app, { service: mcp })
+  }
+  if (teams) {
+    const service = createTeamsService({
+      claudeDir: teams.claudeDir,
+      getConfig: store.get,
+      onConfigChange: listener => store.onChange(listener),
+      logger,
+      broadcast: message => hub?.broadcast(message),
+    })
+    registerTeams(app, { service })
+    app.addHook('onClose', async () => service.close())
+    app.addHook('onReady', async () => service.sync())
   }
   return app
 }

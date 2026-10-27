@@ -24,6 +24,7 @@ export const API_ROUTES = {
   worktreeCopyApply: `${API_PREFIX}/worktrees/copy`,
   worktreeDiff: `${API_PREFIX}/worktrees/diff`,
   mcp: `${API_PREFIX}/mcp`,
+  teams: `${API_PREFIX}/teams`,
 } as const
 
 // Security
