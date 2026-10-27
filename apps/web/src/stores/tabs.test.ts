@@ -49,7 +49,15 @@ describe('tabs store', () => {
     expect(store.activeId).toBeNull()
   })
 
-  it('falls back to the first tab when the persisted active id is unknown', () => {
+  it('drops only the invalid tabs of a persisted list', () => {
+    const invalid = { id: 'x', title: 't', layout: { kind: 'single' }, panes: [] }
+    localStorage.setItem(TABS_STORAGE_KEY, JSON.stringify({ tabs: [makeTab('a'), invalid, makeTab('b')], activeId: 'x' }))
+    const store = freshStore()
+    expect(store.tabs.map(tab => tab.id)).toEqual(['a', 'b'])
+    expect(store.activeId).toBe('a')
+  })
+
+    it('falls back to the first tab when the persisted active id is unknown', () => {
     localStorage.setItem(TABS_STORAGE_KEY, JSON.stringify({ tabs: [makeTab('a')], activeId: 'gone' }))
     expect(freshStore().activeId).toBe('a')
   })

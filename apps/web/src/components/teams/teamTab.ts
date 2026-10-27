@@ -1,5 +1,6 @@
 import type { AppPane, AppTab, Layout, LayoutNode, Team, TeamMember, TeamMemberUnlinkedReason } from '@agent-hub/shared'
 import { isTeamLead, MAX_PANES_PER_TAB } from '@agent-hub/shared'
+import { TEAM_TAB_PREFIX } from '@/stores/tabs'
 import { safeId } from './teamColor'
 
 /** Team member shown in a pane header. */
@@ -90,7 +91,7 @@ export interface TeamTabResult {
 }
 
 export function teamTabId (team: string): string {
-  return `team-${safeId(team)}`
+  return `${TEAM_TAB_PREFIX}${safeId(team)}`
 }
 
 /**

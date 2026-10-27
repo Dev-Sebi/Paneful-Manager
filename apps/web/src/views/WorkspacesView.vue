@@ -1,18 +1,18 @@
 <template>
   <div class="workspaces">
-    <template v-if="tabs.tabs.length > 0">
+    <template v-if="visibleTabs.length > 0">
       <AhTabs
         ariaLabel="Workspace tabs"
         closable
-        :model-value="tabs.activeId ?? undefined"
+        :model-value="shownActiveId"
         reorderable
         @add="ui.notify('New tab is not available yet')"
         @close="closing.closeTab"
-        @reorder="({ from, to }) => tabs.move(from, to)"
+        @reorder="reorder"
         @update:model-value="select"
       >
         <AhTab
-          v-for="tab in tabs.tabs"
+          v-for="tab in visibleTabs"
           :key="tab.id"
           :dirty="tabs.dirty[tab.id]"
           :status="tabState(tab)"
@@ -33,7 +33,7 @@
         </template>
       </AhTabs>
 
-      <AhTabPanel v-for="tab in tabs.tabs" :key="tab.id" class="workspaces__panel" :value="tab.id">
+      <AhTabPanel v-for="tab in visibleTabs" :key="tab.id" class="workspaces__panel" :value="tab.id">
         <AhSplitLayout
           :ref="el => setLayoutRef(tab.id, el)"
           class="workspaces__layout"
@@ -58,7 +58,7 @@
                 :connection="sessions.byId.get(pane.sessionId)?.lifecycle === 'exited' ? 'exited' : 'connecting'"
                 :cwd="sessions.byId.get(pane.sessionId)?.cwd"
                 :exit-code="sessions.byId.get(pane.sessionId)?.exitCode"
-                :focused="tab.id === tabs.activeId"
+                :focused="tab.id === shownActiveId"
                 :maximized="maximized === pane.sessionId"
                 :member="paneMember(pane.sessionId)"
                 :session-id="pane.sessionId"
@@ -168,7 +168,7 @@
   import { useConfigStore } from '@/stores/config'
   import { useLayoutSizesStore } from '@/stores/layoutSizes'
   import { useSessionsStore } from '@/stores/sessions'
-  import { useTabsStore } from '@/stores/tabs'
+  import { isTeamTab, useTabsStore } from '@/stores/tabs'
   import { useTeamsStore } from '@/stores/teams'
   import { useUiStore } from '@/stores/ui'
 
@@ -188,7 +188,23 @@
   const createCwd = ref('~/')
   const createCommand = ref(DEFAULT_COMMAND)
 
-  const activeTab = computed(() => tabs.tabs.find(tab => tab.id === tabs.activeId))
+  /** Team tabs stay hidden (not removed) while `experimental.agentTeams` is off. */
+  const hideTeamTabs = computed(() => config.loaded && !config.agentTeams)
+  const visibleTabs = computed(() => hideTeamTabs.value ? tabs.tabs.filter(tab => !isTeamTab(tab.id)) : tabs.tabs)
+  const shownActiveId = computed(() => visibleTabs.value.some(tab => tab.id === tabs.activeId)
+    ? (tabs.activeId ?? undefined)
+    : visibleTabs.value[0]?.id)
+  const activeTab = computed(() => visibleTabs.value.find(tab => tab.id === shownActiveId.value))
+
+  /** `from`/`to` index the visible tabs; the store moves within all tabs. */
+  function reorder ({ from, to }: { from: number, to: number }) {
+    const ids = tabs.tabs.map(tab => tab.id)
+    const source = visibleTabs.value[from]
+    const target = visibleTabs.value[to]
+    if (source && target) {
+      tabs.move(ids.indexOf(source.id), ids.indexOf(target.id))
+    }
+  }
   const layoutRefs = new Map<string, AhSplitLayoutExpose>()
   const paneRefs = new Map<string, AhTerminalPaneExpose>()
 
@@ -221,12 +237,12 @@
   }
 
   function resetLayout () {
-    if (tabs.activeId) {
-      layoutRefs.get(tabs.activeId)?.resetSizes()
+    if (shownActiveId.value) {
+      layoutRefs.get(shownActiveId.value)?.resetSizes()
     }
   }
 
-  watch(() => tabs.activeId, () => nextTick(refit))
+  watch(shownActiveId, () => nextTick(refit))
   watch(() => tabs.tabs.map(tab => tab.id), ids => layoutSizes.prune(ids))
 
   const canCreate = computed(() => createCwd.value.trim() !== '' && createCommand.value.trim() !== '')
@@ -301,13 +317,13 @@
 
   // Keeps the URL and the store in agreement: the URL wins when it names a tab, otherwise the active tab is shown.
   watch(
-    () => [route.params.tabId, tabs.activeId, tabs.tabs.length] as const,
+    () => [route.params.tabId, shownActiveId.value, visibleTabs.value.length] as const,
     ([param, active]) => {
       if (route.name !== 'workspaces' && route.name !== 'workspace-tab') {
         return
       }
       const tabId = typeof param === 'string' ? param : undefined
-      if (tabId && tabs.tabs.some(tab => tab.id === tabId)) {
+      if (tabId && visibleTabs.value.some(tab => tab.id === tabId)) {
         tabs.activate(tabId)
       } else if (active) {
         void router.replace(`/workspaces/${active}`)

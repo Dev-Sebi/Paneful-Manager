@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { api, ApiClientError } from '@/api/client'
 import { useConfigStore } from '@/stores/config'
 import { useSessionsStore } from '@/stores/sessions'
-import { useTabsStore } from '@/stores/tabs'
+import { isTeamTab, useTabsStore } from '@/stores/tabs'
 import { useUiStore } from '@/stores/ui'
 
 /**
@@ -22,9 +22,14 @@ export function useCloseTab () {
 
   const pendingSessions = computed(() => (pendingTabId.value ? liveSessions(pendingTabId.value) : []))
 
+  /** Sessions the tab owns: team tabs own none, other tabs only those no other tab shows. */
   function tabSessions (tabId: string): Session[] {
     const tab = tabs.tabs.find(item => item.id === tabId)
-    return (tab?.panes ?? []).flatMap(pane => (pane.sessionId === undefined ? [] : sessions.byId.get(pane.sessionId) ?? []))
+    if (!tab || isTeamTab(tabId)) {
+      return []
+    }
+    const elsewhere = new Set(tabs.tabs.filter(item => item.id !== tabId).flatMap(item => item.panes.map(pane => pane.sessionId)))
+    return tab.panes.flatMap(pane => (pane.sessionId === undefined || elsewhere.has(pane.sessionId) ? [] : sessions.byId.get(pane.sessionId) ?? []))
   }
 
   function liveSessions (tabId: string): Session[] {

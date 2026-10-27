@@ -17,7 +17,7 @@
 
       <span v-if="member" class="ah-terminal-pane__member" :title="memberTooltip">
         <span class="ah-terminal-pane__member-name">{{ member.name }}</span>
-        <AhStatusBadge :label="member.role" size="sm" :state="status ?? 'idle'" />
+        <AhStatusBadge :label="member.role" size="sm" state="idle" />
         <span v-if="member.others?.length" class="ah-terminal-pane__member-more">+{{ member.others.length }}</span>
       </span>
 

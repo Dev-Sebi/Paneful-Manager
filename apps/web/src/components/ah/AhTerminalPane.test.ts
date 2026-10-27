@@ -114,7 +114,7 @@ describe('AhTerminalPane', () => {
     const wrapper = mountPane({ status: 'waiting', member: { name: 'tester', role: 'Lead', others: ['dev', 'qa'] } })
     const member = wrapper.get('.ah-terminal-pane__member')
     expect(member.text()).toContain('tester')
-    expect(member.get('.ah-status-badge--label.ah-status-badge--waiting').text()).toBe('Lead')
+    expect(member.get('.ah-status-badge--label.ah-status-badge--idle').text()).toBe('Lead')
     expect(member.text()).toContain('+2')
     expect(member.attributes('title')).toBe('Same tmux window: dev, qa')
   })
