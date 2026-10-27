@@ -1,0 +1,19 @@
+# Example workspace preset with two tabs. Copy to ~/.config/agent-hub/workspaces/ and adapt.
+name: two-projects
+tabs:
+  - name: grid
+    layout: grid-2x2
+    panes:
+      - cwd: ~/git/project1
+        command: claude
+      - cwd: ~/git/project1
+        command: claude
+      - cwd: ~/git/project1
+        command: claude
+      - cwd: ~/git/project1
+        command: claude
+  - name: single
+    layout: single
+    panes:
+      - cwd: ~/git/project1
+        command: claude
