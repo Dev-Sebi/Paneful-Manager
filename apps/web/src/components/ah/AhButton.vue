@@ -35,7 +35,7 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhButtonEmits, AhButtonProps } from './types'
+  import type { AhButtonEmits, AhButtonProps, AhButtonSlots } from './types'
   import { computed, watchEffect } from 'vue'
 
   const props = withDefaults(defineProps<AhButtonProps>(), {
@@ -54,6 +54,8 @@
   })
 
   const emit = defineEmits<AhButtonEmits>()
+
+  defineSlots<AhButtonSlots>()
 
   const classes = computed(() => [
     'ah-button',
@@ -153,23 +155,23 @@
   border-radius: var(--ah-radius-full);
 }
 
-.ah-button--sm { --ah-button-height: 24px; --ah-button-padding: var(--ah-space-2); --ah-button-gap: var(--ah-space-1); font-size: var(--ah-font-size-sm); }
-.ah-button--lg { --ah-button-height: 32px; --ah-button-padding: var(--ah-space-4); }
+.v-btn.ah-button--sm { --ah-button-height: 24px; --ah-button-padding: var(--ah-space-2); --ah-button-gap: var(--ah-space-1); font-size: var(--ah-font-size-sm); }
+.v-btn.ah-button--lg { --ah-button-height: 32px; --ah-button-padding: var(--ah-space-4); }
 
-.ah-button--icon { width: var(--ah-button-height); padding: 0; }
+.v-btn.ah-button--icon { width: var(--ah-button-height); padding: 0; }
 
-.ah-button--primary {
+.v-btn.ah-button--primary {
   --ah-button-bg: var(--ah-color-accent-default);
   --ah-button-bg-hover: var(--ah-color-accent-hover);
   --ah-button-fg: var(--ah-color-fg-on-accent);
 }
 
-.ah-button--secondary {
+.v-btn.ah-button--secondary {
   --ah-button-bg: var(--ah-color-bg-elevated);
   --ah-button-border: var(--ah-color-border-default);
 }
 
-.ah-button--danger {
+.v-btn.ah-button--danger {
   --ah-button-bg: var(--ah-color-danger-default);
   --ah-button-bg-hover: var(--ah-color-danger-hover);
   --ah-button-fg: var(--ah-color-fg-on-danger);

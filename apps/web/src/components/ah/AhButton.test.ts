@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-import { flushPromises } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mountWithVuetify } from '@/test/mount'
 import AhButton from './AhButton.vue'
 
+enableAutoUnmount(afterEach)
+
 afterEach(() => {
   vi.restoreAllMocks()
-  document.body.innerHTML = ''
 })
 
 describe('AhButton', () => {

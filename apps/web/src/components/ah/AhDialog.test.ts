@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { flushPromises } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mountWithVuetify } from '@/test/mount'
 import AhDialog from './AhDialog.vue'
@@ -22,11 +22,19 @@ function key (target: Element, init: KeyboardEventInit) {
   target.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }))
 }
 
-afterEach(() => {
-  document.body.innerHTML = ''
-})
+enableAutoUnmount(afterEach)
 
 describe('AhDialog', () => {
+  it('does not move focus when mounted closed', async () => {
+    const outside = document.createElement('button')
+    document.body.append(outside)
+    outside.focus()
+    open({ modelValue: false })
+    await flushPromises()
+    expect(document.activeElement).toBe(outside)
+    outside.remove()
+  })
+
   it('labels the dialog by its title', async () => {
     open()
     await flushPromises()

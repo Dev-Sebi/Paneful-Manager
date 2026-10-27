@@ -54,7 +54,7 @@
 
       <AhButton
         v-if="closable && !persistent"
-        aria-label="Close"
+        ariaLabel="Close"
         class="ah-dialog__close"
         icon="mdi-close"
         size="sm"
@@ -67,7 +67,7 @@
 
 <script lang="ts" setup>
   /* eslint-disable vue/custom-event-name-casing -- v-model event name is fixed by Vue */
-  import type { AhDialogCloseReason, AhDialogEmits, AhDialogProps } from './types'
+  import type { AhDialogCloseReason, AhDialogEmits, AhDialogProps, AhDialogSlots } from './types'
   import { Comment, nextTick, onUpdated, ref, Text, useId, useSlots, watch } from 'vue'
   import AhButton from './AhButton.vue'
 
@@ -86,6 +86,7 @@
   })
 
   const emit = defineEmits<AhDialogEmits>()
+  defineSlots<AhDialogSlots>()
   const slots = useSlots()
 
   const id = useId()
@@ -98,6 +99,7 @@
   const shaking = ref(false)
   const overflowing = ref(false)
   let opener: HTMLElement | null = null
+  let wasOpen = false
 
   const transition = {
     enterActiveClass: 'animate__animated animate__fadeInDown ah-dialog--enter',
@@ -149,9 +151,12 @@
       focusInitial()
     } else {
       blocked.value = false
-      await nextTick()
-      restoreFocus()
+      if (wasOpen) {
+        await nextTick()
+        restoreFocus()
+      }
     }
+    wasOpen = open
   }
 
   watch(() => props.modelValue, open => {

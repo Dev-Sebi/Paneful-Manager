@@ -10,6 +10,7 @@
       ref="triggerRef"
       :aria-controls="`${TABPANEL_ID_PREFIX}${value}`"
       :aria-disabled="disabled ? 'true' : undefined"
+      :aria-keyshortcuts="isClosable ? 'Delete' : undefined"
       :aria-label="accessibleName"
       :aria-selected="active ? 'true' : 'false'"
       class="ah-tab__trigger"
@@ -34,7 +35,7 @@
 
       <button
         v-if="isClosable"
-        :aria-label="`Close ${title}`"
+        aria-hidden="true"
         class="ah-tab__close"
         tabindex="-1"
         type="button"
@@ -47,11 +48,11 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhTabEmits, AhTabProps } from './types'
-  import { computed, inject, nextTick, onBeforeUnmount, ref, watchEffect } from 'vue'
+  import type { AhTabEmits, AhTabProps, AhTabSlots } from './types'
+  import { computed, inject, onBeforeUnmount, ref, watchEffect } from 'vue'
   import AhStatusBadge from './AhStatusBadge.vue'
   import { STATUS_LABELS } from './statusLabels'
-  import { AH_TABS_KEY, selectedTabs, TAB_ID_PREFIX, TABPANEL_ID_PREFIX } from './tabState'
+  import { AH_TABS_KEY, claimTabValue, selectedTabs, TAB_ID_PREFIX, TABPANEL_ID_PREFIX } from './tabState'
 
   const props = withDefaults(defineProps<AhTabProps>(), {
     status: undefined,
@@ -63,12 +64,15 @@
 
   const emit = defineEmits<AhTabEmits>()
 
+  defineSlots<AhTabSlots>()
+
   const triggerRef = ref<HTMLButtonElement>()
   const ctx = inject(AH_TABS_KEY)
   if (!ctx) {
     throw new Error('[AhTab] must be rendered inside AhTabs.')
   }
   const tabs = ctx
+  const releaseValue = claimTabValue(props.value)
   const animateOpen = tabs.ready.value
 
   const active = computed(() => tabs.activeValue.value === props.value)
@@ -119,6 +123,10 @@
   })
 
   onBeforeUnmount(() => {
+    if (triggerRef.value && triggerRef.value === document.activeElement) {
+      tabs.removed(triggerRef.value)
+    }
+    releaseValue()
     tabs.registry.delete(props.value)
     selectedTabs.delete(props.value)
   })
@@ -129,28 +137,12 @@
     }
   }
 
-  /** Tab that takes over focus when this one closes: next, else previous. */
-  function neighbour (): HTMLElement | undefined {
-    const own = triggerRef.value
-    const all = Array.from(own?.closest('[role="tablist"]')?.querySelectorAll<HTMLElement>('[role="tab"]:not([aria-disabled="true"])') ?? [])
-    const index = own ? all.indexOf(own) : -1
-    return all[index + 1] ?? all[index - 1]
-  }
-
   function requestClose () {
     if (!isClosable.value) {
       return
     }
-    const next = neighbour()
-    const hadFocus = document.activeElement === triggerRef.value
     emit('close', props.value)
     tabs.close(props.value, props.title)
-    if (next && hadFocus) {
-      if (active.value) {
-        tabs.select(next.id.slice(TAB_ID_PREFIX.length))
-      }
-      void nextTick(() => next.focus())
-    }
   }
 </script>
 
@@ -208,7 +200,7 @@
   cursor: not-allowed;
 }
 
-.ah-tab:focus-within {
+.ah-tab:has(:focus-visible) {
   outline: 2px solid var(--ah-color-border-focus);
   outline-offset: -2px;
 }
@@ -281,8 +273,8 @@
 
 .ah-tab--dirty:not(:hover):not(:focus-within) .ah-tab__close { pointer-events: none; }
 
-.ah-tab:hover .ah-tab__dirty,
-.ah-tab:focus-within .ah-tab__dirty { opacity: 0; }
+.ah-tab--closable:hover .ah-tab__dirty,
+.ah-tab--closable:focus-within .ah-tab__dirty { opacity: 0; }
 
 .ah-tab__close:hover { background: var(--ah-color-bg-selected); }
 </style>

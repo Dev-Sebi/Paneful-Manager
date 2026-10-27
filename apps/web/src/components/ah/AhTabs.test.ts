@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 // @vitest-environment jsdom
 import { defineComponent, ref } from 'vue'
+import { enableAutoUnmount } from '@vue/test-utils'
 import { mountWithVuetify } from '@/test/mount'
 import AhTab from './AhTab.vue'
 import AhTabPanel from './AhTabPanel.vue'
@@ -27,9 +28,7 @@ const Harness = defineComponent({
   `,
 })
 
-afterEach(() => {
-  document.body.innerHTML = ''
-})
+enableAutoUnmount(afterEach)
 
 function tab (wrapper: ReturnType<typeof mountWithVuetify>, value: string) {
   return wrapper.get(`#ah-tab-${value}`)
@@ -96,7 +95,8 @@ describe('AhTabs', () => {
     const wrapper = mountWithVuetify(Harness, { props: { closable: true } })
     const close = wrapper.get('li button.ah-tab__close')
     expect(close.attributes('tabindex')).toBe('-1')
-    expect(close.attributes('aria-label')).toBe('Close Tab a')
+    expect(close.attributes('aria-hidden')).toBe('true')
+    expect(tab(wrapper, 'a').attributes('aria-keyshortcuts')).toBe('Delete')
     expect(tab(wrapper, 'a').find('button').exists()).toBe(false)
   })
 

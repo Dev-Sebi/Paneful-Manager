@@ -20,7 +20,7 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhStatusBadgeEmits, AhStatusBadgeProps } from './types'
+  import type { AhStatusBadgeEmits, AhStatusBadgeProps, AhStatusBadgeSlots } from './types'
   import { computed, ref, watch } from 'vue'
   import { STATUS_LABELS } from './statusLabels'
 
@@ -32,6 +32,8 @@
   })
 
   const emit = defineEmits<AhStatusBadgeEmits>()
+
+  defineSlots<AhStatusBadgeSlots>()
 
   const pulsing = ref(false)
   const announcement = ref('')

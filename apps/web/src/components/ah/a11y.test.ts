@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { flushPromises } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import { axe } from 'vitest-axe'
 import { defineComponent, h } from 'vue'
@@ -11,9 +11,7 @@ import AhTab from './AhTab.vue'
 import AhTabPanel from './AhTabPanel.vue'
 import AhTabs from './AhTabs.vue'
 
-afterEach(() => {
-  document.body.innerHTML = ''
-})
+enableAutoUnmount(afterEach)
 
 async function violations (container: Element, extraOff: string[] = []) {
   const rules = Object.fromEntries(['region', ...extraOff].map(id => [id, { enabled: false }]))
@@ -53,8 +51,7 @@ describe('axe, default state', () => {
         h(AhTabPanel, { value: 'b' }, () => 'Panel b'),
       ]),
     }))
-    // The spec places the close button next to the tab inside the tablist; axe flags non-tab children there.
-    expect(await violations(wrapper.element, ['aria-required-children'])).toEqual([])
+    expect(await violations(wrapper.element)).toEqual([])
   })
 
   it('AhDialog', async () => {

@@ -13,13 +13,15 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhTabPanelProps } from './types'
+  import type { AhTabPanelProps, AhTabPanelSlots } from './types'
   import { computed, onMounted, onUpdated, ref } from 'vue'
   import { selectedTabs, TAB_ID_PREFIX, TABPANEL_ID_PREFIX } from './tabState'
 
   const FOCUSABLE = 'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
 
   const props = withDefaults(defineProps<AhTabPanelProps>(), { keepAlive: true })
+
+  defineSlots<AhTabPanelSlots>()
 
   const panelRef = ref<HTMLElement>()
   const hasFocusable = ref(false)

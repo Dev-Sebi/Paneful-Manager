@@ -10,7 +10,7 @@
         <AhButton v-for="variant in variants" :key="variant" :size="size" :variant="variant">{{ variant }} {{ size }}</AhButton>
         <AhButton prepend-icon="mdi-plus" :size="size">Prepend</AhButton>
         <AhButton append-icon="mdi-chevron-down" :size="size">Append</AhButton>
-        <AhButton aria-label="Add" icon="mdi-plus" :size="size" variant="ghost" />
+        <AhButton ariaLabel="Add" icon="mdi-plus" :size="size" variant="ghost" />
       </div>
 
       <div class="ah-home__row">
@@ -40,8 +40,7 @@
 
       <AhTabs
         v-model="active"
-        v-bind="{ ariaLabel: 'Demo sessions' }"
-        aria-label="Demo sessions"
+        ariaLabel="Demo sessions"
         closable
         reorderable
         @add="addTab"

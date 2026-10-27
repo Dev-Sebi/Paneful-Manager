@@ -14,7 +14,7 @@
     <div v-if="addable || $slots.append" class="ah-tabs__append">
       <AhButton
         v-if="addable"
-        aria-label="New tab"
+        ariaLabel="New tab"
         icon="mdi-plus"
         size="sm"
         variant="ghost"
@@ -31,7 +31,7 @@
 <script lang="ts" setup>
   /* eslint-disable vue/custom-event-name-casing -- v-model event name is fixed by Vue */
   import type { AhTabsContext } from './tabState'
-  import type { AhTabsEmits, AhTabsProps } from './types'
+  import type { AhTabsEmits, AhTabsProps, AhTabsSlots } from './types'
   import { nextTick, onMounted, provide, reactive, ref, toRef } from 'vue'
   import AhButton from './AhButton.vue'
   import { AH_TABS_KEY, TAB_ID_PREFIX } from './tabState'
@@ -46,6 +46,8 @@
 
   const emit = defineEmits<AhTabsEmits>()
 
+  defineSlots<AhTabsSlots>()
+
   const listRef = ref<HTMLUListElement>()
   const announcement = ref('')
   const ready = ref(false)
@@ -55,6 +57,14 @@
     closable: toRef(props, 'closable'),
     ready,
     registry: reactive(new Map<string, boolean>()),
+    removed: el => {
+      const tabs = tabElements(true)
+      const index = tabs.indexOf(el)
+      const next = tabs[index + 1] ?? tabs[index - 1]
+      if (next && next !== el) {
+        void nextTick(() => next.focus())
+      }
+    },
     select: value => emit('update:modelValue', value),
     close: (value, title) => {
       emit('close', value)
