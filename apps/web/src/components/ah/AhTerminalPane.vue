@@ -14,6 +14,13 @@
     <header v-if="!hideHeader" ref="headerRef" class="ah-terminal-pane__header">
       <AhStatusBadge v-if="status" announce :state="status" variant="dot" />
       <span class="ah-terminal-pane__title">{{ title }}</span>
+
+      <span v-if="member" class="ah-terminal-pane__member" :title="memberTooltip">
+        <span class="ah-terminal-pane__member-name">{{ member.name }}</span>
+        <AhStatusBadge :label="member.role" size="sm" state="idle" />
+        <span v-if="member.others?.length" class="ah-terminal-pane__member-more">+{{ member.others.length }}</span>
+      </span>
+
       <span v-if="cwd" class="ah-terminal-pane__cwd" :title="cwd"><bdi>{{ cwd }}</bdi></span>
       <span v-else class="ah-terminal-pane__spacer" />
       <span v-if="readonly" class="ah-terminal-pane__readonly">Read-only</span>
@@ -122,6 +129,7 @@
     scrollback: 10_000,
     readonly: false,
     hideHeader: false,
+    member: undefined,
   })
 
   const emit = defineEmits<AhTerminalPaneEmits>()
@@ -148,6 +156,10 @@
     return binding.value?.connection.value ?? 'connecting'
   })
   const shownExitCode = computed(() => props.exitCode ?? liveExitCode.value)
+  const memberTooltip = computed(() => {
+    const others = props.member?.others ?? []
+    return others.length > 0 ? `Same tmux window: ${others.join(', ')}` : undefined
+  })
 
   const motionQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : undefined
   const reducedMotion = ref(motionQuery?.matches ?? false)
@@ -408,6 +420,24 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+.ah-terminal-pane__member {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ah-space-1);
+  max-width: 30%;
+  min-width: 0;
+}
+
+.ah-terminal-pane__member-name {
+  overflow: hidden;
+  color: var(--ah-color-fg-primary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ah-terminal-pane__member-more { color: var(--ah-color-fg-muted); }
 
 /* rtl + bdi truncates from the start while the path itself keeps its order. */
 .ah-terminal-pane__cwd {

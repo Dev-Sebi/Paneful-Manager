@@ -43,6 +43,25 @@ describe('useCloseTab', () => {
     expect(killSession).not.toHaveBeenCalled()
   })
 
+  it('keeps sessions another tab still shows and never kills from a team tab', async () => {
+    const { tabs, sessions, flow } = setup()
+    sessions.upsert(makeSession('s-only-team'))
+    tabs.add({
+      id: 'team-alpha',
+      title: 'alpha',
+      layout: { kind: 'row' },
+      panes: [{ sessionId: 's-a' }, { sessionId: 's-only-team' }, { placeholder: { title: 'dev', reason: 'No pane' } }],
+    })
+    await flow.closeTab('team-alpha')
+    expect(killSession).not.toHaveBeenCalled()
+    expect(tabs.tabs.map(tab => tab.id)).toEqual(['a'])
+    tabs.add({ id: 'b', title: 'b', layout: { kind: 'single' }, panes: [{ sessionId: 's-a' }] })
+    await flow.closeTab('a')
+    expect(killSession).not.toHaveBeenCalled()
+    expect(sessions.byId.has('s-a')).toBe(true)
+    expect(tabs.tabs.map(tab => tab.id)).toEqual(['b'])
+  })
+
   it('kills exited sessions without asking', async () => {
     const { tabs, sessions, flow } = setup()
     sessions.upsert(makeSession('s-a', { lifecycle: 'exited' }))

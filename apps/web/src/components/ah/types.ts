@@ -235,6 +235,15 @@ export type AhTerminalSplitDirection = 'horizontal' | 'vertical'
 
 export type AhTerminalCursorStyle = 'block' | 'bar' | 'underline'
 
+/** Agent-team member running in the pane. */
+export interface AhTerminalPaneMember {
+  name: string
+  /** Shown as a label badge, e.g. 'Lead' or the agent type. */
+  role: string
+  /** Other members whose panes share this tmux window. */
+  others?: string[]
+}
+
 export interface AhTerminalPaneProps {
   /** Backend session id the pane attaches to. */
   sessionId: string
@@ -264,6 +273,8 @@ export interface AhTerminalPaneProps {
   readonly?: boolean
   /** Hides the header (single-pane focus mode). @default false */
   hideHeader?: boolean
+  /** Team member linked to the session; shows name and role badge in the header. */
+  member?: AhTerminalPaneMember
 }
 
 export interface AhTerminalResizePayload {

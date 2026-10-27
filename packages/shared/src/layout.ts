@@ -98,11 +98,23 @@ export function paneListSchema<T extends z.ZodType>(pane: T) {
     .max(MAX_PANES_PER_TAB, `a tab holds at most ${MAX_PANES_PER_TAB} panes`)
 }
 
-/** Runtime pane: a reference to a live session plus its size. */
-export const AppPaneSchema = z.strictObject({
-  sessionId: z.string().min(1),
-  size: PaneSizeSchema.optional(),
+/** Empty pane with a message, e.g. a team member without a session of its own. */
+export const PanePlaceholderSchema = z.strictObject({
+  title: z.string().min(1),
+  reason: z.string().min(1),
 })
+export type PanePlaceholder = z.infer<typeof PanePlaceholderSchema>
+
+/** Runtime pane: a reference to a live session, or a placeholder, plus its size. */
+export const AppPaneSchema = z
+  .strictObject({
+    sessionId: z.string().min(1).optional(),
+    placeholder: PanePlaceholderSchema.optional(),
+    size: PaneSizeSchema.optional(),
+  })
+  .refine(pane => (pane.sessionId === undefined) !== (pane.placeholder === undefined), {
+    message: 'a pane needs either a sessionId or a placeholder',
+  })
 export type AppPane = z.infer<typeof AppPaneSchema>
 
 /** A tab in the running app, holding 1-6 session panes. */

@@ -4,6 +4,7 @@ import {
   idFromTmuxName,
   type RunFn,
   paneTarget,
+  parsePaneList,
   parseSessionList,
   sessionTarget,
   Tmux,
@@ -40,6 +41,22 @@ describe('targets and names', () => {
 
   it('removes TMUX variables from the environment', () => {
     expect(tmuxEnv({ TMUX: '/tmp/x,1,0', TMUX_PANE: '%1', HOME: '/home/dev' })).toEqual({ HOME: '/home/dev' })
+  })
+})
+
+describe('parsePaneList', () => {
+  it('maps panes to ah- session ids and drops malformed lines', () => {
+    const stdout = ['%1\tah-a1', '%2\tscratch', 'garbage', '%x\tah-a2', '%3\t', '%5\tah-a5\textra', ''].join('\n')
+    expect(parsePaneList(stdout)).toEqual([
+      { paneId: '%1', sessionName: 'ah-a1', sessionId: 'a1' },
+      { paneId: '%2', sessionName: 'scratch', sessionId: undefined },
+    ])
+  })
+
+  it('lists panes of all sessions on the agent-hub socket', async () => {
+    const { run, calls } = fakeRun(() => '%4\tah-b1\n')
+    expect(await new Tmux({ run }).listPanes()).toEqual([{ paneId: '%4', sessionName: 'ah-b1', sessionId: 'b1' }])
+    expect(calls[0]).toEqual(['-N', '-L', 'agent-hub', 'list-panes', '-a', '-F', '#{pane_id}\t#{session_name}'])
   })
 })
 

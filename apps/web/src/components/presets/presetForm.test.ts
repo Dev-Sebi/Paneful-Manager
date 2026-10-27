@@ -43,11 +43,12 @@ describe('preset form', () => {
     expect(preset.tabs[0]?.panes[0]).toEqual({ cwd: '/a', command: 'claude', args: ['--one', '--two'] })
   })
 
-  it('builds a form from open tabs and skips tabs with unknown sessions', () => {
+  it('builds a form from open tabs and skips tabs with unknown sessions or placeholders', () => {
     const sessions = new Map([['s1', makeSession('s1', { cwd: '/w', command: 'sh', args: ['-l'], title: 'Shell' })]])
     const form = tabsToForm([
       { id: 't1', title: 'one', layout: { kind: 'single' }, panes: [{ sessionId: 's1', size: 3 }] },
       { id: 't2', title: 'two', layout: { kind: 'single' }, panes: [{ sessionId: 'gone' }] },
+      { id: 'team-x', title: 'x', layout: { kind: 'row' }, panes: [{ sessionId: 's1' }, { placeholder: { title: 'dev', reason: 'No pane' } }] },
     ], sessions)
     expect(form.tabs).toHaveLength(1)
     expect(form.tabs[0]?.panes[0]).toEqual({ cwd: '/w', command: 'sh', args: '-l', title: 'Shell', extra: { size: 3 } })

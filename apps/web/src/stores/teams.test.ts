@@ -38,6 +38,18 @@ describe('teams store', () => {
     expect(store.teams).toHaveLength(1)
   })
 
+  it('maps linked sessions to members only while enabled', async () => {
+    const team = makeTeam()
+    team.members = [{ name: 'lead', agentType: 'team-lead', link: { status: 'linked', sessionId: 's1', via: 'lead-window' } }]
+    listTeams.mockResolvedValueOnce({ enabled: true, teams: [team], warnings: [] })
+    const store = useTeamsStore()
+    await store.load()
+    expect(store.bySession.get('s1')).toMatchObject({ name: 'lead', role: 'Lead' })
+    listTeams.mockResolvedValueOnce({ enabled: false, teams: [team], warnings: [] })
+    await store.load()
+    expect(store.bySession.size).toBe(0)
+  })
+
   it('keeps the last data and reports an error when a reload fails', async () => {
     listTeams.mockResolvedValueOnce({ enabled: true, teams: [makeTeam()], warnings: [] })
     const store = useTeamsStore()
