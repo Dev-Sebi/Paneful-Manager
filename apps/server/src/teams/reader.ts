@@ -81,7 +81,7 @@ async function readJson(path: string, label: string): Promise<JsonFile | string 
 }
 
 async function readTasks(dir: string, name: string, warnings: string[]): Promise<{ tasks: TeamTask[], newest: number }> {
-  let names: string[] = []
+  let names: string[]
   try {
     names = (await readdir(dir, { withFileTypes: true }))
       .filter(entry => !entry.name.startsWith('.') && entry.name.endsWith('.json'))

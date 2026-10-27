@@ -2,12 +2,14 @@
   <section :aria-labelledby="headingId" class="team-board">
     <header class="team-board__header">
       <h2 :id="headingId" class="team-board__title">{{ team.name }}</h2>
+
       <ul aria-label="Members" class="team-board__members">
         <li v-for="member in team.members" :key="member.name" class="team-board__member" :title="member.agentType">
           <span aria-hidden="true" class="team-board__dot" :style="{ background: memberColorVar(member.name) }" />
           {{ member.name }}
         </li>
       </ul>
+
       <span class="team-board__updated">Updated {{ relativeTime(team.lastUpdated, now) }}</span>
     </header>
 
@@ -17,9 +19,11 @@
           <h3 :id="`${headingId}-${column.status}`" class="team-board__column-title">
             {{ column.label }} <span class="team-board__count">{{ column.tasks.length }}</span>
           </h3>
+
           <ul v-if="column.tasks.length > 0" class="team-board__list">
             <TeamTaskCard v-for="task in column.tasks" :key="task.id" :task="task" :team="team.name" />
           </ul>
+
           <p v-else class="team-board__empty">No tasks</p>
         </section>
       </v-col>

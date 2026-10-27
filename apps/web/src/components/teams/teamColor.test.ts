@@ -11,7 +11,7 @@ describe('memberColorVar', () => {
   })
 
   it('spreads different names over several tokens', () => {
-    const used = new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map(memberColorIndex))
+    const used = new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map(name => memberColorIndex(name)))
     expect(used.size).toBeGreaterThan(2)
   })
 })

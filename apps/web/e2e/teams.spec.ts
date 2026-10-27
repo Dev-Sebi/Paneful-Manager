@@ -1,8 +1,10 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
 
-const config = (agentTeams: boolean) => ({
-  config: { port: 7337, experimental: { agentTeams }, confirmCloseTab: true, projects: [], logLevel: 'info', theme: 'dark' },
-})
+function config (agentTeams: boolean) {
+  return {
+    config: { port: 7337, experimental: { agentTeams }, confirmCloseTab: true, projects: [], logLevel: 'info', theme: 'dark' },
+  }
+}
 
 const NOW = new Date().toISOString()
 

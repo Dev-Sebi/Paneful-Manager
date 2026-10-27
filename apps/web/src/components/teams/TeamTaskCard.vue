@@ -12,6 +12,7 @@
         <span aria-hidden="true" class="task-card__dot" :style="{ background: memberColorVar(task.owner) }" />
         {{ task.owner }}
       </span>
+
       <span v-if="task.blocked" class="task-card__blocked">Blocked by {{ blockers }}</span>
     </div>
 
@@ -25,6 +26,7 @@
       >
         {{ open ? 'Hide description' : 'Show description' }}
       </button>
+
       <p v-show="open" :id="descriptionId" class="task-card__description">{{ task.description }}</p>
     </template>
   </li>

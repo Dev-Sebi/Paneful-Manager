@@ -17,6 +17,7 @@
 
     <div v-if="store.warnings.length > 0" class="teams-view__warnings" role="alert">
       <p class="teams-view__warnings-title">Some files were skipped</p>
+
       <ul>
         <li v-for="warning in store.warnings" :key="warning">{{ warning }}</li>
       </ul>
