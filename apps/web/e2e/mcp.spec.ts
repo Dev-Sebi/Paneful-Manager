@@ -74,7 +74,7 @@ test('lists servers per scope with transport and source', async ({ page }) => {
 test('adds a stdio server', async ({ page }) => {
   const requests = await mockMcp(page)
   await page.goto('/mcp')
-  await page.getByRole('button', { name: 'Add server' }).click()
+  await page.getByRole('button', { name: 'Add server', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Name').fill('local-tool')
   await dialog.getByLabel('Command').fill('node')
@@ -96,7 +96,7 @@ test('adds a stdio server', async ({ page }) => {
 test('adds an http server with a header', async ({ page }) => {
   const requests = await mockMcp(page)
   await page.goto('/mcp')
-  await page.getByRole('button', { name: 'Add server' }).click()
+  await page.getByRole('button', { name: 'Add server', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Name').fill('remote')
   await dialog.getByRole('radio', { name: 'http' }).check()
@@ -130,6 +130,32 @@ test('editing keeps a masked header', async ({ page }) => {
   })
 })
 
+test('edit dialog focuses the first editable field and closes on Escape', async ({ page }) => {
+  await mockMcp(page)
+  await page.goto('/mcp')
+  await page.getByRole('navigation', { name: 'MCP servers' }).getByRole('button', { name: /docs/ }).click()
+  await page.getByRole('button', { name: 'Edit' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByLabel('URL')).toBeFocused()
+  await expect(dialog.getByLabel('Name')).toHaveAttribute('readonly', '')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+})
+
+test('adds a server from a project section with the scope preselected and selects it', async ({ page }) => {
+  const requests = await mockMcp(page)
+  await page.goto('/mcp')
+  await page.getByRole('button', { name: 'Add server to app Local (private)' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByLabel('Project')).toBeVisible()
+  await dialog.getByLabel('Name').fill('scoped')
+  await dialog.getByLabel('Command').fill('node')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(dialog).toBeHidden()
+  expect(requests[0]).toMatchObject({ name: 'scoped', scope: { kind: 'local', projectPath: PROJECT } })
+  await expect(page.getByRole('article', { name: 'Server scoped' })).toBeVisible()
+})
+
 test('removes a server after confirmation', async ({ page }) => {
   const requests = await mockMcp(page)
   await page.goto('/mcp')
@@ -142,13 +168,14 @@ test('removes a server after confirmation', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Remove' }).click()
   await expect(dialog).toBeHidden()
   await expect(tree.getByRole('button', { name: /docs/ })).toHaveCount(0)
+  await expect(tree.getByRole('button', { name: /files/ })).toBeFocused()
   expect(requests[0]).toEqual({ name: 'docs', scope: { kind: 'project', projectPath: PROJECT } })
 })
 
 test('rejects a reserved name inline', async ({ page }) => {
   const requests = await mockMcp(page)
   await page.goto('/mcp')
-  await page.getByRole('button', { name: 'Add server' }).click()
+  await page.getByRole('button', { name: 'Add server', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Name').fill('computer-use')
   await dialog.getByLabel('Command').fill('node')
@@ -160,7 +187,7 @@ test('rejects a reserved name inline', async ({ page }) => {
 test('shows a server conflict inline', async ({ page }) => {
   await mockMcp(page, { status: 409, message: 'Config file changed on disk' })
   await page.goto('/mcp')
-  await page.getByRole('button', { name: 'Add server' }).click()
+  await page.getByRole('button', { name: 'Add server', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('Name').fill('x')
   await dialog.getByLabel('Command').fill('node')

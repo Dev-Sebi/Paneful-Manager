@@ -2,49 +2,69 @@
   <AhDialog
     v-model="open"
     confirm-text="Save"
+    :initial-focus="initialFocus"
     :loading="saving"
     size="lg"
     :title="form.mode === 'edit' ? `Edit ${form.name}` : 'Add MCP server'"
     @after-leave="reset"
     @confirm="submit"
   >
-    <form class="mcp-form" novalidate @submit.prevent="submit">
+    <form class="mcp-form" data-1p-ignore novalidate @submit.prevent="submit">
       <v-text-field
+        id="mcp-name"
         v-model="form.name"
         autocomplete="off"
         density="compact"
-        :disabled="form.mode === 'edit'"
         :error-messages="errors.name"
         hide-details="auto"
         label="Name"
+        :readonly="locked"
         variant="outlined"
       />
 
       <v-select
         v-model="form.scopeKind"
         density="compact"
-        :disabled="form.mode === 'edit'"
         hide-details="auto"
         item-title="title"
         item-value="value"
         :items="scopeItems"
         label="Scope"
+        :readonly="locked"
+        variant="outlined"
+      />
+
+      <v-select
+        v-if="form.scopeKind !== 'user'"
+        v-model="form.projectPath"
+        density="compact"
+        hide-details="auto"
+        :items="projects"
+        label="Project"
+        :readonly="locked"
         variant="outlined"
       />
 
       <v-radio-group
-        v-model="form.transport"
+        v-model="transportModel"
         density="compact"
-        :disabled="form.mode === 'edit'"
         hide-details="auto"
         inline
         label="Transport"
+        :readonly="locked"
       >
         <v-radio v-for="item in TRANSPORTS" :key="item" :label="item" :value="item" />
       </v-radio-group>
 
+      <div v-if="pendingTransport" class="mcp-form__confirm" role="alert">
+        <span>Switching the transport drops the {{ rowsLabel.toLowerCase() }} you entered.</span>
+        <AhButton size="sm" variant="danger" @click="confirmTransport">Switch</AhButton>
+        <AhButton size="sm" @click="pendingTransport = undefined">Keep</AhButton>
+      </div>
+
       <template v-if="form.transport === 'stdio'">
         <v-text-field
+          id="mcp-command"
           v-model="form.command"
           autocomplete="off"
           density="compact"
@@ -68,6 +88,7 @@
 
       <v-text-field
         v-else
+        id="mcp-url"
         v-model="form.url"
         autocomplete="off"
         density="compact"
@@ -86,15 +107,15 @@
             :aria-label="`${rowsLabel} key`"
             autocomplete="off"
             density="compact"
-            :disabled="row.masked"
             hide-details="auto"
             placeholder="Key"
+            :readonly="row.masked"
             variant="outlined"
           />
 
           <v-text-field
             v-model="row.value"
-            :append-inner-icon="revealed.has(row.id) ? 'mdi-eye-off' : 'mdi-eye'"
+            :append-inner-icon="isPlain(row) ? undefined : (revealed.has(row.id) ? 'mdi-eye-off' : 'mdi-eye')"
             :aria-label="`${row.key || 'New'} value`"
             autocomplete="new-password"
             density="compact"
@@ -102,17 +123,18 @@
             :error-messages="errors.rows[row.id]"
             hide-details="auto"
             :placeholder="row.masked ? 'unchanged, leave empty to keep' : 'Value'"
-            :type="revealed.has(row.id) ? 'text' : 'password'"
+            :type="isPlain(row) || revealed.has(row.id) ? 'text' : 'password'"
             variant="outlined"
             @click:append-inner="toggleReveal(row.id)"
           />
 
           <v-checkbox
             v-if="row.masked"
-            v-model="row.clear"
             density="compact"
             hide-details
             :label="`Clear ${row.key}`"
+            :model-value="row.clear"
+            @update:model-value="setClear(row, Boolean($event))"
           />
 
           <AhButton
@@ -134,12 +156,14 @@
 </template>
 
 <script lang="ts" setup>
-  import type { McpScope, McpServerEntryMasked } from '@agent-hub/shared'
+  import type { KvRow } from './mcpForm'
+  import type { McpScope, McpServerEntryMasked, McpTransport } from '@agent-hub/shared'
+  import { MCP_PLAIN_KEYS } from '@agent-hub/shared'
   import { computed, reactive, ref, watch } from 'vue'
   import { ApiClientError } from '@/api/client'
   import { AhButton, AhDialog } from '@/components/ah'
   import { useMcpStore } from '@/stores/mcp'
-  import { buildRequest, emptyForm, formFromEntry, hasErrors, newRow, validateForm } from './mcpForm'
+  import { buildRequest, emptyForm, errorsFromApi, formFromEntry, hasErrors, newRow, validateForm } from './mcpForm'
 
   const TRANSPORTS = ['stdio', 'http', 'sse'] as const
 
@@ -147,14 +171,16 @@
   const props = defineProps<{
     /** Server to edit; add mode when absent. */
     entry?: McpServerEntryMasked
-    /** Project or worktree path that project and local scopes apply to. */
+    /** Project or worktree path preselected for project and local scopes. */
     projectPath?: string
+    /** Paths offered in the project picker. */
+    projects?: string[]
     /** Scope preselected in add mode. */
     scope?: McpScope
   }>()
 
   const emit = defineEmits<{
-    saved: []
+    saved: [target: { name: string, scope: McpScope }]
   }>()
 
   const mcp = useMcpStore()
@@ -163,9 +189,18 @@
   const submitted = ref(false)
   const serverError = ref<string>()
   const revealed = ref(new Set<number>())
+  const pendingTransport = ref<McpTransport>()
+  const apiErrors = ref<ReturnType<typeof errorsFromApi>>()
 
   const errors = computed(() => {
     const result = validateForm(form)
+    const api = apiErrors.value
+    if (api) {
+      result.name ??= api.name
+      result.command ??= api.command
+      result.url ??= api.url
+      Object.assign(result.rows, Object.fromEntries(form.rows.filter(row => api.keys[row.key]).map(row => [row.id, api.keys[row.key]])))
+    }
     if (!submitted.value) {
       const live = (message?: string) => (message?.endsWith('is required') ? undefined : message)
       return { name: live(result.name), url: live(result.url), rows: {} }
@@ -175,9 +210,51 @@
 
   const rowsLabel = computed(() => (form.transport === 'stdio' ? 'Environment variables' : 'Headers'))
 
+  const locked = computed(() => form.mode === 'edit')
+  const projects = computed(() => props.projects ?? [])
+  const initialFocus = computed(() => {
+    if (form.mode === 'add') {
+      return '#mcp-name'
+    }
+    return form.transport === 'stdio' ? '#mcp-command' : '#mcp-url'
+  })
+
+  const transportModel = computed<McpTransport>({
+    get: () => form.transport,
+    set (value) {
+      if (value === form.transport) {
+        return
+      }
+      if (form.rows.some(row => row.key !== '' || row.value !== '')) {
+        pendingTransport.value = value
+      } else {
+        form.transport = value
+      }
+    },
+  })
+
+  function confirmTransport () {
+    if (pendingTransport.value) {
+      form.transport = pendingTransport.value
+      form.rows = []
+      pendingTransport.value = undefined
+    }
+  }
+
+  function isPlain (row: KvRow) {
+    return !row.masked && (MCP_PLAIN_KEYS as readonly string[]).includes(row.key)
+  }
+
+  function setClear (row: KvRow, clear: boolean) {
+    row.clear = clear
+    if (clear) {
+      row.value = ''
+    }
+  }
+
   const scopeItems = computed(() => {
     const items = [{ title: 'User (all projects)', value: 'user' }]
-    if (form.projectPath) {
+    if (projects.value.length > 0 || form.projectPath) {
       items.push(
         { title: 'Project (.mcp.json, shared)', value: 'project' },
         { title: 'Local (private)', value: 'local' },
@@ -202,6 +279,8 @@
     submitted.value = false
     serverError.value = undefined
     revealed.value = new Set()
+    pendingTransport.value = undefined
+    apiErrors.value = undefined
     if (props.entry) {
       Object.assign(form, formFromEntry(props.entry))
     } else {
@@ -216,6 +295,8 @@
     revealed.value = new Set()
     serverError.value = undefined
     submitted.value = false
+    pendingTransport.value = undefined
+    apiErrors.value = undefined
   }
 
   watch(open, isOpen => {
@@ -224,9 +305,9 @@
     }
   }, { immediate: true })
 
-  watch(() => form.transport, () => {
-    if (form.mode === 'add') {
-      form.rows = []
+  watch(() => form.scopeKind, kind => {
+    if (kind !== 'user' && !form.projectPath) {
+      form.projectPath = projects.value[0] ?? ''
     }
   })
 
@@ -237,15 +318,20 @@
       return
     }
     saving.value = true
+    apiErrors.value = undefined
     try {
-      await mcp.upsert(buildRequest(form))
+      const request = buildRequest(form)
+      await mcp.upsert(request)
       for (const row of form.rows) {
         row.value = ''
       }
       open.value = false
-      emit('saved')
+      emit('saved', { name: request.name, scope: request.scope })
     } catch (error) {
-      serverError.value = error instanceof ApiClientError || error instanceof Error ? error.message : 'Could not save the server'
+      serverError.value = error instanceof Error ? error.message : 'Could not save the server'
+      if (error instanceof ApiClientError && error.code === 'validation_failed') {
+        apiErrors.value = errorsFromApi(error.details)
+      }
     } finally {
       saving.value = false
     }
@@ -283,6 +369,14 @@
   gap: var(--ah-space-2);
   align-items: start;
   width: 100%;
+}
+
+.mcp-form__confirm {
+  display: flex;
+  gap: var(--ah-space-2);
+  align-items: center;
+  color: var(--ah-color-fg-muted);
+  font-size: var(--ah-font-size-sm);
 }
 
 .mcp-form__error {

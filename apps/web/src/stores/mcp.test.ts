@@ -2,7 +2,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeMcpEntry } from '@/test/fixtures'
-import { entryKey, useMcpStore } from './mcp'
+import { entryKey, normalizePath, useMcpStore } from './mcp'
 import { useScopesStore } from './scopes'
 
 const mcpApi = vi.hoisted(() => ({ list: vi.fn(), upsert: vi.fn(), remove: vi.fn() }))
@@ -91,5 +91,16 @@ describe('mcp store', () => {
 
   it('builds distinct entry keys per scope', () => {
     expect(entryKey(makeMcpEntry('a'))).not.toBe(entryKey(makeMcpEntry('a', { scope: { kind: 'local', projectPath: PROJECT } })))
+  })
+
+  it('treats paths with a trailing slash as the same project', async () => {
+    mcpApi.list.mockResolvedValue({ mode: 'cli', servers: [makeMcpEntry('b', { scope: { kind: 'project', projectPath: `${PROJECT}/` } })] })
+    useScopesStore().scopes = [{ kind: 'project', path: PROJECT }]
+    const store = useMcpStore()
+    await store.reload()
+    expect(store.groups).toHaveLength(2)
+    expect(store.groups[1]?.sections[0]?.servers).toHaveLength(1)
+    expect(normalizePath('/')).toBe('/')
+    expect(normalizePath('/a/b//')).toBe('/a/b')
   })
 })

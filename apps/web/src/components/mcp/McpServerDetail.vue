@@ -50,7 +50,17 @@
         <tbody>
           <tr v-for="row in rows" :key="row.key">
             <td><code>{{ row.key }}</code></td>
-            <td>{{ row.text }}</td>
+
+            <td>
+              <template v-if="row.hidden">
+                <span aria-hidden="true">{{ row.text }}</span>
+
+                <span class="mcp-detail__hidden">{{ row.hidden }}</span>
+              </template>
+
+              <template v-else>{{ row.text }}</template>
+            </td>
+
             <td>{{ row.status }}</td>
           </tr>
         </tbody>
@@ -77,9 +87,9 @@
     const values = config.value.transport === 'stdio' ? config.value.env : config.value.headers
     return Object.entries(values).map(([key, value]) => {
       if (typeof value === 'string') {
-        return { key, text: value, status: 'plain' }
+        return { key, text: value, hidden: undefined, status: 'plain' }
       }
-      return { key, text: '••••', status: value.set ? 'set' : 'not set' }
+      return { key, text: '••••', hidden: value.set ? 'value set, hidden' : 'no value', status: value.set ? 'set' : 'not set' }
     })
   })
 </script>
@@ -135,6 +145,15 @@
   margin: 0 0 var(--ah-space-2);
   font-size: var(--ah-font-size-md);
   font-weight: var(--ah-font-weight-semibold);
+}
+
+.mcp-detail__hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .mcp-detail__muted { color: var(--ah-color-fg-muted); }

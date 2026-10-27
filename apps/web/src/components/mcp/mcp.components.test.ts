@@ -54,7 +54,7 @@ describe('McpServerDetail', () => {
     const entry = makeMcpEntry('a', { config: { transport: 'stdio', command: 'npx', args: [], env: { API_KEY: { masked: true, set: true }, EMPTY: { masked: true, set: false } } } })
     const wrapper = mountWithVuetify(McpServerDetail, { props: { entry } })
     const rows = wrapper.findAll('tbody tr').map(row => row.findAll('td').map(cell => cell.text()))
-    expect(rows).toEqual([['API_KEY', '••••', 'set'], ['EMPTY', '••••', 'not set']])
+    expect(rows).toEqual([['API_KEY', '••••value set, hidden', 'set'], ['EMPTY', '••••no value', 'not set']])
   })
 
   it('emits edit and remove', async () => {

@@ -14,7 +14,17 @@
           :aria-label="`${group.label} ${section.label}`"
           class="mcp-tree__section"
         >
-          <h3 v-if="group.kind !== 'user'" class="mcp-tree__section-title">{{ section.label }}</h3>
+          <div v-if="group.kind !== 'user'" class="mcp-tree__section-head">
+            <h3 class="mcp-tree__section-title">{{ section.label }}</h3>
+
+            <AhButton
+              :ariaLabel="`Add server to ${group.label} ${section.label}`"
+              icon="mdi-plus"
+              size="sm"
+              variant="ghost"
+              @click="emit('add', section.scope)"
+            />
+          </div>
 
           <p v-if="section.servers.length === 0" class="mcp-tree__none">No servers</p>
 
@@ -46,7 +56,8 @@
 
 <script lang="ts" setup>
   import type { McpGroup } from '@/stores/mcp'
-  import type { McpServerEntryMasked } from '@agent-hub/shared'
+  import type { McpScope, McpServerEntryMasked } from '@agent-hub/shared'
+  import { AhButton } from '@/components/ah'
   import { entryKey } from '@/stores/mcp'
 
   defineProps<{
@@ -55,7 +66,10 @@
     selected?: string
   }>()
 
-  const emit = defineEmits<{ select: [entry: McpServerEntryMasked] }>()
+  const emit = defineEmits<{
+    add: [scope: McpScope]
+    select: [entry: McpServerEntryMasked]
+  }>()
 </script>
 
 <style scoped>
@@ -94,6 +108,12 @@
 }
 
 .mcp-tree__section { padding-left: var(--ah-space-4); }
+
+.mcp-tree__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 
 .mcp-tree__section-title {
   margin: var(--ah-space-1) 0;

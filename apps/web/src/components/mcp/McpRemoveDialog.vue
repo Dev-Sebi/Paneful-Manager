@@ -6,7 +6,7 @@
     size="sm"
     title="Remove server"
     tone="danger"
-    @after-leave="error = undefined"
+    @after-leave="onLeave"
     @confirm="confirm"
   >
     <div class="mcp-remove">
@@ -27,12 +27,18 @@
   const props = defineProps<{ entry: McpServerEntryMasked }>()
 
   const emit = defineEmits<{
-    removed: []
+    'removed': []
+    'after-leave': []
   }>()
 
   const mcp = useMcpStore()
   const removing = ref(false)
   const error = ref<string>()
+
+  function onLeave () {
+    error.value = undefined
+    emit('after-leave')
+  }
 
   async function confirm () {
     removing.value = true

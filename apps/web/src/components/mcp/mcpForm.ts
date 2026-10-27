@@ -140,9 +140,39 @@ export function buildRequest (form: McpFormState): UpsertMcpServerRequestInput {
     ? {
         transport: 'stdio',
         command: form.command.trim(),
-        args: form.argsText.split(/\r?\n/).filter(line => line !== ''),
+        args: form.argsText.split(/\r?\n/).map(line => line.trim()).filter(line => line !== ''),
         env: map,
       }
     : { transport: form.transport, url: form.url.trim(), headers: map }
   return { name: form.name, scope: toScope(form), config }
+}
+
+export interface ApiFieldErrors {
+  name?: string
+  command?: string
+  url?: string
+  keys: Record<string, string>
+}
+
+/** Maps `validation_failed` issues (`path`, `message`) onto form fields; unknown paths are ignored. */
+export function errorsFromApi (details: unknown): ApiFieldErrors {
+  const result: ApiFieldErrors = { keys: {} }
+  if (!Array.isArray(details)) {
+    return result
+  }
+  for (const issue of details as Array<{ path?: unknown, message?: unknown }>) {
+    const path = Array.isArray(issue.path) ? issue.path.map(String) : []
+    const message = typeof issue.message === 'string' ? issue.message : undefined
+    if (!message) {
+      continue
+    }
+    if (path[0] === 'name') {
+      result.name ??= message
+    } else if (path[0] === 'config' && (path[1] === 'command' || path[1] === 'url')) {
+      result[path[1]] ??= message
+    } else if (path[0] === 'config' && (path[1] === 'env' || path[1] === 'headers') && path[2]) {
+      result.keys[path[2]] ??= message
+    }
+  }
+  return result
 }

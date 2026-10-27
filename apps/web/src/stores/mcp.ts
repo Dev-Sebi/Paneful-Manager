@@ -20,8 +20,13 @@ export interface McpGroup {
   sections: McpSection[]
 }
 
+/** Strips trailing slashes so the same directory always yields the same key. */
+export function normalizePath (path: string): string {
+  return path.replace(/[/\\]+$/, '') || path
+}
+
 export function scopeKey (scope: McpScope): string {
-  return scope.kind === 'user' ? 'user' : `${scope.kind}:${scope.projectPath}`
+  return scope.kind === 'user' ? 'user' : `${scope.kind}:${normalizePath(scope.projectPath)}`
 }
 
 export function entryKey (entry: Pick<McpServerEntryMasked, 'name' | 'scope'>): string {
@@ -63,7 +68,7 @@ export const useMcpStore = defineStore('mcp', () => {
     }]
     const seen = new Set<string>()
     const projectGroup = (path: string, kind: 'project' | 'worktree', branch?: string): McpGroup => ({
-      key: `${kind}:${path}`,
+      key: `${kind}:${normalizePath(path)}`,
       kind,
       label: baseName(path),
       path,
@@ -74,14 +79,14 @@ export const useMcpStore = defineStore('mcp', () => {
       ],
     })
     for (const scope of useScopesStore().scopes) {
-      if (scope.kind !== 'global' && !seen.has(scope.path)) {
-        seen.add(scope.path)
+      if (scope.kind !== 'global' && !seen.has(normalizePath(scope.path))) {
+        seen.add(normalizePath(scope.path))
         result.push(projectGroup(scope.path, scope.kind, scope.kind === 'worktree' ? scope.branch : undefined))
       }
     }
     for (const entry of entries.value) {
-      if (entry.scope.kind !== 'user' && !seen.has(entry.scope.projectPath)) {
-        seen.add(entry.scope.projectPath)
+      if (entry.scope.kind !== 'user' && !seen.has(normalizePath(entry.scope.projectPath))) {
+        seen.add(normalizePath(entry.scope.projectPath))
         result.push(projectGroup(entry.scope.projectPath, 'project'))
       }
     }

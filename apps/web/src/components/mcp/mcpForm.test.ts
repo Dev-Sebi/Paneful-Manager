@@ -1,6 +1,7 @@
+import { UpsertMcpServerRequestSchema } from '@agent-hub/shared'
 import { describe, expect, it } from 'vitest'
 import { makeMcpEntry } from '@/test/fixtures'
-import { buildRequest, emptyForm, formFromEntry, hasErrors, nameError, newRow, urlError, validateForm } from './mcpForm'
+import { buildRequest, emptyForm, errorsFromApi, formFromEntry, hasErrors, nameError, newRow, urlError, validateForm } from './mcpForm'
 
 describe('mcp form validation', () => {
   it('accepts valid names and rejects invalid and reserved ones inline', () => {
@@ -38,7 +39,7 @@ describe('mcp form validation', () => {
 
 describe('mcp form request', () => {
   it('builds a stdio request with one argument per line', () => {
-    const form = { ...emptyForm(), name: 'a', command: ' npx ', argsText: '-y\n\nserver\n', rows: [newRow('TOKEN', 's3cret')] }
+    const form = { ...emptyForm(), name: 'a', command: ' npx ', argsText: ' -y \n\nserver\n  ', rows: [newRow('TOKEN', 's3cret')] }
     expect(buildRequest(form)).toEqual({
       name: 'a',
       scope: { kind: 'user' },
@@ -92,5 +93,27 @@ describe('mcp form request', () => {
       url: 'https://x.test',
       headers: { Authorization: { keep: true } },
     })
+  })
+})
+
+describe('mcp form contract', () => {
+  it('builds requests the shared schema accepts', () => {
+    const stdio = { ...emptyForm(), name: 'a', command: 'npx', argsText: '-y', rows: [newRow('K', 'v')] }
+    const remote = { ...emptyForm('local', '/work/app'), name: 'r', transport: 'http' as const, url: 'https://x.test', rows: [newRow('H', 'v')] }
+    const masked = formFromEntry(makeMcpEntry('m'))
+    for (const form of [stdio, remote, masked]) {
+      expect(UpsertMcpServerRequestSchema.safeParse(buildRequest(form)).success).toBe(true)
+    }
+  })
+
+  it('maps validation issues onto fields', () => {
+    const errors = errorsFromApi([
+      { path: ['name'], message: 'bad name' },
+      { path: ['config', 'url'], message: 'bad url' },
+      { path: ['config', 'headers', 'Auth'], message: 'bad header' },
+      { path: ['other'], message: 'ignored' },
+    ])
+    expect(errors).toEqual({ name: 'bad name', url: 'bad url', keys: { Auth: 'bad header' } })
+    expect(errorsFromApi(undefined)).toEqual({ keys: {} })
   })
 })
