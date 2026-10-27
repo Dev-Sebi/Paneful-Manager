@@ -4,25 +4,39 @@
 
 ![Status: early development](https://img.shields.io/badge/status-early%20development-orange)
 
-Agent Hub is a local web app for running and organizing Claude Code sessions. It runs inside WSL and gives you terminal tabs with split panes, saved workspace presets, an editor for skills and CLAUDE.md files, MCP server configuration, and experimental agent-team views.
+Agent Hub is a local web app for running and organizing Claude Code sessions. It runs inside WSL and shows the sessions as terminal tabs with split panes in the browser.
+
+<!-- screenshot: Agent Hub with a preset tab of four Claude Code panes side by side -->
 
 ## Features
 
-- Terminal tabs with split panes
-- Saved workspace presets (YAML)
+- Terminal tabs with split panes, backed by tmux sessions that survive a server restart
+- Saved workspace presets (YAML) with layouts and optional autostart
+- Session state (working, waiting, idle, error) from Claude Code hooks
 - Skills and CLAUDE.md editor for global, project and git-worktree scopes
 - MCP server configuration
-- Experimental agent-team views
+- Experimental agent-team views (off by default)
 
-## Install
+## Quick start
 
-Inside WSL2 (with systemd, Node.js 22+, tmux 3.2+):
+Inside WSL2 with systemd, Node.js 22 or later and tmux 3.2 or later (the installer adds pnpm if it is missing):
 
 ```bash
-curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/agent-hub/agent-hub/releases/latest/download/install.sh | sh
 ```
 
-Then open `http://127.0.0.1:7337/`. The installer sets up the systemd user services `agent-hub-tmux.service` and `agent-hub.service`; flags, upgrade, rollback, uninstall and troubleshooting are in the [install guide](docs/install.md).
+The installer shows a plan and asks before it changes anything. It sets up the systemd user services `agent-hub-tmux.service` and `agent-hub.service`. Then open `http://127.0.0.1:7337/` in your Windows browser.
+
+Flags, the list of changes, upgrade, rollback and uninstall are in the [install guide](docs/install.md).
+
+## Documentation
+
+- [Install guide](docs/install.md): requirements, installer flags, what changes on the system, upgrade and uninstall
+- [Configuration](docs/configuration.md): `config.yaml` keys, environment variables, file locations, preset reference
+- [Troubleshooting](docs/troubleshooting.md): symptoms, causes and fixes
+- [Architecture](docs/architecture.md): components, process model, security model, session states
+- [Documentation index](docs/README.md): all documents, including the decision records and the design system
+- [Contributing](CONTRIBUTING.md)
 
 ## Development
 
@@ -33,11 +47,11 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:3000` in your browser (Vite dev server).
+Open `http://localhost:3000` in your browser (Vite dev server). The API server listens on the configured port (default `7337`).
 
 ## Requirements
 
-- WSL2 with systemd enabled
+- WSL2 with systemd enabled (or plain Linux with systemd)
 - Node.js 22 or later
 - pnpm 11 or later
 - tmux 3.2 or later
@@ -48,15 +62,13 @@ Open `http://localhost:3000` in your browser (Vite dev server).
 
 - App config: `~/.config/agent-hub/config.yaml`
 - Workspace presets: `~/.config/agent-hub/workspaces/*.yaml`
-- Server port: `port` in `config.yaml` (default `7337`); the env var `AGENT_HUB_PORT` overrides it
+- Server port: `port` in `config.yaml` (default `7337`); the environment variable `AGENT_HUB_PORT` overrides it
 
-Example files are in `examples/`.
+Example files are in `examples/`. All keys are listed in the [configuration reference](docs/configuration.md).
 
-## Documentation
+## Experimental
 
-- [Install guide](docs/install.md)
-- [Architecture](docs/architecture.md) (in progress)
-- [Contributing](CONTRIBUTING.md)
+Agent teams are experimental. They are off by default and enabled with `experimental.agentTeams: true` in `config.yaml`. The team views only read Claude Code team and task files; launching teams from templates is not part of this version. See [Agent teams](docs/configuration.md#agent-teams-experimental).
 
 ## License
 
