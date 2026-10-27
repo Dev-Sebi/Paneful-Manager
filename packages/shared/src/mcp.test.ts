@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { API_ROUTES } from './api.js'
 import {
   ListMcpServersResponseSchema,
+  McpHealthAllRequestSchema,
   McpHealthRequestSchema,
   McpHealthResultSchema,
   McpServerConfigSchema,
@@ -71,6 +72,11 @@ describe('toMcpScope', () => {
 })
 
 describe('maskMcpEntry', () => {
+  it('carries the approval flag', () => {
+    const entry: McpServerEntry = { name: 'x', scope: { kind: 'user' }, source: 'file', config: { transport: 'stdio', command: 'x', args: [], env: {} } }
+    expect(maskMcpEntry(entry, false).approved).toBe(false)
+  })
+
   it('masks env and header values except the plain keys', () => {
     const stdio: McpServerEntry = McpServerEntrySchema.parse({
       name: 'files',
@@ -78,7 +84,7 @@ describe('maskMcpEntry', () => {
       source: 'file',
       config: { transport: 'stdio', command: 'node', env: { API_KEY: 'secret', EMPTY: '', PATH: '/bin', NODE_ENV: 'production' } },
     })
-    expect(maskMcpEntry(stdio).config).toEqual({
+    expect(maskMcpEntry(stdio, true).config).toEqual({
       transport: 'stdio',
       command: 'node',
       args: [],
@@ -90,7 +96,7 @@ describe('maskMcpEntry', () => {
       source: 'cli',
       config: { transport: 'http', url: 'https://a.example/mcp', headers: { Authorization: 'Bearer secret' } },
     })
-    expect(JSON.stringify(maskMcpEntry(http))).not.toContain('secret')
+    expect(JSON.stringify(maskMcpEntry(http, true))).not.toContain('secret')
   })
 })
 
@@ -123,6 +129,8 @@ describe('health check schemas', () => {
     const result = { name: 'x', scope: { kind: 'user' }, status: 'ok', latencyMs: 12, serverInfo: { name: 's', version: '1' }, protocolVersion: '2025-06-18' }
     expect(McpHealthResultSchema.parse(result)).toEqual(result)
     expect(API_ROUTES.mcpHealth).toBe('/api/mcp/health')
+    expect(API_ROUTES.mcpHealthAll).toBe('/api/mcp/health/all')
+    expect(McpHealthAllRequestSchema.parse({})).toEqual({})
   })
 
   it('rejects unknown statuses and over-long errors', () => {

@@ -5,6 +5,7 @@ import { buildApp } from './app.js'
 import { createBackupStore } from './files/backups.js'
 import { createFileService } from './files/service.js'
 import { assertBackupDirOutsideScopes } from './files/state-dir.js'
+import { createHealthRunner } from './mcp/health.js'
 import { createMcpService } from './mcp/service.js'
 import { expandHome } from './paths.js'
 import { discoverScopes } from './scopes/discover.js'
@@ -39,7 +40,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
   const mcp = createMcpService({ getScopes, env, backupDir, logger })
-  const app = buildApp({ config, logger, files, engine, worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) }, mcp })
+  const app = buildApp({ config, logger, files, engine, worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) }, mcp: { service: mcp, health: createHealthRunner({ logger }) } })
   try {
     await app.listen({ host: BIND_HOST, port: config.port })
   } catch (error) {

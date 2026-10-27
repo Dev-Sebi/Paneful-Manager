@@ -90,7 +90,8 @@ export const McpServerConfigMaskedSchema = z.discriminatedUnion('transport', [
 ])
 export type McpServerConfigMasked = z.infer<typeof McpServerConfigMaskedSchema>
 
-export const McpServerEntryMaskedSchema = McpServerEntrySchema.extend({ config: McpServerConfigMaskedSchema })
+/** `approved`: Claude Code runs the entry; false for a `.mcp.json` server the user has not approved (it is never health-checked). */
+export const McpServerEntryMaskedSchema = McpServerEntrySchema.extend({ config: McpServerConfigMaskedSchema, approved: z.boolean() })
 export type McpServerEntryMasked = z.infer<typeof McpServerEntryMaskedSchema>
 
 function maskMap(values: Record<string, string>): Record<string, string | McpMaskedValue> {
@@ -101,12 +102,12 @@ function maskMap(values: Record<string, string>): Record<string, string | McpMas
 }
 
 /** Replaces env and header values by `{ masked: true, set }`, except for `MCP_PLAIN_KEYS`. */
-export function maskMcpEntry(entry: McpServerEntry): McpServerEntryMasked {
+export function maskMcpEntry(entry: McpServerEntry, approved: boolean): McpServerEntryMasked {
   const { config } = entry
   const masked: McpServerConfigMasked = config.transport === 'stdio'
     ? { ...config, env: maskMap(config.env) }
     : { ...config, headers: maskMap(config.headers) }
-  return { ...entry, config: masked }
+  return { ...entry, config: masked, approved }
 }
 
 // Requests and responses
@@ -194,9 +195,9 @@ export const McpHealthResultSchema = z.strictObject({
 })
 export type McpHealthResult = z.infer<typeof McpHealthResultSchema>
 
-/** GET /api/mcp/health query; without `projectPath` every configured project and worktree is checked. */
-export const McpHealthQuerySchema = z.strictObject({ projectPath: PathSchema.optional() })
-export type McpHealthQuery = z.infer<typeof McpHealthQuerySchema>
+/** POST /api/mcp/health/all; without `projectPath` every configured project and worktree is checked. */
+export const McpHealthAllRequestSchema = z.strictObject({ projectPath: PathSchema.optional() })
+export type McpHealthAllRequest = z.infer<typeof McpHealthAllRequestSchema>
 
 export const McpHealthListResponseSchema = z.strictObject({ results: z.array(McpHealthResultSchema) })
 export type McpHealthListResponse = z.infer<typeof McpHealthListResponseSchema>

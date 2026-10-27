@@ -18,6 +18,13 @@ Agent Hub lists and edits MCP servers in Claude Code's three scopes. Claude Code
 - **Secrets:** env and header values are masked as `{ masked: true, set }` on every read path except `PATH`, `HOME`, `NODE_ENV`, `LOG_LEVEL`. On update `{ keep: true }` per key keeps the stored value. Logs carry only name, scope kind and mode; CLI error output is scrubbed of the request's secret values (raw and JSON-escaped), and an invalid JSON file is reported by error code, line and column only, never with a quote of its content. `args` and URL query strings are not masked: a secret placed there is shown in full.
 - **Unknown entry keys survive an update** (`oauth`, `timeout`, `headersHelper`, ...) as long as the transport family (stdio vs. remote) stays the same. Entries with other transports (`ws`) or names outside `[A-Za-z0-9_-]` are not listed and cannot be overwritten through Agent Hub.
 
+## Amendment: health checks run only approved servers (2026-10-27)
+
+- `POST /api/mcp/health` and `POST /api/mcp/health/all` spawn stdio servers or contact remote ones, so both are POST and need the token; no GET variant exists.
+- A `.mcp.json` server is repository-controlled code. It is checked only when Claude Code approved it (`enableAllProjectMcpServers`, `enabledMcpjsonServers`; `disabledMcpjsonServers` wins). The committed `.claude/settings.json` can only disable. Unapproved: `unsupported`, nothing is spawned, requested or expanded. `user` and `local` entries need no approval.
+- stdio env keys with a non-`^[A-Z_][A-Z0-9_]*$` name, `LD_*`, `DYLD_*`, `NODE_OPTIONS`, `BASH_ENV`, `ENV`, `PYTHONSTARTUP`, `PERL5OPT` and `RUBYOPT` are dropped before spawning.
+- Key names verified against the settings reference (scope "any file"); value types (boolean, string arrays), "disabled wins" and the `~/.claude.json` project entry as approval store are assumed.
+
 ## Verified vs. assumed
 
 Verified against `code.claude.com/docs/en/mcp`, `/settings`, `/claude-directory` and `claude mcp <cmd> --help` of Claude Code 2.1.311 (2026-10-27):

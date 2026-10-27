@@ -7,6 +7,7 @@ import {
   type McpHealthStatus,
   type McpServerEntry,
 } from '@agent-hub/shared'
+import type { BaseLogger } from 'pino'
 import { BASE_ENV_KEYS } from '../process/exec.js'
 import { scrub } from './cli.js'
 
@@ -17,15 +18,23 @@ const KILL_GRACE_MS = 1000
 const MCP_PROTOCOL_VERSION = '2025-06-18'
 const INITIALIZE_ID = 1
 
+/** An entry plus whether Claude Code approved it; unapproved entries are never run. */
+export type HealthTarget = McpServerEntry & { approved: boolean }
+
 export type HealthEnv = Record<string, string | undefined>
 
 export interface HealthOptions {
+  logger?: Pick<BaseLogger, 'warn'>
   timeoutMs?: number
   /** Source of `${VAR}` references and of the base env of stdio servers; defaults to `process.env`. */
   env?: HealthEnv
   /** Working directory of user-scope stdio servers; defaults to the home directory. */
   home?: string
 }
+
+type ResolvedOptions = Required<Omit<HealthOptions, 'logger'>> & Pick<HealthOptions, 'logger'>
+
+export const NOT_APPROVED_ERROR = 'not approved in Claude Code'
 
 interface Outcome {
   status: McpHealthStatus
@@ -106,6 +115,23 @@ function parseJson(text: string): { value: unknown } | undefined {
 
 type StdioConfig = Extract<McpServerEntry['config'], { transport: 'stdio' }>
 
+const ENV_KEY = /^[A-Z_][A-Z0-9_]*$/
+const DANGEROUS_ENV_KEY = /^(LD_|DYLD_)|^(NODE_OPTIONS|BASH_ENV|ENV|PYTHONSTARTUP|PERL5OPT|RUBYOPT)$/
+
+/** Drops keys that can inject code into the child or are not plain upper-case names. */
+export function filterEnv(values: Record<string, string>): { kept: Record<string, string>; dropped: string[] } {
+  const kept: Record<string, string> = {}
+  const dropped: string[] = []
+  for (const [key, value] of Object.entries(values)) {
+    if (ENV_KEY.test(key) && !DANGEROUS_ENV_KEY.test(key)) {
+      kept[key] = value
+    } else {
+      dropped.push(key)
+    }
+  }
+  return { kept, dropped }
+}
+
 function baseEnv(env: HealthEnv): Record<string, string> {
   return Object.fromEntries(BASE_ENV_KEYS.flatMap(key => (env[key] === undefined ? [] : [[key, env[key]]])))
 }
@@ -127,8 +153,12 @@ function terminateGroup(pid: number | undefined): void {
   setTimeout(() => signalGroup(pid, 'SIGKILL'), KILL_GRACE_MS)
 }
 
-function checkStdio(entry: McpServerEntry, config: StdioConfig, options: Required<HealthOptions>, signal: AbortSignal): Promise<Outcome> {
+function checkStdio(entry: HealthTarget, config: StdioConfig, options: ResolvedOptions, signal: AbortSignal): Promise<Outcome> {
   const { env, home } = options
+  const { kept, dropped } = filterEnv(expandMap(config.env, env))
+  if (dropped.length > 0) {
+    options.logger?.warn({ name: entry.name, keys: dropped }, 'Dropped unsafe env keys of MCP server')
+  }
   const cwd = entry.scope.kind === 'user' ? home : entry.scope.projectPath
   return new Promise(resolve => {
     let settled = false
@@ -138,7 +168,7 @@ function checkStdio(entry: McpServerEntry, config: StdioConfig, options: Require
     const child = spawn(
       expandVars(config.command, env),
       config.args.map(arg => expandVars(arg, env)),
-      { cwd, env: { ...baseEnv(env), ...expandMap(config.env, env) }, detached: true, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
+      { cwd, env: { ...baseEnv(env), ...kept }, detached: true, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
     )
     const finish = (outcome: Outcome): void => {
       if (settled) {
@@ -416,13 +446,13 @@ function redact(text: string, secrets: readonly string[]): string {
   return scrub(text, secrets).replace(/\s+/g, ' ').trim().slice(0, MCP_HEALTH_ERROR_MAX)
 }
 
-function secretsOf(entry: McpServerEntry, env: HealthEnv): string[] {
+function secretsOf(entry: HealthTarget, env: HealthEnv): string[] {
   const { config } = entry
   const values = Object.values(config.transport === 'stdio' ? config.env : config.headers)
   return [...values, ...values.map(value => expandVars(value, env))]
 }
 
-async function runCheck(entry: McpServerEntry, options: Required<HealthOptions>, signal: AbortSignal): Promise<Outcome> {
+async function runCheck(entry: HealthTarget, options: ResolvedOptions, signal: AbortSignal): Promise<Outcome> {
   const { config } = entry
   if (config.transport === 'stdio') {
     return checkStdio(entry, config, options, signal)
@@ -439,11 +469,15 @@ async function runCheck(entry: McpServerEntry, options: Required<HealthOptions>,
  * Performs the MCP `initialize` handshake against one entry and reports how it went; never throws.
  * `${VAR}` / `${VAR:-default}` in command, args, env, url and headers are expanded from `options.env`.
  */
-export async function checkMcpHealth(entry: McpServerEntry, options: HealthOptions = {}): Promise<McpHealthResult> {
-  const resolved: Required<HealthOptions> = {
+export async function checkMcpHealth(entry: HealthTarget, options: HealthOptions = {}): Promise<McpHealthResult> {
+  const resolved: ResolvedOptions = {
+    logger: options.logger,
     timeoutMs: options.timeoutMs ?? HEALTH_TIMEOUT_MS,
     env: options.env ?? process.env,
     home: options.home ?? homedir(),
+  }
+  if (!entry.approved) {
+    return { name: entry.name, scope: entry.scope, status: 'unsupported', error: NOT_APPROVED_ERROR }
   }
   const started = Date.now()
   const signal = AbortSignal.timeout(resolved.timeoutMs)
@@ -479,14 +513,14 @@ export async function checkMcpHealth(entry: McpServerEntry, options: HealthOptio
 
 export interface HealthRunnerOptions extends HealthOptions {
   maxConcurrent?: number
-  check?: (entry: McpServerEntry, options: HealthOptions) => Promise<McpHealthResult>
+  check?: (entry: HealthTarget, options: HealthOptions) => Promise<McpHealthResult>
 }
 
 export interface HealthRunner {
-  check: (entry: McpServerEntry) => Promise<McpHealthResult>
+  check: (entry: HealthTarget) => Promise<McpHealthResult>
 }
 
-const keyOf = (entry: McpServerEntry): string => JSON.stringify([entry.name, entry.scope])
+const keyOf = (entry: HealthTarget): string => JSON.stringify([entry.name, entry.scope])
 
 /** At most `maxConcurrent` checks run at once; asking again for an entry that is in flight returns the same promise. */
 export function createHealthRunner({ maxConcurrent = HEALTH_MAX_CONCURRENT, check = checkMcpHealth, ...options }: HealthRunnerOptions = {}): HealthRunner {

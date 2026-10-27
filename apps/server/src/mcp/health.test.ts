@@ -1,12 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { McpHealthResult, McpServerEntry } from '@agent-hub/shared'
+import type { McpHealthResult } from '@agent-hub/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { checkMcpHealth, createHealthRunner, expandVars } from './health.js'
+import { checkMcpHealth, createHealthRunner, expandVars, filterEnv, type HealthTarget } from './health.js'
 
 const FIXTURE = fileURLToPath(new URL('./test-fixtures/fake-mcp-stdio.mjs', import.meta.url))
 const SECRET = 'sk-health-0123456789'
@@ -21,12 +21,12 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-function stdioEntry(env: Record<string, string> = {}, scope: McpServerEntry['scope'] = { kind: 'user' }, name = 'fake'): McpServerEntry {
-  return { name, scope, source: 'file', config: { transport: 'stdio', command: process.execPath, args: [FIXTURE], env } }
+function stdioEntry(env: Record<string, string> = {}, scope: HealthTarget['scope'] = { kind: 'user' }, name = 'fake'): HealthTarget {
+  return { name, scope, source: 'file', approved: true, config: { transport: 'stdio', command: process.execPath, args: [FIXTURE], env } }
 }
 
-function remoteEntry(transport: 'http' | 'sse', url: string, headers: Record<string, string> = {}): McpServerEntry {
-  return { name: 'remote', scope: { kind: 'user' }, source: 'file', config: { transport, url, headers } }
+function remoteEntry(transport: 'http' | 'sse', url: string, headers: Record<string, string> = {}): HealthTarget {
+  return { name: 'remote', scope: { kind: 'user' }, source: 'file', approved: true, config: { transport, url, headers } }
 }
 
 const alive = (pid: number): boolean => {
@@ -57,6 +57,58 @@ describe('expandVars', () => {
   })
 })
 
+describe('unapproved entries and env filtering', () => {
+  it('neither spawns nor expands variables for an unapproved entry', async () => {
+    const marker = join(dir, 'ran.json')
+    const entry = { ...stdioEntry({ FAKE_MCP_DUMP: marker }, { kind: 'project', projectPath: dir }), approved: false }
+    const result = await checkMcpHealth(entry, { timeoutMs: 3000 })
+    expect(result).toEqual({ name: 'fake', scope: entry.scope, status: 'unsupported', error: 'not approved in Claude Code' })
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(existsSync(marker)).toBe(false)
+  })
+
+  it('does not contact an unapproved remote entry', async () => {
+    const entry = { ...remoteEntry('http', 'http://127.0.0.1:1/mcp'), approved: false }
+    expect((await checkMcpHealth(entry, { timeoutMs: 3000 })).status).toBe('unsupported')
+  })
+
+  it('filters dangerous and malformed env keys', () => {
+    const { kept, dropped } = filterEnv({
+      API_KEY: 'a',
+      _OK1: 'b',
+      LD_PRELOAD: 'x',
+      DYLD_INSERT_LIBRARIES: 'x',
+      NODE_OPTIONS: '--require x',
+      BASH_ENV: 'x',
+      ENV: 'x',
+      PYTHONSTARTUP: 'x',
+      PERL5OPT: 'x',
+      RUBYOPT: 'x',
+      lower: 'x',
+      'BAD-KEY': 'x',
+      '1START': 'x',
+    })
+    expect(Object.keys(kept)).toEqual(['API_KEY', '_OK1'])
+    expect(dropped).toEqual(['LD_PRELOAD', 'DYLD_INSERT_LIBRARIES', 'NODE_OPTIONS', 'BASH_ENV', 'ENV', 'PYTHONSTARTUP', 'PERL5OPT', 'RUBYOPT', 'lower', 'BAD-KEY', '1START'])
+  })
+
+  it('does not pass dropped keys to the child and logs their names only', async () => {
+    const dump = join(dir, 'dump.json')
+    const warnings: unknown[][] = []
+    const entry = stdioEntry({ FAKE_MCP_DUMP: dump, NODE_OPTIONS: `--title=${SECRET}`, LD_PRELOAD: '/x.so', lower: 'v', KEEP: 'yes' })
+    const result = await checkMcpHealth(entry, { timeoutMs: 5000, logger: { warn: (...args: unknown[]) => void warnings.push(args) } })
+    expect(result.status).toBe('ok')
+    const { env } = dumpOf(dump)
+    expect(env).toMatchObject({ KEEP: 'yes' })
+    expect(Object.keys(env)).not.toEqual(expect.arrayContaining(['LD_PRELOAD']))
+    expect(env.NODE_OPTIONS).toBeUndefined()
+    expect(env.lower).toBeUndefined()
+    expect(warnings).toHaveLength(1)
+    expect(JSON.stringify(warnings)).toContain('NODE_OPTIONS')
+    expect(JSON.stringify(warnings)).not.toContain(SECRET)
+  })
+})
+
 describe('stdio health check', () => {
   it('reports ok with latency, server info and protocol version', async () => {
     const result = await checkMcpHealth(stdioEntry({ FAKE_MCP_DELAY_MS: '100' }), { timeoutMs: 5000 })
@@ -73,7 +125,7 @@ describe('stdio health check', () => {
 
   it('reports error for a missing command', async () => {
     const entry = stdioEntry()
-    const missing: McpServerEntry = { ...entry, config: { transport: 'stdio', command: join(dir, 'nope'), args: [], env: {} } }
+    const missing: HealthTarget = { ...entry, config: { transport: 'stdio', command: join(dir, 'nope'), args: [], env: {} } }
     const result = await checkMcpHealth(missing, { timeoutMs: 5000 })
     expect(result.status).toBe('error')
     expect(result.error).toContain('Could not start server')

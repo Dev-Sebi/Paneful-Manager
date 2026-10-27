@@ -3,7 +3,7 @@ import {
   ListMcpServersQuerySchema,
   ListMcpServersResponseSchema,
   McpHealthListResponseSchema,
-  McpHealthQuerySchema,
+  McpHealthAllRequestSchema,
   McpHealthRequestSchema,
   McpHealthResultSchema,
   RemoveMcpServerRequestSchema,
@@ -22,13 +22,14 @@ import type { McpService } from './service.js'
 
 export interface McpDeps {
   service: McpService
-  /** Defaults to a runner with 4 concurrent checks and an 8 s timeout. */
+  /** Defaults to a runner with 4 concurrent checks and an 8 s timeout; tests inject a fake. */
   health?: HealthRunner
 }
 
 /**
  * Registers `GET /api/mcp?projectPath=`, `PUT /api/mcp` (upsert) and `DELETE /api/mcp` (body `{ name, scope }`),
- * plus `POST /api/mcp/health` (body `{ name, scope }`) and `GET /api/mcp/health?projectPath=` (all entries).
+ * plus `POST /api/mcp/health` (body `{ name, scope }`) and `POST /api/mcp/health/all` (body `{ projectPath? }`).
+ * Both spawn processes, so both are POST (token required); unapproved `.mcp.json` entries are reported `unsupported` without running.
  */
 export function registerMcp(app: FastifyInstance, { service, health = createHealthRunner() }: McpDeps): void {
   app.get(API_ROUTES.mcp, async (request): Promise<ListMcpServersResponse> => {
@@ -52,9 +53,9 @@ export function registerMcp(app: FastifyInstance, { service, health = createHeal
     return McpHealthResultSchema.parse(await health.check(await service.entry(body.name, body.scope)))
   })
 
-  app.get(API_ROUTES.mcpHealth, async (request): Promise<McpHealthListResponse> => {
-    const query = McpHealthQuerySchema.parse(request.query)
-    const entries = await service.entries(query)
+  app.post(API_ROUTES.mcpHealthAll, async (request): Promise<McpHealthListResponse> => {
+    const body = McpHealthAllRequestSchema.parse(request.body ?? {})
+    const entries = await service.entries(body)
     return McpHealthListResponseSchema.parse({ results: await Promise.all(entries.map(entry => health.check(entry))) })
   })
 }

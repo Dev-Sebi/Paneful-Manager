@@ -15,8 +15,7 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { AppError } from './errors.js'
 import { registerFiles } from './files/routes.js'
 import type { FileService } from './files/service.js'
-import { registerMcp } from './mcp/routes.js'
-import type { McpService } from './mcp/service.js'
+import { registerMcp, type McpDeps } from './mcp/routes.js'
 import { registerScopes } from './scopes/routes.js'
 import { runFile } from './scopes/run-git.js'
 import { registerSecurity } from './security/register-security.js'
@@ -44,8 +43,8 @@ export interface BuildAppOptions {
   files?: FileService
   /** Worktree helper; its routes are only registered when this is given. */
   worktrees?: Omit<WorktreeDeps, 'run'> & Partial<Pick<WorktreeDeps, 'run'>>
-  /** MCP config service; the MCP routes are only registered when it is given. */
-  mcp?: McpService
+  /** MCP config service (and optional health runner); the MCP routes are only registered when it is given. */
+  mcp?: McpDeps
 }
 
 function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): void {
@@ -129,7 +128,7 @@ export function buildApp({ config, logger, sessionToken, dev, engine, files, wor
     registerWorktrees(app, { ...worktrees, run: worktrees.run ?? runFile })
   }
   if (mcp) {
-    registerMcp(app, { service: mcp })
+    registerMcp(app, mcp)
   }
   return app
 }

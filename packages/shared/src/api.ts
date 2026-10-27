@@ -25,6 +25,7 @@ export const API_ROUTES = {
   worktreeDiff: `${API_PREFIX}/worktrees/diff`,
   mcp: `${API_PREFIX}/mcp`,
   mcpHealth: `${API_PREFIX}/mcp/health`,
+  mcpHealthAll: `${API_PREFIX}/mcp/health/all`,
 } as const
 
 // Security
