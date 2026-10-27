@@ -19,8 +19,7 @@ import { registerFiles } from './files/routes.js'
 import type { FileService } from './files/service.js'
 import type { HookSettings } from './hooks/install.js'
 import { registerHooks } from './hooks/routes.js'
-import { registerMcp } from './mcp/routes.js'
-import type { McpService } from './mcp/service.js'
+import { registerMcp, type McpDeps } from './mcp/routes.js'
 import { registerScopes } from './scopes/routes.js'
 import { runFile } from './scopes/run-git.js'
 import { registerSecurity } from './security/register-security.js'
@@ -59,8 +58,8 @@ export interface BuildAppOptions {
   configStore?: ConfigStore
   /** Worktree helper; its routes are only registered when this is given. */
   worktrees?: Omit<WorktreeDeps, 'run'> & Partial<Pick<WorktreeDeps, 'run'>>
-  /** MCP config service; the MCP routes are only registered when it is given. */
-  mcp?: McpService
+  /** MCP config service (and optional health runner); the MCP routes are only registered when it is given. */
+  mcp?: McpDeps
   /** Agent teams board; its route is only registered when `claudeDir` is given and reads nothing while the flag is off. */
   teams?: { claudeDir: string }
   /** Built web app to serve with SPA fallback; API only when omitted. */
@@ -155,7 +154,7 @@ export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], e
     registerWorktrees(app, { ...worktrees, run: worktrees.run ?? runFile })
   }
   if (mcp) {
-    registerMcp(app, { service: mcp })
+    registerMcp(app, mcp)
   }
   if (teams) {
     const service = createTeamsService({

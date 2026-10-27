@@ -10,6 +10,7 @@ import { AppError } from './errors.js'
 import { assertBackupDirOutsideScopes } from './files/state-dir.js'
 import { createHookSettings, resolveClaudeSettingsPath } from './hooks/install.js'
 import { loadHookToken } from './hooks/token.js'
+import { createHealthRunner } from './mcp/health.js'
 import { createMcpService } from './mcp/service.js'
 import { expandHome } from './paths.js'
 import { discoverScopes } from './scopes/discover.js'
@@ -74,7 +75,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     files,
     engine,
     worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) },
-    mcp,
+    mcp: { service: mcp, health: createHealthRunner({ logger }) },
     configStore: store,
     teams: { claudeDir: resolveClaudeDir(env) },
     ...(webDist === undefined ? {} : { webDist }),

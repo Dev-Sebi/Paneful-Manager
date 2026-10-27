@@ -62,6 +62,7 @@ export function makeMcpEntry (name: string, overrides: Partial<McpServerEntryMas
     name,
     scope: { kind: 'user' },
     source: 'cli',
+    approved: true,
     config: { transport: 'stdio', command: 'npx', args: ['-y', 'server'], env: { API_KEY: { masked: true, set: true }, PATH: '/usr/bin' } },
     ...overrides,
   }
