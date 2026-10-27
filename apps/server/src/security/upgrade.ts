@@ -7,6 +7,7 @@ export interface SecurityContext {
   port: number
   token: string
   dev: boolean
+  devOrigins?: readonly string[]
 }
 
 export type UpgradeDecision =
@@ -24,11 +25,11 @@ const deny = (status: 401 | 403, message: string): UpgradeDecision => ({
  * Checks a WebSocket upgrade: Host and Origin (required, browsers always send it) must be allowed,
  * and `Sec-WebSocket-Protocol` must offer `agent-hub.v1` plus `token.<token>`. Only `agent-hub.v1` is echoed back.
  */
-export function authorizeUpgrade(req: { headers: IncomingHttpHeaders }, { port, token, dev }: SecurityContext): UpgradeDecision {
+export function authorizeUpgrade(req: { headers: IncomingHttpHeaders }, { port, token, dev, devOrigins = [] }: SecurityContext): UpgradeDecision {
   if (!isAllowedHost(req.headers.host, port)) {
     return deny(403, 'Host not allowed')
   }
-  if (!isAllowedOrigin(req.headers.origin, port, dev)) {
+  if (!isAllowedOrigin(req.headers.origin, port, dev, devOrigins)) {
     return deny(403, 'Origin not allowed')
   }
   const offered = (req.headers['sec-websocket-protocol'] ?? '').split(',').map(part => part.trim())

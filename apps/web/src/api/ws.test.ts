@@ -118,6 +118,25 @@ describe('ws client', () => {
     expect(FakeSocket.instances).toHaveLength(3)
   })
 
+  it('notifies open handlers on the first open and after every reconnect', async () => {
+    const { client } = setup()
+    const opened = vi.fn()
+    const off = client.onOpen(opened)
+    client.connect()
+    await vi.advanceTimersByTimeAsync(0)
+    last().open()
+    expect(opened).toHaveBeenCalledTimes(1)
+    last().drop()
+    await vi.advanceTimersByTimeAsync(500)
+    last().open()
+    expect(opened).toHaveBeenCalledTimes(2)
+    off()
+    last().drop()
+    await vi.advanceTimersByTimeAsync(1000)
+    last().open()
+    expect(opened).toHaveBeenCalledTimes(2)
+  })
+
   it('retries when the token cannot be fetched', async () => {
     const { client, refreshToken } = setup()
     refreshToken.mockRejectedValueOnce(new Error('down'))

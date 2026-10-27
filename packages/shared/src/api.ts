@@ -26,6 +26,7 @@ export const API_ROUTES = {
   mcp: `${API_PREFIX}/mcp`,
   mcpHealth: `${API_PREFIX}/mcp/health`,
   mcpHealthAll: `${API_PREFIX}/mcp/health/all`,
+  teams: `${API_PREFIX}/teams`,
 } as const
 
 // Security

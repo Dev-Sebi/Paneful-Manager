@@ -20,7 +20,7 @@ export interface AhTerminalPaneProps {
   cwd?: string
   /** Agent state shown as AhStatusBadge in the header. */
   status?: AhStatusBadgeState
-  /** @default 'connecting' */
+  /** 'exited' and 'failed' override the pane's live binding; otherwise the binding decides. @default 'connecting' */
   connection?: AhTerminalConnection
   /** Exit code shown in the exited overlay. */
   exitCode?: number
@@ -34,7 +34,7 @@ export interface AhTerminalPaneProps {
   cursorStyle?: AhTerminalCursorStyle
   /** @default true */
   cursorBlink?: boolean
-  /** Lines kept in the scrollback buffer. @default 5000 */
+  /** Lines kept in the scrollback buffer; matches the server's scrollback depth. @default 10000 */
   scrollback?: number
   /** Input is not forwarded to the PTY (team views, replay). @default false */
   readonly?: boolean
@@ -47,6 +47,12 @@ export interface AhTerminalResizePayload {
   rows: number
 }
 
+export interface AhTerminalStatePayload {
+  state: AhStatusBadgeState
+  lifecycle: 'starting' | 'running' | 'exited'
+  exitCode?: number
+}
+
 export interface AhTerminalPaneEmits {
   /** Pane received focus by click or keyboard. */
   (e: 'focus'): void
@@ -57,10 +63,14 @@ export interface AhTerminalPaneEmits {
   (e: 'toggle-maximize'): void
   /** User requested close; parent confirms if the agent is working or waiting. */
   (e: 'close'): void
-  /** Restart request from the exited/failed overlay. */
+  /** Restart request from the exited overlay. The failed overlay's Retry re-attaches internally instead. */
   (e: 'restart'): void
   /** OSC title change from the running program. */
   (e: 'title-change', title: string): void
+  /** `state` frame received for this session. */
+  (e: 'state', payload: AhTerminalStatePayload): void
+  /** The session was removed on the server. */
+  (e: 'exited'): void
 }
 
 export interface AhTerminalPaneSlots {

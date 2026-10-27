@@ -1,6 +1,6 @@
 # AhTerminalPane
 
-> Spec only. Implemented in a later task on top of xterm.js.
+> Implemented in `apps/web/src/components/ah/AhTerminalPane.vue` on top of xterm.js.
 
 One terminal session inside the split layout: header with title, status and actions, plus the terminal viewport. Contract: `index.d.ts`.
 
@@ -35,8 +35,9 @@ Used tokens: `color.terminal.fg`, `color.terminal.bg`, `color.terminal.cursor`, 
 | Unfocused | border `color.border.default`, header title `color.fg.muted`, cursor outline only |
 | Connecting | overlay "Connecting…" with indeterminate spinner |
 | Connected | no overlay |
-| Exited | overlay "Process exited (code N)" + "Restart" (`AhButton secondary`); viewport kept for reading |
-| Failed | overlay in `color.status.error` text + "Retry" |
+| Exited | overlay "Process exited (code N)" + "Restart" (`AhButton secondary`, emits `restart`); viewport kept for reading |
+| Failed | non-blocking overlay "Session unavailable" in `color.status.error` text + "Retry" (re-attaches with scrollback; no `restart` emit) |
+| Hidden | inactive tab: detached from the session (xterm kept mounted); re-attached with scrollback when shown |
 | Maximized | pane covers the workspace at `z.overlay`; other panes stay mounted |
 | Readonly | header shows "Read-only" label in `color.fg.muted`; no cursor |
 

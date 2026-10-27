@@ -28,6 +28,14 @@ describe('authorizeUpgrade', () => {
     expect(decide({ origin: 'http://localhost:3000' }, true).ok).toBe(true)
   })
 
+  it('allows configured dev origins only in dev mode', () => {
+    const withExtra = (dev: boolean, origin: string) =>
+      authorizeUpgrade({ headers: { ...valid, origin } }, { ...context, dev, devOrigins: ['http://localhost:3001'] }).ok
+    expect(withExtra(false, 'http://localhost:3001')).toBe(false)
+    expect(withExtra(true, 'http://localhost:3001')).toBe(true)
+    expect(withExtra(true, 'https://evil.example')).toBe(false)
+  })
+
   it('requires the app subprotocol', () => {
     for (const protocol of [undefined, 'token.secret-token', 'agent-hub.v2, token.secret-token']) {
       expect(decide({ 'sec-websocket-protocol': protocol })).toMatchObject({ ok: false, status: 403 })
