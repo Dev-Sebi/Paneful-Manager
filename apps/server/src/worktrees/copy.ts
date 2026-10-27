@@ -11,11 +11,11 @@ import {
 } from '@agent-hub/shared'
 import { AppError } from '../errors.js'
 import type { BackupStore } from '../files/backups.js'
-import { readCurrent } from '../files/read.js'
+import { errnoCode, readCurrent } from '../files/read.js'
 import { atomicWrite } from '../files/service.js'
 import { createAllowlist } from '../fs/allowlist.js'
 import type { RunFn } from '../scopes/run-git.js'
-import { assertRelPath, collectEntries, resolveWorktree, walkNoFollow, type CopyEntry, type WorktreeContext } from './candidates.js'
+import { assertRelPath, collectEntries, decodeText, resolveWorktree, walkNoFollow, type CopyEntry, type WorktreeContext } from './candidates.js'
 
 export interface WorktreeDeps {
   getScopes: () => Promise<Scope[]>
@@ -60,7 +60,7 @@ async function ensureParents(ctx: WorktreeContext, relPath: string): Promise<voi
     try {
       await mkdir(current, { mode: 0o755 })
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+      if (errnoCode(error) !== 'EEXIST') {
         throw error
       }
     }
@@ -129,7 +129,7 @@ function sideText(content: Buffer | null): string | null | undefined {
   if (content === null) {
     return null
   }
-  return content.length > WORKTREE_DIFF_MAX_BYTES || content.includes(0) ? undefined : content.toString('utf8')
+  return content.length > WORKTREE_DIFF_MAX_BYTES ? undefined : decodeText(content)
 }
 
 /** Only current candidates (and binary or oversized ones, withheld) can be read, never arbitrary paths. */

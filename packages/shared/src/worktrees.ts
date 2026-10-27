@@ -52,6 +52,7 @@ export type WorktreeCopyCandidate = z.infer<typeof WorktreeCopyCandidateSchema>
 export const WorktreeCopyPlanRequestSchema = z.strictObject({ worktreePath: PathSchema })
 export type WorktreeCopyPlanRequest = z.infer<typeof WorktreeCopyPlanRequestSchema>
 
+/** Apply is all-or-nothing in validation (any 403/409 aborts before writing), best-effort in writing. */
 export const WorktreeCopyPlanResponseSchema = z.strictObject({
   projectPath: PathSchema,
   worktreePath: PathSchema,

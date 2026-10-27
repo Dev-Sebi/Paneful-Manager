@@ -209,7 +209,7 @@ The policy is coalesce, then close with `4008`; output is never dropped, because
 | Claude settings: `$CLAUDE_DIR/settings.json` | Merge `hooks` key only, atomic, conflict-checked | Adds Agent Hub hook entries if missing; never changes or removes other entries or keys. Uninstall removes only entries pointing at Agent Hub's hook URL. The port is baked into that URL, so a port change re-merges the entries; running Claude Code sessions pick up hook edits live. |
 | `CLAUDE.md` and skills | File service, atomic, conflict-checked | Only inside allowlisted scopes: global `$CLAUDE_DIR/CLAUDE.md` and `$CLAUDE_DIR/skills/**`; for each configured project and its git worktrees `<root>/CLAUDE.md`, `<root>/CLAUDE.local.md`, `<root>/.claude/skills/**`. |
 | MCP servers | `claude mcp add-json` / `claude mcp remove` via `execFile` (verified subcommands) | Never edit `~/.claude.json` or `.mcp.json` directly; the CLI owns their format. There is no update command: an edit is remove + add, which is not atomic (a failed add leaves the server removed; the UI reports it and offers to retry). Removing a remote (`http`/`sse`) server also drops its stored OAuth tokens, so the user must re-authenticate; the UI warns before editing one. |
-| Worktree helper | Copy gitignored files into a new worktree | Only after explicit confirmation, target must be inside the worktree (T34). |
+| Worktree helper | Copy gitignored files into a new worktree | Only after explicit confirmation, target must be inside the worktree (T34). Apply is all-or-nothing in validation, best-effort in writing. |
 
 ### Rules
 

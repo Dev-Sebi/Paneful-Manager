@@ -164,7 +164,8 @@ async function listIgnored(projectPath: string, run: RunFn): Promise<string[]> {
   return [...new Set(stdout.split('\0').filter(Boolean))].filter(path => !isExcluded(path) && matchesCopyPattern(path)).toSorted()
 }
 
-function decodeText(content: Buffer): string | undefined {
+/** Strict UTF-8 text of `content`, `undefined` when it is binary or not valid UTF-8. */
+export function decodeText(content: Buffer): string | undefined {
   try {
     const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(content)
     return !content.includes(0) && Buffer.from(text).equals(content) ? text : undefined
@@ -208,7 +209,7 @@ async function inspect(ctx: WorktreeContext, relPath: string): Promise<CopyEntry
   return {
     kind: 'candidate',
     text,
-    mode: file.stats.mode & 0o7777,
+    mode: file.stats.mode & 0o777,
     worktree: current?.content ?? null,
     candidate: {
       relPath,
