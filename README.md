@@ -17,6 +17,10 @@ Agent Hub is a local web app for running and organizing Claude Code sessions. It
 - MCP server configuration
 - Experimental agent-team views (off by default)
 
+## Experimental: agent teams
+
+Agent teams build on an experimental Claude Code feature (Claude Code 2.1.309 or later) and are off by default. Set `experimental.agentTeams: true` in `~/.config/agent-hub/config.yaml` (or in Settings) to get the Teams view: a read-only task board per team and team templates (`~/.config/agent-hub/teams/<name>.yaml`, see [examples/teams](examples/teams)). Launching a template starts the lead session; Claude Code spawns the teammates from the generated first prompt, so names and models are requests, not guarantees. Upstream changes can break this at any time; see [ADR 0010](docs/adr/0010-agent-teams.md) and [ADR 0012](docs/adr/0012-team-templates.md). Reference: [team templates and agent teams](docs/configuration.md#agent-teams-experimental).
+
 ## Quick start
 
 Inside WSL2 with systemd, Node.js 22 or later and tmux 3.2 or later (the installer adds pnpm if it is missing):
@@ -65,10 +69,6 @@ Open `http://localhost:3000` in your browser (Vite dev server). The API server l
 - Server port: `port` in `config.yaml` (default `7337`); the environment variable `AGENT_HUB_PORT` overrides it
 
 Example files are in `examples/`. All keys are listed in the [configuration reference](docs/configuration.md).
-
-## Experimental
-
-Agent teams are experimental. They are off by default and enabled with `experimental.agentTeams: true` in `config.yaml`. The team views only read Claude Code team and task files; launching teams from templates is not part of this version. See [Agent teams](docs/configuration.md#agent-teams-experimental).
 
 ## License
 
