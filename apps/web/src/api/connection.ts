@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 
-export type ConnectionState = 'unknown' | 'online' | 'offline'
+export type ConnectionState = 'connecting' | 'connected' | 'disconnected'
 
-/** Reachability of the Agent Hub server, fed by the REST and WebSocket clients. */
-export const connection = ref<ConnectionState>('unknown')
+/** State of the WebSocket connection to the server; only the WS client writes it. */
+export const connection = ref<ConnectionState>('connecting')

@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@/api/client', () => ({ api: mocks }))
 vi.mock('@/api/ws', () => ({
-  wsClient: { connect: vi.fn(), close: vi.fn(), on: vi.fn(() => vi.fn()), send: vi.fn() },
+  wsClient: { connect: vi.fn(), close: vi.fn(), on: vi.fn(() => vi.fn()), onFatal: vi.fn(() => vi.fn()), send: vi.fn() },
 }))
 
 async function mountAt (path: string, agentTeams = false) {
@@ -37,7 +37,7 @@ async function mountAt (path: string, agentTeams = false) {
 describe('AppShell', () => {
   beforeEach(() => {
     localStorage.clear()
-    connection.value = 'unknown'
+    connection.value = 'connecting'
     document.body.innerHTML = ''
   })
 
@@ -76,27 +76,56 @@ describe('AppShell', () => {
     expect(missing.wrapper.text()).toContain('Page not found')
   })
 
-  it('switches sections with Ctrl+number and reserves Ctrl+Shift+T', async () => {
+  it('switches sections with Ctrl+number and reserves Alt+Shift+N', async () => {
     const { router } = await mountAt('/workspaces')
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '2', ctrlKey: true }))
-    await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/skills')
+    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/skills'), { timeout: 10_000 })
 
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'T', ctrlKey: true, shiftKey: true }))
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyN', key: 'N', altKey: true, shiftKey: true }))
     expect(useUiStore().snackbars[0]?.text).toBe('New tab is not available yet')
   })
 
-  it('shows the connection badge for each reachability state', async () => {
+  it('maps the websocket state to the badge', async () => {
     const { wrapper } = await mountAt('/workspaces')
     const badge = () => wrapper.get('.shell__bar .ah-status-badge')
-    connection.value = 'online'
+    expect(badge().text()).toBe('Connecting')
+    expect(badge().classes()).toContain('ah-status-badge--working')
+    connection.value = 'connected'
     await flushPromises()
     expect(badge().text()).toBe('Connected')
-    expect(badge().classes()).toContain('ah-status-badge--working')
-    connection.value = 'offline'
+    expect(badge().classes()).toContain('ah-status-badge--idle')
+    connection.value = 'disconnected'
     await flushPromises()
     expect(badge().text()).toBe('Disconnected')
     expect(badge().classes()).toContain('ah-status-badge--error')
+  })
+
+  it('indexes Ctrl+number over the visible sections', async () => {
+    const { router } = await mountAt('/workspaces')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '5', ctrlKey: true }))
+    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/settings'), { timeout: 10_000 })
+  })
+
+  it('ignores Ctrl+number while typing and inside the terminal', async () => {
+    const { router, wrapper } = await mountAt('/workspaces')
+    const input = document.createElement('input')
+    const xterm = document.createElement('div')
+    xterm.className = 'xterm'
+    const inner = document.createElement('span')
+    xterm.append(inner)
+    document.body.append(input, xterm)
+    for (const target of [input, inner]) {
+      target.dispatchEvent(new KeyboardEvent('keydown', { key: '2', ctrlKey: true, bubbles: true }))
+    }
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/workspaces')
+    expect(wrapper.exists()).toBe(true)
+  })
+
+  it('renders a skip link that targets the main area', async () => {
+    const { wrapper } = await mountAt('/workspaces')
+    expect(wrapper.get('a.shell__skip').attributes('href')).toBe('#main-content')
+    expect(wrapper.find('main#main-content').exists()).toBe(true)
   })
 
   it('toggles the rail and keeps it in the store', async () => {

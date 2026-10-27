@@ -1,9 +1,15 @@
 <template>
   <div class="scope-list">
-    <p v-if="scopes.error" class="scope-list__error" role="alert">{{ scopes.error }}</p>
+    <EmptyState
+      v-if="scopes.error"
+      action-label="Retry"
+      icon="mdi-alert-circle-outline"
+      message="Could not load scopes. Check that the Agent Hub server is running."
+      @action="scopes.load()"
+    />
 
     <EmptyState
-      v-if="scopes.scopes.length === 0"
+      v-else-if="scopes.scopes.length === 0"
       action-label="Reload scopes"
       :icon="icon"
       :message="message"
@@ -39,11 +45,6 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-}
-
-.scope-list__error {
-  padding: var(--ah-space-3) var(--ah-space-4);
-  color: var(--ah-color-status-error);
 }
 
 .scope-list__items {

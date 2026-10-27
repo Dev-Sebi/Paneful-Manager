@@ -1,13 +1,12 @@
 import type { Theme } from '@agent-hub/shared'
-import { ThemeSchema } from '@agent-hub/shared'
+import { ThemeSchema, z } from '@agent-hub/shared'
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import { z } from 'zod'
 import { readStorage, writeStorage } from './storage'
 
 export const UI_STORAGE_KEY = 'agent-hub.ui.v1'
 
-const PersistedUiSchema = z.object({
+const PersistedUiSchema = z.strictObject({
   rail: z.boolean().default(false),
   theme: ThemeSchema.optional(),
 })
@@ -16,6 +15,8 @@ export interface SnackbarMessage {
   id: number
   text: string
   color?: 'error' | 'info' | 'success' | 'warning'
+  /** Stays until dismissed instead of timing out. */
+  persistent?: boolean
 }
 
 /** Persisted UI preferences, read before the app mounts so the first paint uses the saved theme. */
@@ -39,8 +40,8 @@ export const useUiStore = defineStore('ui', () => {
     theme.value = value
   }
 
-  function notify (text: string, color?: SnackbarMessage['color']) {
-    snackbars.value.push({ id: nextId++, text, color })
+  function notify (text: string, color?: SnackbarMessage['color'], persistent = false) {
+    snackbars.value.push({ id: nextId++, text, color, persistent })
   }
 
   function dismiss (id: number) {

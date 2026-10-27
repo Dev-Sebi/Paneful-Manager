@@ -25,8 +25,7 @@
     "pinia": "^4.1.0",
     "vue": "^3.5.30",
     "vue-router": "^5.4.0",
-    "vuetify": "^4.0.2",
-    "zod": "^4.6.7"
+    "vuetify": "^4.0.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
