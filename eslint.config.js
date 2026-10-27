@@ -47,4 +47,35 @@ export default [
     ...config,
     files: ['apps/server/**/*.ts', 'packages/shared/**/*.ts'],
   })),
+  {
+    // Processes are started with argument arrays only (see apps/server/src/process/exec.ts).
+    files: ['apps/server/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        paths: ['child_process', 'node:child_process'].map(name => ({
+          name,
+          importNames: ['exec', 'execSync'],
+          message: 'Use run() from src/process/exec.ts (argument array, no shell).',
+        })),
+      }],
+      'no-restricted-syntax': ['error',
+        {
+          selector: 'ImportDeclaration[source.value=/^(node:)?child_process$/] > :matches(ImportDefaultSpecifier, ImportNamespaceSpecifier)',
+          message: 'Import named child_process functions so the exec ban stays enforceable.',
+        },
+        {
+          selector: 'ImportExpression[source.value=/^(node:)?child_process$/]',
+          message: 'Import child_process statically so the exec ban stays enforceable.',
+        },
+        {
+          selector: 'CallExpression[callee.name=/^(spawn|spawnSync|execFile|execFileSync|fork)$/] Property:matches([key.name="shell"], [key.value="shell"]):not([value.value=false])',
+          message: 'Never run processes through a shell.',
+        },
+        {
+          selector: 'CallExpression[callee.name=/^(spawn|spawnSync|execFile|execFileSync|fork)$/][arguments.2.type!="ObjectExpression"][arguments.length>2], CallExpression[callee.name=/^(spawn|spawnSync|execFile|execFileSync|fork)$/] > ObjectExpression > SpreadElement',
+          message: 'Pass process options as an inline object literal so the shell ban stays checkable.',
+        },
+      ],
+    },
+  },
 ]

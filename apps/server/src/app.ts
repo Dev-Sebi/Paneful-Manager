@@ -13,9 +13,13 @@ import {
 } from '@agent-hub/shared'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { AppError } from './errors.js'
+import { registerScopes } from './scopes/routes.js'
+import { registerSecurity } from './security/register-security.js'
+import { createSessionToken } from './security/token.js'
+import { authorizeUpgrade } from './security/upgrade.js'
 import type { SessionEngine } from './sessions/engine.js'
 import { registerSessions } from './sessions/routes.js'
-import { registerWs, type AuthorizeUpgrade } from './ws/plugin.js'
+import { registerWs } from './ws/plugin.js'
 
 export const BODY_LIMIT_BYTES = 1024 * 1024
 
@@ -24,12 +28,14 @@ const { version } = createRequire(import.meta.url)('../package.json') as { versi
 export interface BuildAppOptions {
   config: AppConfig
   logger: FastifyBaseLogger
-  /** Session engine; closed (ptys detached, tmux kept) when the app closes. */
+  /** Per-boot token; generated when omitted. */
+  sessionToken?: string
+  /** Allows the Vite dev origins; defaults to `NODE_ENV === 'development'`. */
+  dev?: boolean
+  /** Session engine for `/api/sessions` and `/ws`; closed (tmux sessions kept) when the app closes. */
   engine?: SessionEngine
-  authorizeUpgrade?: AuthorizeUpgrade
 }
 
-/** Hook point for core routes and plugins; the security plugin (T11) registers here. */
 function registerCore(app: FastifyInstance): void {
   app.get(API_ROUTES.health, (): HealthResponse => ({
     status: 'ok',
@@ -41,6 +47,8 @@ function registerCore(app: FastifyInstance): void {
 }
 
 function codeForStatus(status: number): ApiErrorCode {
+  if (status === 401) {return 'unauthorized'}
+  if (status === 403) {return 'forbidden'}
   if (status === 404) {return 'not_found'}
   if (status === 409) {return 'conflict'}
   return status >= 400 && status < 500 ? 'bad_request' : 'internal'
@@ -65,16 +73,15 @@ function registerErrorHandlers(app: FastifyInstance): void {
     if (status >= 500) {
       request.log.error({ err: error }, 'Unhandled error')
     }
-    const code = error instanceof AppError ? error.code : codeForStatus(status)
-    const safe = error instanceof AppError || (status < 500 && isClientSafe(error))
-    const message = safe ? (error as Error).message : status < 500 ? 'Bad request' : 'Internal server error'
+    const code = error instanceof AppError && status < 500 ? error.code : codeForStatus(status)
+    const message = status < 500 && isClientSafe(error) ? (error as Error).message : status < 500 ? 'Bad request' : 'Internal server error'
     const details = error instanceof AppError ? error.details : undefined
     const body = { code, message, ...(details === undefined ? {} : { details }) } as ApiError
     return reply.code(status).send(body)
   })
 }
 
-export function buildApp({ logger, engine, authorizeUpgrade }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, engine }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -83,10 +90,19 @@ export function buildApp({ logger, engine, authorizeUpgrade }: BuildAppOptions):
     forceCloseConnections: true,
   })
   registerErrorHandlers(app)
+  const getPort = (): number => {
+    const address = app.server.address()
+    return typeof address === 'object' && address !== null ? address.port : config.port
+  }
+  const token = sessionToken ?? createSessionToken()
+  const isDev = dev ?? process.env.NODE_ENV === 'development'
+  registerSecurity(app, { getPort, token, dev: isDev })
   registerCore(app)
+  registerScopes(app, { getConfig: () => config })
+  // Registered after registerSecurity: its onRequest hook guards these routes, and /ws uses the same checks.
   if (engine !== undefined) {
     registerSessions(app, { engine })
-    registerWs(app, { engine, ...(authorizeUpgrade === undefined ? {} : { authorizeUpgrade }) })
+    registerWs(app, { engine, authorizeUpgrade: request => authorizeUpgrade(request, { port: getPort(), token, dev: isDev }) })
     app.addHook('onClose', async () => {
       await engine.close()
     })
