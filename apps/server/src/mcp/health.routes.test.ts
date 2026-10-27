@@ -38,13 +38,17 @@ const marker = (name: string): string => join(box.base, `${name}.marker`)
 const approve = (value: Record<string, unknown>): void => {
   writeFileSync(join(box.home, '.claude.json'), JSON.stringify({ projects: { [box.project]: { hasTrustDialogAccepted: true, ...value } } }))
 }
+const writeUserSettings = (value: unknown): void => {
+  mkdirSync(join(box.home, '.claude'), { recursive: true })
+  writeFileSync(join(box.home, '.claude', 'settings.json'), JSON.stringify(value))
+}
 const writeLocalSettings = (value: unknown): void => {
   mkdirSync(join(box.project, '.claude'), { recursive: true })
   writeFileSync(join(box.project, '.claude', 'settings.local.json'), JSON.stringify(value))
 }
 
 function start(health?: HealthRunner): void {
-  const service = createMcpService({ getScopes: async () => box.scopes, env: {}, backupDir: join(box.state, 'backups'), logger: silentLogger, mode: 'file', home: box.home })
+  const service = createMcpService({ getScopes: async () => box.scopes, env: {}, backupDir: join(box.state, 'backups'), logger: silentLogger, mode: 'file', home: box.home, managedDir: join(box.base, 'managed') })
   app = buildApp({ config: DEFAULT_CONFIG, logger: silentLogger, sessionToken: TOKEN, dev: false, mcp: { service, ...(health ? { health } : {}) } })
 }
 
@@ -108,6 +112,23 @@ describe('MCP health routes', () => {
     expect((await send({ method: 'POST', url: API_ROUTES.mcpHealth, payload: { name: 'good', scope: scope() } })).json()).toMatchObject({ status: 'unsupported' })
     writeFileSync(join(box.home, '.claude.json'), JSON.stringify({ projects: { [box.project]: { enabledMcpjsonServers: ['good'] } } }))
     expect((await send({ method: 'POST', url: API_ROUTES.mcpHealth, payload: { name: 'good', scope: scope() } })).json()).toMatchObject({ status: 'unsupported' })
+    expect(existsSync(marker('good'))).toBe(false)
+  })
+
+  it('approves through user settings without a project entry', async () => {
+    writeUserSettings({ enabledMcpjsonServers: ['good'] })
+    expect((await send({ method: 'POST', url: API_ROUTES.mcpHealth, payload: { name: 'good', scope: scope() } })).json()).toMatchObject({ status: 'ok' })
+  })
+
+  it('lets managed settings block entries of every scope', async () => {
+    mkdirSync(join(box.base, 'managed'), { recursive: true })
+    writeFileSync(join(box.base, 'managed', 'managed-settings.json'), JSON.stringify({ deniedMcpServers: [{ serverName: 'mine' }, { serverName: 'good' }] }))
+    writeFileSync(join(box.home, '.claude.json'), JSON.stringify({ mcpServers: { mine: { type: 'stdio', command: process.execPath, args: [FIXTURE], env: { FAKE_MCP_DUMP: marker('mine') } } } }))
+    writeUserSettings({ enableAllProjectMcpServers: true })
+    for (const [name, where] of [['mine', { kind: 'user' }], ['good', scope()]] as const) {
+      expect((await send({ method: 'POST', url: API_ROUTES.mcpHealth, payload: { name, scope: where } })).json()).toMatchObject({ status: 'unsupported' })
+    }
+    expect(existsSync(marker('mine'))).toBe(false)
     expect(existsSync(marker('good'))).toBe(false)
   })
 

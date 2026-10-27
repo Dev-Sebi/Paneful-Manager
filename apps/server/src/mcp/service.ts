@@ -34,6 +34,8 @@ export interface McpServiceOptions {
   mode?: McpMode | 'auto'
   run?: CliRun
   home?: string
+  /** Managed settings directory; defaults to the platform location (`/etc/claude-code` on Linux). */
+  managedDir?: string
   now?: () => number
 }
 
@@ -89,7 +91,7 @@ function resolveKeep(input: McpServerConfigInput, existing: McpServerConfig | un
 export function createMcpService(options: McpServiceOptions): McpService {
   const { getScopes, env, logger, home = homedir() } = options
   const files: McpFileStore = createMcpFileStore({ env, backupDir: options.backupDir, home })
-  const approval: McpApproval = createMcpApproval({ env, home })
+  const approval: McpApproval = createMcpApproval({ env, home, managedDir: options.managedDir })
   const cli: ClaudeCli = createClaudeCli({ env, run: options.run, now: options.now })
   let queue: Promise<unknown> = Promise.resolve()
 
@@ -146,10 +148,11 @@ export function createMcpService(options: McpServiceOptions): McpService {
       scopes.push({ kind: 'project', projectPath }, { kind: 'local', projectPath })
     }
     const servers: HealthTarget[] = []
+    const session = approval.session()
     for (const scope of scopes) {
       try {
         for (const entry of (await files.read(scope)).entries) {
-          servers.push({ ...entry, scope, source: 'file', approved: await approval.isApproved(scope, entry.name) })
+          servers.push({ ...entry, scope, source: 'file', approved: await session.isApproved(scope, entry.name) })
         }
       } catch (error) {
         // One broken `.mcp.json` must not hide every other scope.
@@ -201,7 +204,7 @@ export function createMcpService(options: McpServiceOptions): McpService {
       if (!found) {
         throw new AppError(`MCP server "${name}" not found`, 404, 'not_found')
       }
-      return { ...found, scope, source: 'file', approved: await approval.isApproved(scope, name) }
+      return { ...found, scope, source: 'file', approved: await approval.session().isApproved(scope, name) }
     },
 
     async upsert(request) {
@@ -230,7 +233,7 @@ export function createMcpService(options: McpServiceOptions): McpService {
           await add(mode, scope, name, native, secrets)
         }
         logger.info({ name, scope: scope.kind, mode, created: existingRaw === undefined }, 'MCP server saved')
-        return { server: maskMcpEntry({ name, scope, config, source: mode }, await approval.isApproved(scope, name)), created: existingRaw === undefined }
+        return { server: maskMcpEntry({ name, scope, config, source: mode }, await approval.session().isApproved(scope, name)), created: existingRaw === undefined }
       })
     },
 

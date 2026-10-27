@@ -53,7 +53,20 @@ const dumpOf = (path: string) => JSON.parse(readFileSync(path, 'utf8')) as { cwd
 describe('expandVars', () => {
   it('expands variables and defaults', () => {
     const env = { A: 'a', EMPTY: '' }
-    expect(expandVars('x-${A}-${MISSING}-${MISSING:-d}-${EMPTY:-e}', env)).toBe('x-a--d-e')
+    expect(expandVars('x-${A}-${MISSING:-d}-${EMPTY:-e}-${EMPTY}', env)).toBe('x-a-d-e-')
+  })
+
+  it('keeps unset variables as literal text and reports them', () => {
+    const missing = new Set<string>()
+    expect(expandVars('a-${NOPE}-b', {}, { missing })).toBe('a-${NOPE}-b')
+    expect([...missing]).toEqual(['NOPE'])
+  })
+
+  it('blanks credential-named variables only when asked', () => {
+    const env = { PROBE_SECRET: 's', MY_apikey: 'k', AUTH_X: 'a', PLAIN: 'p', PASSWORD: 'x', TOKEN: 't' }
+    const text = '${PROBE_SECRET}${MY_apikey}${AUTH_X}${PASSWORD}${TOKEN}${PLAIN}'
+    expect(expandVars(text, env, { blankCredentials: true })).toBe('p')
+    expect(expandVars(text, env)).toBe('skaxtp')
   })
 })
 
@@ -184,6 +197,30 @@ describe('stdio health check', () => {
     expect(JSON.stringify(result)).not.toContain(SECRET)
   })
 
+  it('scrubs the value of variables expanded in args and command', async () => {
+    const entry = stdioEntry({ FAKE_MCP_FAIL: '1', FAKE_MCP_ECHO_ARGS: '1' })
+    if (entry.config.transport !== 'stdio') {
+      throw new Error('stdio expected')
+    }
+    const withArg: HealthTarget = { ...entry, config: { ...entry.config, args: [FIXTURE, '--key=${HEALTH_ARG_SECRET}'] } }
+    const result = await checkMcpHealth(withArg, { timeoutMs: 5000, env: { HEALTH_ARG_SECRET: SECRET } })
+    expect(result.status).toBe('error')
+    expect(result.error).toContain('--key=***')
+    expect(JSON.stringify(result)).not.toContain(SECRET)
+  })
+
+  it('ignores server requests that reuse the id of initialize', async () => {
+    const result = await checkMcpHealth(stdioEntry({ FAKE_MCP_REQUEST_FIRST: '1' }), { timeoutMs: 5000 })
+    expect(result.status).toBe('ok')
+  })
+
+  it('warns about unset variables, naming them only', async () => {
+    const warnings: unknown[][] = []
+    const entry = stdioEntry({ FAKE_MCP_FAIL: '1', X: '${HEALTH_UNSET_ONE}' })
+    await checkMcpHealth(entry, { timeoutMs: 5000, env: {}, logger: { warn: (...args: unknown[]) => void warnings.push(args) } })
+    expect(JSON.stringify(warnings)).toContain('HEALTH_UNSET_ONE')
+  })
+
   it('limits the error to 200 characters', async () => {
     const result = await checkMcpHealth(stdioEntry({ FAKE_MCP_FAIL: '1', FAKE_MCP_STDERR: 'x'.repeat(5000) }), { timeoutMs: 5000 })
     expect(result.error?.length).toBeLessThanOrEqual(200)
@@ -239,16 +276,28 @@ describe('http and sse health checks', () => {
     server = undefined
   })
 
-  it('accepts a JSON answer and sends expanded headers', async () => {
+  it('accepts a JSON answer, expanding plain variables and blanking credential-named ones', async () => {
     const base = await serve((_request, response, body) => {
       response.writeHead(200, { 'content-type': 'application/json' }).end(answer(body))
     })
-    const entry = remoteEntry('http', `${base}/mcp`, { Authorization: 'Bearer ${HEALTH_TEST_TOKEN}' })
-    const result = await checkMcpHealth(entry, { timeoutMs: 3000, env: { HEALTH_TEST_TOKEN: SECRET } })
+    const entry = remoteEntry('http', `${base}/mcp`, { Authorization: 'Bearer ${HEALTH_TEST_TOKEN}', 'X-Trace': '${HEALTH_TEST_TRACE}' })
+    const result = await checkMcpHealth(entry, { timeoutMs: 3000, env: { HEALTH_TEST_TOKEN: SECRET, HEALTH_TEST_TRACE: 'trace-1' } })
     expect(result).toMatchObject({ status: 'ok', serverInfo: { name: 'fake-http', version: '9.9' }, protocolVersion: '2025-06-18' })
-    expect(seen[0]?.headers.authorization).toBe(`Bearer ${SECRET}`)
+    expect(seen[0]?.headers.authorization).toBe('Bearer')
+    expect(seen[0]?.headers['x-trace']).toBe('trace-1')
     expect(seen[0]?.headers.accept).toBe('application/json, text/event-stream')
     expect(JSON.parse(seen[0]?.body ?? '{}')).toMatchObject({ method: 'initialize', params: { clientInfo: { name: 'agent-hub' } } })
+  })
+
+  it('blanks credential-named variables in the url', async () => {
+    let requested = ''
+    const base = await serve((request, response, body) => {
+      requested = request.url ?? ''
+      response.writeHead(200, { 'content-type': 'application/json' }).end(answer(body))
+    })
+    const result = await checkMcpHealth(remoteEntry('http', `${base}/mcp?k=\${PROBE_SECRET}&v=\${PROBE_PLAIN}`), { timeoutMs: 3000, env: { PROBE_SECRET: SECRET, PROBE_PLAIN: 'ok' } })
+    expect(result.status).toBe('ok')
+    expect(requested).toBe('/mcp?k=&v=ok')
   })
 
   it('accepts an SSE answer and ends the session', async () => {
@@ -263,7 +312,7 @@ describe('http and sse health checks', () => {
     const result = await checkMcpHealth(remoteEntry('http', `${base}/mcp`), { timeoutMs: 3000 })
     expect(result.status).toBe('ok')
     await new Promise(resolve => setTimeout(resolve, 100))
-    expect(seen.some(call => call.method === 'DELETE' && call.headers['mcp-session-id'] === 'abc')).toBe(true)
+    expect(seen.some(call => call.method === 'DELETE' && call.headers['mcp-session-id'] === 'abc' && call.headers['mcp-protocol-version'] === '2025-06-18')).toBe(true)
   })
 
   it('reports error for a 500 without leaking the header value', async () => {

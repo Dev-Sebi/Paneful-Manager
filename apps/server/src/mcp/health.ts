@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { homedir } from 'node:os'
 import {
   MCP_HEALTH_ERROR_MAX,
@@ -32,7 +32,7 @@ export interface HealthOptions {
   home?: string
 }
 
-type ResolvedOptions = Required<Omit<HealthOptions, 'logger'>> & Pick<HealthOptions, 'logger'>
+type ResolvedOptions = Required<Omit<HealthOptions, 'logger'>> & Pick<HealthOptions, 'logger'> & { missing: Set<string> }
 
 export const NOT_APPROVED_ERROR = 'not approved in Claude Code'
 
@@ -46,6 +46,7 @@ interface Outcome {
 const failure = (error: string): Outcome => ({ status: 'error', error })
 
 const MessageSchema = z.looseObject({
+  method: z.string().optional(),
   id: z.union([z.number(), z.string()]).optional(),
   result: z.unknown().optional(),
   error: z.looseObject({ code: z.number().optional(), message: z.string().optional() }).optional(),
@@ -56,16 +57,33 @@ const InitializeResultSchema = z.looseObject({
   serverInfo: z.looseObject({ name: z.string(), version: z.string().optional() }).optional(),
 })
 
-/** Replaces `${VAR}` and `${VAR:-default}`; an unset variable without default becomes an empty string. */
-export function expandVars(value: string, env: HealthEnv): string {
-  return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g, (_match, name: string, fallback: string | undefined) => {
+const VAR_PATTERN = /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g
+const CREDENTIAL_NAME = /TOKEN|SECRET|PASSWORD|KEY|AUTH/i
+
+export interface ExpandOptions {
+  /** Credential-named variables (TOKEN, SECRET, PASSWORD, KEY, AUTH) expand to an empty string; used for remote url and headers. */
+  blankCredentials?: boolean
+  /** Receives the names of unset variables without default, which stay as literal text. */
+  missing?: Set<string>
+}
+
+/** Replaces `${VAR}` and `${VAR:-default}`; an unset variable without default keeps its literal text. */
+export function expandVars(value: string, env: HealthEnv, { blankCredentials = false, missing }: ExpandOptions = {}): string {
+  return value.replace(VAR_PATTERN, (match, name: string, fallback: string | undefined) => {
+    if (blankCredentials && CREDENTIAL_NAME.test(name)) {
+      return ''
+    }
     const found = env[name]
+    if (found === undefined && fallback === undefined) {
+      missing?.add(name)
+      return match
+    }
     return found !== undefined && found !== '' ? found : (fallback ?? '')
   })
 }
 
-function expandMap(values: Record<string, string>, env: HealthEnv): Record<string, string> {
-  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, expandVars(value, env)]))
+function expandMap(values: Record<string, string>, env: HealthEnv, options: ExpandOptions = {}): Record<string, string> {
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, expandVars(value, env, options)]))
 }
 
 const initializeMessage = (): string =>
@@ -84,7 +102,7 @@ function interpret(value: unknown): Outcome | undefined {
   if (!message.success) {
     return failure('Invalid JSON-RPC message')
   }
-  if (message.data.id !== INITIALIZE_ID) {
+  if (message.data.method !== undefined || message.data.id !== INITIALIZE_ID) {
     return undefined
   }
   const { error, result } = message.data
@@ -148,14 +166,16 @@ function signalGroup(pid: number | undefined, signal: NodeJS.Signals): void {
 }
 
 /** SIGTERM now, SIGKILL after the grace period; the caller does not wait for it. */
-function terminateGroup(pid: number | undefined): void {
-  signalGroup(pid, 'SIGTERM')
-  setTimeout(() => signalGroup(pid, 'SIGKILL'), KILL_GRACE_MS)
+function terminateGroup(child: ChildProcess): void {
+  child.stdin?.end()
+  signalGroup(child.pid, 'SIGTERM')
+  const { pid } = child
+  setTimeout(() => signalGroup(pid, 'SIGKILL'), KILL_GRACE_MS).unref()
 }
 
 function checkStdio(entry: HealthTarget, config: StdioConfig, options: ResolvedOptions, signal: AbortSignal): Promise<Outcome> {
   const { env, home } = options
-  const { kept, dropped } = filterEnv(expandMap(config.env, env))
+  const { kept, dropped } = filterEnv(expandMap(config.env, env, { missing: options.missing }))
   if (dropped.length > 0) {
     options.logger?.warn({ name: entry.name, keys: dropped }, 'Dropped unsafe env keys of MCP server')
   }
@@ -166,8 +186,8 @@ function checkStdio(entry: HealthTarget, config: StdioConfig, options: ResolvedO
     let pending = ''
     let stderr = ''
     const child = spawn(
-      expandVars(config.command, env),
-      config.args.map(arg => expandVars(arg, env)),
+      expandVars(config.command, env, { missing: options.missing }),
+      config.args.map(arg => expandVars(arg, env, { missing: options.missing })),
       { cwd, env: { ...baseEnv(env), ...kept }, detached: true, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
     )
     const finish = (outcome: Outcome): void => {
@@ -179,7 +199,7 @@ function checkStdio(entry: HealthTarget, config: StdioConfig, options: ResolvedO
       if (outcome.status === 'ok' && child.stdin.writable) {
         child.stdin.write(`${initializedMessage()}\n`)
       }
-      terminateGroup(child.pid)
+      terminateGroup(child)
       resolve(outcome)
     }
     const onAbort = (): void => finish({ status: 'timeout' })
@@ -370,7 +390,7 @@ async function checkHttp(url: string, headers: Record<string, string>, signal: A
   const outcome = contentType.includes('text/event-stream') ? await answerFromEvents(response, signal) : await answerFromJson(response)
   if (sessionId !== null) {
     // Politely end the session the check opened; failures do not matter.
-    void fetch(url, { method: 'DELETE', headers: requestHeaders(headers, { 'Mcp-Session-Id': sessionId }), signal, redirect: 'manual' }).catch(() => undefined)
+    void fetch(url, { method: 'DELETE', headers: requestHeaders(headers, { 'Mcp-Session-Id': sessionId, 'MCP-Protocol-Version': outcome?.protocolVersion ?? MCP_PROTOCOL_VERSION }), signal, redirect: 'manual' }).catch(() => undefined)
   }
   return outcome ?? failure('Server did not answer initialize')
 }
@@ -446,10 +466,13 @@ function redact(text: string, secrets: readonly string[]): string {
   return scrub(text, secrets).replace(/\s+/g, ' ').trim().slice(0, MCP_HEALTH_ERROR_MAX)
 }
 
+/** Raw env and header values plus the value of every `${VAR}` referenced anywhere in the entry. */
 function secretsOf(entry: HealthTarget, env: HealthEnv): string[] {
   const { config } = entry
   const values = Object.values(config.transport === 'stdio' ? config.env : config.headers)
-  return [...values, ...values.map(value => expandVars(value, env))]
+  const texts = config.transport === 'stdio' ? [config.command, ...config.args, ...values] : [config.url, ...values]
+  const referenced = texts.flatMap(text => [...text.matchAll(VAR_PATTERN)].map(match => env[match[1] ?? '']))
+  return [...values, ...values.map(value => expandVars(value, env)), ...referenced.filter((value): value is string => value !== undefined)]
 }
 
 async function runCheck(entry: HealthTarget, options: ResolvedOptions, signal: AbortSignal): Promise<Outcome> {
@@ -457,21 +480,23 @@ async function runCheck(entry: HealthTarget, options: ResolvedOptions, signal: A
   if (config.transport === 'stdio') {
     return checkStdio(entry, config, options, signal)
   }
-  const url = expandVars(config.url, options.env)
+  const url = expandVars(config.url, options.env, { blankCredentials: true, missing: options.missing })
   if (!/^https?:\/\//i.test(url) || !URL.canParse(url)) {
     return { status: 'unsupported', error: 'The URL is not an http(s) URL after expanding variables' }
   }
-  const headers = expandMap(config.headers, options.env)
+  const headers = expandMap(config.headers, options.env, { blankCredentials: true, missing: options.missing })
   return config.transport === 'http' ? checkHttp(url, headers, signal) : checkSse(url, headers, signal)
 }
 
 /**
  * Performs the MCP `initialize` handshake against one entry and reports how it went; never throws.
- * `${VAR}` / `${VAR:-default}` in command, args, env, url and headers are expanded from `options.env`.
+ * `${VAR}` / `${VAR:-default}` in command, args, env, url and headers are expanded from `options.env`;
+ * credential-named variables expand to an empty string in remote url and headers.
  */
 export async function checkMcpHealth(entry: HealthTarget, options: HealthOptions = {}): Promise<McpHealthResult> {
   const resolved: ResolvedOptions = {
     logger: options.logger,
+    missing: new Set<string>(),
     timeoutMs: options.timeoutMs ?? HEALTH_TIMEOUT_MS,
     env: options.env ?? process.env,
     home: options.home ?? homedir(),
@@ -497,6 +522,9 @@ export async function checkMcpHealth(entry: HealthTarget, options: HealthOptions
     }
   }
   const { name, scope } = entry
+  if (resolved.missing.size > 0) {
+    resolved.logger?.warn({ name, vars: [...resolved.missing] }, 'Unset variables in MCP server config left as literal text')
+  }
   const error = outcome.error === undefined ? undefined : redact(outcome.error, secretsOf(entry, resolved.env))
   return {
     name,

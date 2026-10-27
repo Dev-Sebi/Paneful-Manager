@@ -13,7 +13,9 @@ const write = (path: string, value: unknown): void => {
   writeFileSync(path, JSON.stringify(value))
 }
 const scope = () => ({ kind: 'project', projectPath: project }) as const
-const check = (name = 'srv') => createMcpApproval({ env: {}, home }).isApproved(scope(), name)
+const managedDir = (): string => join(base, 'managed')
+const approval = (env: Record<string, string> = {}) => createMcpApproval({ env, home, managedDir: managedDir() }).session()
+const check = (name = 'srv') => approval().isApproved(scope(), name)
 
 beforeEach(() => {
   base = mkdtempSync(join(tmpdir(), 'agent-hub-approval-'))
@@ -32,9 +34,8 @@ const trust = (extra: Record<string, unknown> = {}): void =>
 
 describe('MCP approval', () => {
   it('always allows user and local scope', async () => {
-    const approval = createMcpApproval({ env: {}, home })
-    expect(await approval.isApproved({ kind: 'user' }, 'x')).toBe(true)
-    expect(await approval.isApproved({ kind: 'local', projectPath: project }, 'x')).toBe(true)
+    expect(await approval().isApproved({ kind: 'user' }, 'x')).toBe(true)
+    expect(await approval().isApproved({ kind: 'local', projectPath: project }, 'x')).toBe(true)
   })
 
   it('rejects project entries without any approval and with broken files', async () => {
@@ -52,8 +53,7 @@ describe('MCP approval', () => {
     expect(await check('anything')).toBe(true)
   })
 
-  it('approves through user settings once the trust dialog was accepted', async () => {
-    trust()
+  it('approves through user settings without a project entry in ~/.claude.json', async () => {
     write(join(home, '.claude', 'settings.json'), { enabledMcpjsonServers: ['srv'] })
     expect(await check()).toBe(true)
     expect(await check('other')).toBe(false)
@@ -61,9 +61,7 @@ describe('MCP approval', () => {
     expect(await check('other')).toBe(true)
   })
 
-  it('needs the trust dialog: missing entry, missing flag or false is not approved', async () => {
-    write(join(home, '.claude', 'settings.json'), { enableAllProjectMcpServers: true })
-    expect(await check()).toBe(false)
+  it('needs the trust dialog for approvals stored in the project entry: missing flag, false or a string is not approved', async () => {
     write(join(home, '.claude.json'), { projects: { [project]: { enabledMcpjsonServers: ['srv'] } } })
     expect(await check()).toBe(false)
     write(join(home, '.claude.json'), { projects: { [project]: { hasTrustDialogAccepted: false, enabledMcpjsonServers: ['srv'] } } })
@@ -100,6 +98,29 @@ describe('MCP approval', () => {
     const dir = join(base, 'cfg')
     write(join(dir, 'settings.json'), { enableAllProjectMcpServers: true })
     write(join(dir, '.claude.json'), { projects: { [project]: { hasTrustDialogAccepted: true } } })
-    expect(await createMcpApproval({ env: { CLAUDE_CONFIG_DIR: dir }, home }).isApproved(scope(), 'srv')).toBe(true)
+    expect(await approval({ CLAUDE_CONFIG_DIR: dir }).isApproved(scope(), 'srv')).toBe(true)
+  })
+
+  it('lets managed settings block every scope', async () => {
+    trust({ enableAllProjectMcpServers: true })
+    write(join(managedDir(), 'managed-settings.json'), { disabledMcpjsonServers: ['a'], deniedMcpServers: [{ serverName: 'b' }, 'c'] })
+    write(join(managedDir(), 'managed-settings.d', '10-extra.json'), { deniedMcpServers: [{ serverName: 'd' }] })
+    const session = approval()
+    for (const name of ['a', 'b', 'c', 'd']) {
+      expect(await session.isApproved({ kind: 'user' }, name)).toBe(false)
+      expect(await session.isApproved({ kind: 'local', projectPath: project }, name)).toBe(false)
+      expect(await session.isApproved(scope(), name)).toBe(false)
+    }
+    expect(await session.isApproved({ kind: 'user' }, 'free')).toBe(true)
+    expect(await session.isApproved(scope(), 'free')).toBe(true)
+  })
+
+  it('reads each settings file once per session', async () => {
+    trust({ enableAllProjectMcpServers: true })
+    const session = approval()
+    expect(await session.isApproved(scope(), 'a')).toBe(true)
+    rmSync(join(home, '.claude.json'))
+    expect(await session.isApproved(scope(), 'b')).toBe(true)
+    expect(await approval().isApproved(scope(), 'b')).toBe(false)
   })
 })

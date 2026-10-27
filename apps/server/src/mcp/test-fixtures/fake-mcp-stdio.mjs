@@ -11,6 +11,9 @@ if (FAKE_MCP_DUMP) {
 if (FAKE_MCP_STDERR) {
   process.stderr.write(`${FAKE_MCP_STDERR}\n`)
 }
+if (process.env.FAKE_MCP_ECHO_ARGS) {
+  process.stderr.write(`args: ${process.argv.slice(2).join(' ')}\n`)
+}
 if (FAKE_MCP_FAIL === '1') {
   process.exit(2)
 }
@@ -25,6 +28,9 @@ lines.on('line', line => {
     return
   }
   setTimeout(() => {
+    if (process.env.FAKE_MCP_REQUEST_FIRST === '1') {
+      process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: message.id, method: 'ping' })}\n`)
+    }
     if (FAKE_MCP_GARBAGE === '1') {
       process.stdout.write('this is not json\n')
     } else if (FAKE_MCP_RPC_ERROR === '1') {
