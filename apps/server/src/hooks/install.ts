@@ -301,7 +301,7 @@ async function editSettings(settingsPath: string, backups: BackupStore, edit: (s
     const content = serialize(settings, current === null ? { indent: '  ', eol: '\n', finalNewline: true } : detectFormat(text))
     let backupPath: string | undefined
     if (current === null) {
-      await mkdir(dirname(target), { recursive: true })
+      await mkdir(dirname(target), { recursive: true, mode: 0o700 })
     } else {
       backupPath = await backups.save(target, current.content)
     }
