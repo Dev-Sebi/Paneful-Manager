@@ -4,13 +4,21 @@
       <h2 :id="headingId" class="team-board__title">{{ team.name }}</h2>
 
       <ul aria-label="Members" class="team-board__members">
-        <li v-for="member in team.members" :key="member.name" class="team-board__member" :title="member.agentType">
+        <li v-for="member in team.members" :key="member.name" class="team-board__member" :title="memberTitle(member)">
           <span aria-hidden="true" class="team-board__dot" :style="{ background: memberColorVar(member.name) }" />
           {{ member.name }}
         </li>
       </ul>
 
       <span class="team-board__updated">Updated {{ relativeTime(team.lastUpdated, now) }}</span>
+
+      <AhButton
+        :disabled="team.members.length === 0"
+        prepend-icon="mdi-view-grid-plus-outline"
+        size="sm"
+        variant="secondary"
+        @click="emit('open-tab', team)"
+      >Open as tab</AhButton>
     </header>
 
     <v-row class="team-board__columns">
@@ -38,12 +46,20 @@
 </template>
 
 <script lang="ts" setup>
-  import type { Team, TeamTask, TeamTaskStatus } from '@agent-hub/shared'
+  import type { Team, TeamMember, TeamTask, TeamTaskStatus } from '@agent-hub/shared'
   import { computed } from 'vue'
+  import { AhButton } from '@/components/ah'
   import { memberColorVar, relativeTime, safeId } from './teamColor'
+  import { memberRole } from './teamTab'
   import TeamTaskCard from './TeamTaskCard.vue'
 
   const props = defineProps<{ team: Team, now: number }>()
+  const emit = defineEmits<{ 'open-tab': [team: Team] }>()
+
+  function memberTitle (member: TeamMember): string {
+    const role = memberRole(member)
+    return member.link?.status === 'linked' ? `${role}, has a pane` : role
+  }
 
   const LABELS: Array<[TeamTaskStatus, string]> = [
     ['pending', 'Pending'],

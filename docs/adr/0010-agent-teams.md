@@ -107,6 +107,46 @@ sequenceDiagram
 }
 ```
 
+## Amendment (T53): pane mapping as implemented
+
+What the data on disk allows: `config.json` gives per member `name`, `agentType`, `backendType`, `cwd` and `tmuxPaneId`, plus `leadSessionId` (a Claude Code session id). Agent Hub does not know Claude Code session ids (no hook handler stores them yet), so `leadSessionId` cannot be joined with an Agent Hub session. Agent Hub does know its own tmux server (socket `agent-hub`) and that every `ah-<id>` tmux session is Agent Hub session `<id>`. Teammates started by a lead inside an `ah-` session use the lead's `$TMUX`, so their panes live on the same server.
+
+Mapping (deterministic, `apps/server/src/teams/links.ts`):
+
+```mermaid
+flowchart TD
+    M[member] --> IP{backendType in-process<br/>and not lead?}
+    IP -- yes --> U1[unlinked: in-process]
+    IP -- no --> P{tmuxPaneId set?}
+    P -- no --> L{lead and all linked<br/>teammates in one session?}
+    L -- yes --> LW[linked via lead-window]
+    L -- no --> U2[unlinked: no-pane]
+    P -- yes --> T{tmux list-panes ok?}
+    T -- no --> U3[unlinked: tmux-unavailable]
+    T -- yes --> F{pane on agent-hub server?}
+    F -- no --> U4[unlinked: pane-not-found]
+    F -- yes --> S{pane in a known ah- session?}
+    S -- no --> U5[unlinked: not-agent-hub]
+    S -- yes --> C{member cwd inside session cwd?}
+    C -- no --> U6[unlinked: cwd-mismatch]
+    C -- yes / no cwd --> LP[linked via pane]
+```
+
+- Panes come from `tmux -N -L agent-hub list-panes -a -F '#{pane_id}\t#{session_name}'` through the existing `run()` wrapper; only while the flag is on and at least one team has members.
+- The result is an optional `link` per member in `GET /api/teams`. `TeamMemberSchema` stays strict and the web parses with it, so an older web bundle rejects the new field: web and server ship together, reload the page after an upgrade.
+- Linking applies the `cwd` check to the inferred `lead-window` link as well; a relative `cwd` never matches (`cwd-mismatch`).
+- Updates: links are part of the poll signature, so a pane appearing or vanishing sends `team.changed` within one poll interval; `session.created` and `session.removed` trigger an immediate re-check.
+- `pane_pid` is not used as a cross-check: nothing in `config.json` is a verified pid to compare with (`leadProcess` format unknown).
+
+Limits:
+
+- Pane ids (`%N`) are unique per tmux server only. A team whose lead runs in another tmux server can carry a pane id that also exists on the Agent Hub server; the `cwd` check rejects most of these, but two teams in the same directory can still collide. Members without `cwd` are not cross-checked.
+- Teammates split the lead's window (assumed upstream behavior), so lead and teammates usually map to the same Agent Hub session. A browser pane shows a whole tmux session, not a single tmux pane, so "Open as tab" shows that session once and lists the other members in the pane header; it does not break panes out of the window (that would change Claude Code's layout).
+- The lead without `tmuxPaneId` is only inferred when its teammates sit in exactly one session; with no tmux teammates (all in-process) the lead stays unlinked.
+- Works only while the lead runs: `config.json` is removed at session end.
+- Team tabs (`team-` id) only show sessions owned elsewhere: closing one never kills a session, and closing any tab spares sessions another tab still shows. They are hidden while the flag is off. Their placeholder reasons are fixed when the tab is built and only refresh when the team is opened as a tab again.
+- Not verified in a real team run yet; the key names come from the T50 spike. Re-check `tmuxPaneId` (present, `%N` format, set for the lead or not) on the first real run.
+
 ## Risks and re-verification at implementation time
 
 - Everything marked **local** or **assumed** comes from string search, not from a running team. T51 must run one real team (tmux mode, inside an `ah-` session) and confirm: the task file naming, the config keys, the inside-tmux split behavior, and the teammate argv.

@@ -21,6 +21,40 @@ export const TeamTaskSchema = z.strictObject({
 })
 export type TeamTask = z.infer<typeof TeamTaskSchema>
 
+/** Why a member has no Agent Hub session. */
+export const TeamMemberUnlinkedReasonSchema = z.enum([
+  /** `backendType: in-process`: runs inside the lead's process, no pane of its own. */
+  'in-process',
+  /** No `tmuxPaneId` in the config and no linked teammate to infer it from. */
+  'no-pane',
+  /** The pane id is not on the Agent Hub tmux server (other server, or the pane is gone). */
+  'pane-not-found',
+  /** The pane lives in a tmux session Agent Hub does not manage. */
+  'not-agent-hub',
+  /** The pane's session works in another directory; the pane id likely belongs to another tmux server. */
+  'cwd-mismatch',
+  /** The tmux server could not be queried. */
+  'tmux-unavailable',
+])
+export type TeamMemberUnlinkedReason = z.infer<typeof TeamMemberUnlinkedReasonSchema>
+
+/**
+ * Link of a team member to an Agent Hub session. `pane`: the member's `tmuxPaneId` is a pane of
+ * that session. `lead-window`: the lead has no pane id; its teammates' panes all sit in that session.
+ */
+export const TeamMemberLinkSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    status: z.literal('linked'),
+    sessionId: z.string().min(1),
+    via: z.enum(['pane', 'lead-window']),
+  }),
+  z.strictObject({
+    status: z.literal('unlinked'),
+    reason: TeamMemberUnlinkedReasonSchema,
+  }),
+])
+export type TeamMemberLink = z.infer<typeof TeamMemberLinkSchema>
+
 export const TeamMemberSchema = z.strictObject({
   name: z.string().min(1),
   agentId: z.string().optional(),
@@ -29,8 +63,17 @@ export const TeamMemberSchema = z.strictObject({
   backendType: z.string().optional(),
   tmuxPaneId: z.string().optional(),
   cwd: z.string().optional(),
+  /** Set by servers with pane mapping (T53); absent from older servers. */
+  link: TeamMemberLinkSchema.optional(),
 })
 export type TeamMember = z.infer<typeof TeamMemberSchema>
+
+/** `agentType` Claude Code gives the lead member. */
+export const TEAM_LEAD_AGENT_TYPE = 'team-lead'
+
+export function isTeamLead(member: Pick<TeamMember, 'agentType'>): boolean {
+  return member.agentType === TEAM_LEAD_AGENT_TYPE
+}
 
 export const TeamSchema = z.strictObject({
   name: z.string().min(1),

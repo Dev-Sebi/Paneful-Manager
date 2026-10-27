@@ -1,18 +1,18 @@
 <template>
   <div class="workspaces">
-    <template v-if="tabs.tabs.length > 0">
+    <template v-if="visibleTabs.length > 0">
       <AhTabs
         ariaLabel="Workspace tabs"
         closable
-        :model-value="tabs.activeId ?? undefined"
+        :model-value="shownActiveId"
         reorderable
         @add="ui.notify('New tab is not available yet')"
         @close="closing.closeTab"
-        @reorder="({ from, to }) => tabs.move(from, to)"
+        @reorder="reorder"
         @update:model-value="select"
       >
         <AhTab
-          v-for="tab in tabs.tabs"
+          v-for="tab in visibleTabs"
           :key="tab.id"
           :dirty="tabs.dirty[tab.id]"
           :status="tabState(tab)"
@@ -35,7 +35,7 @@
         </template>
       </AhTabs>
 
-      <AhTabPanel v-for="tab in tabs.tabs" :key="tab.id" class="workspaces__panel" :value="tab.id">
+      <AhTabPanel v-for="tab in visibleTabs" :key="tab.id" class="workspaces__panel" :value="tab.id">
         <AhSplitLayout
           :ref="el => setLayoutRef(tab.id, el)"
           class="workspaces__layout"
@@ -45,15 +45,24 @@
           @resized="refit"
         >
           <template #pane="{ index }">
-            <template v-for="pane in tab.panes.slice(index, index + 1)" :key="pane.sessionId">
+            <template v-for="pane in tab.panes.slice(index, index + 1)" :key="pane.sessionId ?? `placeholder-${index}`">
+              <PanePlaceholder
+                v-if="pane.placeholder"
+                class="workspaces__pane"
+                :reason="pane.placeholder.reason"
+                :title="pane.placeholder.title"
+              />
+
               <AhTerminalPane
+                v-else-if="pane.sessionId"
                 :ref="el => setPaneRef(pane.sessionId, el)"
                 class="workspaces__pane"
                 :connection="sessions.byId.get(pane.sessionId)?.lifecycle === 'exited' ? 'exited' : 'connecting'"
                 :cwd="sessions.byId.get(pane.sessionId)?.cwd"
                 :exit-code="sessions.byId.get(pane.sessionId)?.exitCode"
-                :focused="tab.id === tabs.activeId"
+                :focused="tab.id === shownActiveId"
                 :maximized="maximized === pane.sessionId"
+                :member="paneMember(pane.sessionId)"
                 :session-id="pane.sessionId"
                 :status="sessions.byId.get(pane.sessionId)?.state"
                 :title="paneTitle(pane.sessionId)"
@@ -147,21 +156,25 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhSplitLayoutExpose, AhStatusBadgeState, AhTerminalPaneExpose } from '@/components/ah'
+  import type { AhSplitLayoutExpose, AhStatusBadgeState, AhTerminalPaneExpose, AhTerminalPaneMember } from '@/components/ah'
   import type { AppTab } from '@agent-hub/shared'
   import { DEFAULT_COMMAND } from '@agent-hub/shared'
-  import { computed, nextTick, ref, watch } from 'vue'
+  import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { api } from '@/api/client'
+  import { wsClient } from '@/api/ws'
   import { AhButton, AhDialog, AhSplitLayout, AhTab, AhTabPanel, AhTabs } from '@/components/ah'
   // Imported directly, not through the barrel, so xterm stays in the lazy Workspaces chunk.
   import AhTerminalPane from '@/components/ah/AhTerminalPane.vue'
   import EmptyState from '@/components/EmptyState.vue'
+  import PanePlaceholder from '@/components/PanePlaceholder.vue'
   import PresetsPanel from '@/components/presets/PresetsPanel.vue'
   import { useCloseTab } from '@/composables/useCloseTab'
+  import { useConfigStore } from '@/stores/config'
   import { useLayoutSizesStore } from '@/stores/layoutSizes'
   import { useSessionsStore } from '@/stores/sessions'
-  import { useTabsStore } from '@/stores/tabs'
+  import { isTeamTab, useTabsStore } from '@/stores/tabs'
+  import { useTeamsStore } from '@/stores/teams'
   import { useUiStore } from '@/stores/ui'
 
   const route = useRoute()
@@ -170,6 +183,8 @@
   const sessions = useSessionsStore()
   const layoutSizes = useLayoutSizesStore()
   const ui = useUiStore()
+  const config = useConfigStore()
+  const teams = useTeamsStore()
 
   const closing = useCloseTab()
   const maximized = ref<string>()
@@ -179,7 +194,23 @@
   const createCwd = ref('~/')
   const createCommand = ref(DEFAULT_COMMAND)
 
-  const activeTab = computed(() => tabs.tabs.find(tab => tab.id === tabs.activeId))
+  /** Team tabs stay hidden (not removed) while `experimental.agentTeams` is off. */
+  const hideTeamTabs = computed(() => config.loaded && !config.agentTeams)
+  const visibleTabs = computed(() => hideTeamTabs.value ? tabs.tabs.filter(tab => !isTeamTab(tab.id)) : tabs.tabs)
+  const shownActiveId = computed(() => visibleTabs.value.some(tab => tab.id === tabs.activeId)
+    ? (tabs.activeId ?? undefined)
+    : visibleTabs.value[0]?.id)
+  const activeTab = computed(() => visibleTabs.value.find(tab => tab.id === shownActiveId.value))
+
+  /** `from`/`to` index the visible tabs; the store moves within all tabs. */
+  function reorder ({ from, to }: { from: number, to: number }) {
+    const ids = tabs.tabs.map(tab => tab.id)
+    const source = visibleTabs.value[from]
+    const target = visibleTabs.value[to]
+    if (source && target) {
+      tabs.move(ids.indexOf(source.id), ids.indexOf(target.id))
+    }
+  }
   const layoutRefs = new Map<string, AhSplitLayoutExpose>()
   const paneRefs = new Map<string, AhTerminalPaneExpose>()
 
@@ -191,7 +222,10 @@
     }
   }
 
-  function setPaneRef (sessionId: string, el: unknown) {
+  function setPaneRef (sessionId: string | undefined, el: unknown) {
+    if (sessionId === undefined) {
+      return
+    }
     if (el) {
       paneRefs.set(sessionId, el as AhTerminalPaneExpose)
     } else {
@@ -202,17 +236,19 @@
   /** Refits the panes of the active tab after a splitter move or a tab switch. */
   function refit () {
     for (const pane of activeTab.value?.panes ?? []) {
-      paneRefs.get(pane.sessionId)?.fit()
+      if (pane.sessionId) {
+        paneRefs.get(pane.sessionId)?.fit()
+      }
     }
   }
 
   function resetLayout () {
-    if (tabs.activeId) {
-      layoutRefs.get(tabs.activeId)?.resetSizes()
+    if (shownActiveId.value) {
+      layoutRefs.get(shownActiveId.value)?.resetSizes()
     }
   }
 
-  watch(() => tabs.activeId, () => nextTick(refit))
+  watch(shownActiveId, () => nextTick(refit))
   watch(() => tabs.tabs.map(tab => tab.id), ids => layoutSizes.prune(ids))
 
   const canCreate = computed(() => createCwd.value.trim() !== '' && createCommand.value.trim() !== '')
@@ -225,6 +261,27 @@
     const session = sessions.byId.get(sessionId)
     return session?.title ?? session?.command ?? sessionId
   }
+
+  /** Team member header data; only with `experimental.agentTeams` on. */
+  function paneMember (sessionId: string): AhTerminalPaneMember | undefined {
+    if (!config.agentTeams) {
+      return undefined
+    }
+    const member = teams.bySession.get(sessionId)
+    return member ? { name: member.name, role: member.role, others: member.others } : undefined
+  }
+
+  // Team links are only loaded while the flag is on; WS updates arrive as `team.changed`.
+  let unbindTeams: (() => void) | undefined
+  watch(() => config.agentTeams, enabled => {
+    unbindTeams?.()
+    unbindTeams = undefined
+    if (enabled) {
+      unbindTeams = teams.bind(wsClient)
+      void teams.load()
+    }
+  }, { immediate: true })
+  onBeforeUnmount(() => unbindTeams?.())
 
   function toggleMaximize (sessionId: string) {
     maximized.value = maximized.value === sessionId ? undefined : sessionId
@@ -256,8 +313,8 @@
   }
 
   function tabState (tab: AppTab): AhStatusBadgeState | undefined {
-    const first = tab.panes[0]
-    return first ? sessions.byId.get(first.sessionId)?.state : undefined
+    const first = tab.panes.find(pane => pane.sessionId !== undefined)?.sessionId
+    return first ? sessions.byId.get(first)?.state : undefined
   }
 
   function select (id: string) {
@@ -266,13 +323,13 @@
 
   // Keeps the URL and the store in agreement: the URL wins when it names a tab, otherwise the active tab is shown.
   watch(
-    () => [route.params.tabId, tabs.activeId, tabs.tabs.length] as const,
+    () => [route.params.tabId, shownActiveId.value, visibleTabs.value.length] as const,
     ([param, active]) => {
       if (route.name !== 'workspaces' && route.name !== 'workspace-tab') {
         return
       }
       const tabId = typeof param === 'string' ? param : undefined
-      if (tabId && tabs.tabs.some(tab => tab.id === tabId)) {
+      if (tabId && visibleTabs.value.some(tab => tab.id === tabId)) {
         tabs.activate(tabId)
       } else if (active) {
         void router.replace(`/workspaces/${active}`)

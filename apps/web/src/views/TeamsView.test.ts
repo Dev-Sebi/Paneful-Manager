@@ -6,6 +6,9 @@ import { createMemoryHistory } from 'vue-router'
 import { connection } from '@/api/connection'
 import { makeTask, makeTeam } from '@/components/teams/fixtures'
 import { createAppRouter } from '@/router'
+import { useSessionsStore } from '@/stores/sessions'
+import { useTabsStore } from '@/stores/tabs'
+import { makeSession } from '@/test/fixtures'
 import { mountWithVuetify } from '@/test/mount'
 import TeamsView from './TeamsView.vue'
 
@@ -75,6 +78,24 @@ describe('TeamsView', () => {
     expect(wrapper.find('#task-desc-alpha-2').isVisible()).toBe(true)
   })
 
+  it('opens a team as a tab with one pane per member and switches to it', async () => {
+    const team = makeTeam('alpha')
+    team.members = [
+      { name: 'lead', agentType: 'team-lead', link: { status: 'linked', sessionId: 's1', via: 'pane' } },
+      { name: 'tester', link: { status: 'unlinked', reason: 'no-pane' } },
+    ]
+    listTeams.mockResolvedValue({ enabled: true, teams: [team], warnings: [] })
+    const { wrapper, router } = await mountView()
+    useSessionsStore().upsert(makeSession('s1'))
+    const push = vi.spyOn(router, 'push')
+    const button = wrapper.findAll('button').find(item => item.text() === 'Open as tab')
+    await button?.trigger('click')
+    const tabs = useTabsStore()
+    expect(tabs.tabs).toHaveLength(1)
+    expect(tabs.tabs[0]).toMatchObject({ id: 'team-alpha', layout: { kind: 'row' }, panes: [{ sessionId: 's1' }, { placeholder: { title: 'tester (Teammate)' } }] })
+    expect(push).toHaveBeenCalledWith('/workspaces/team-alpha')
+  })
+
   it('lists parse warnings in an alert and shows an empty hint without teams', async () => {
     listTeams.mockResolvedValue({ enabled: true, teams: [], warnings: ['alpha/1.json: invalid JSON, skipped'] })
     const { wrapper } = await mountView()
@@ -118,9 +139,9 @@ describe('TeamsView', () => {
     expect(wrapper.find('section[aria-labelledby]').attributes('aria-labelledby')).toBe('team-my_team_1')
   })
 
-  it('has no mutating controls beyond description toggles', async () => {
+  it('has no controls that change team data; only Open as tab', async () => {
     listTeams.mockResolvedValue({ enabled: true, teams: [{ ...makeTeam('alpha'), tasks: [makeTask('1')] }], warnings: [] })
     const { wrapper } = await mountView()
-    expect(wrapper.findAll('.team-board button, .team-board input, .team-board textarea, .team-board select')).toHaveLength(0)
+    expect(wrapper.findAll('.team-board button, .team-board input, .team-board textarea, .team-board select').map(item => item.text())).toEqual(['Open as tab'])
   })
 })

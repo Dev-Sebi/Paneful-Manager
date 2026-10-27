@@ -59,7 +59,7 @@ Status: `todo` | `doing` | `review` | `done` | `blocked`. A task starts only whe
 | T50 | Spike + ADR: current agent-teams behavior, min version, on-disk formats | Opus | T12 | done | |
 | T51 | Team templates (YAML) + launch flow | Opus | T50, T24 | doing | |
 | T52 | Read-only live task board | Sonnet | T50 | done | |
-| T53 | Map teammates to terminal panes | Opus | T50, T23 | doing | |
+| T53 | Map teammates to terminal panes | Opus | T50, T23 | done | merged 9959eb1 |
 
 ## Wave 6 — install and hardening
 
