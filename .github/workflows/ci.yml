@@ -26,9 +26,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y tmux
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
-      - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm build
 
   e2e:
     needs: check
@@ -56,6 +56,7 @@ jobs:
       - name: Install Playwright system dependencies
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @agent-hub/web exec playwright install-deps chromium
+      - run: pnpm --filter @agent-hub/shared build
       - run: pnpm e2e
       - name: Upload Playwright report
         if: failure()

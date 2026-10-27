@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint'
 const web = await vuetify({ ts: true })
 
 export default [
-  { ignores: ['**/dist/**', '**/node_modules/**'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', 'docs/**', 'examples/**'] },
   ...web.map(config => ({ ...config, files: config.files ?? ['apps/web/**/*.{js,ts,vue}'] })),
   ...tseslint.configs.recommended.map(config => ({
     ...config,

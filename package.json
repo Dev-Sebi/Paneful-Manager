@@ -14,7 +14,7 @@
     "build": "pnpm -r run build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "pnpm -r run typecheck",
+    "typecheck": "pnpm --filter @agent-hub/shared build && pnpm -r run typecheck",
     "test": "pnpm -r --if-present run test",
     "e2e": "pnpm --filter @agent-hub/web e2e"
   },
