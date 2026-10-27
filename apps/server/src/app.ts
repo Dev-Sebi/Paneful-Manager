@@ -17,8 +17,7 @@ import { createConfigStore, type ConfigStore } from './config/store.js'
 import { AppError } from './errors.js'
 import { registerFiles } from './files/routes.js'
 import type { FileService } from './files/service.js'
-import { registerMcp } from './mcp/routes.js'
-import type { McpService } from './mcp/service.js'
+import { registerMcp, type McpDeps } from './mcp/routes.js'
 import { registerScopes } from './scopes/routes.js'
 import { runFile } from './scopes/run-git.js'
 import { registerSecurity } from './security/register-security.js'
@@ -26,6 +25,7 @@ import { createSessionToken } from './security/token.js'
 import { authorizeUpgrade } from './security/upgrade.js'
 import type { SessionEngine } from './sessions/engine.js'
 import { registerSessions } from './sessions/routes.js'
+import { registerStatic } from './static.js'
 import { registerTeams } from './teams/routes.js'
 import { createTeamsService } from './teams/service.js'
 import { registerWorktrees, type WorktreeDeps } from './worktrees/routes.js'
@@ -52,10 +52,12 @@ export interface BuildAppOptions {
   configStore?: ConfigStore
   /** Worktree helper; its routes are only registered when this is given. */
   worktrees?: Omit<WorktreeDeps, 'run'> & Partial<Pick<WorktreeDeps, 'run'>>
-  /** MCP config service; the MCP routes are only registered when it is given. */
-  mcp?: McpService
+  /** MCP config service (and optional health runner); the MCP routes are only registered when it is given. */
+  mcp?: McpDeps
   /** Agent teams board; its route is only registered when `claudeDir` is given and reads nothing while the flag is off. */
   teams?: { claudeDir: string }
+  /** Built web app to serve with SPA fallback; API only when omitted. */
+  webDist?: string
 }
 
 function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): void {
@@ -105,7 +107,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], engine, files, worktrees, mcp, configStore, teams }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], engine, files, worktrees, mcp, configStore, teams, webDist }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -142,7 +144,7 @@ export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], e
     registerWorktrees(app, { ...worktrees, run: worktrees.run ?? runFile })
   }
   if (mcp) {
-    registerMcp(app, { service: mcp })
+    registerMcp(app, mcp)
   }
   if (teams) {
     const service = createTeamsService({
@@ -155,6 +157,9 @@ export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], e
     registerTeams(app, { service })
     app.addHook('onClose', async () => service.close())
     app.addHook('onReady', async () => service.sync())
+  }
+  if (webDist !== undefined) {
+    registerStatic(app, webDist)
   }
   return app
 }

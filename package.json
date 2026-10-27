@@ -16,7 +16,8 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "pnpm --filter @agent-hub/shared build && pnpm -r run typecheck",
     "test": "pnpm -r --if-present run test",
-    "e2e": "pnpm --filter @agent-hub/web e2e"
+    "e2e": "pnpm --filter @agent-hub/web e2e",
+    "release:pack": "sh scripts/release-pack.sh"
   },
   "devDependencies": {
     "eslint": "^9.39.4",

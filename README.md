@@ -14,7 +14,17 @@ Agent Hub is a local web app for running and organizing Claude Code sessions. It
 - MCP server configuration
 - Experimental agent-team views
 
-## Quick Start
+## Install
+
+Inside WSL2 (with systemd, Node.js 22+, tmux 3.2+):
+
+```bash
+curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/install.sh | sh
+```
+
+Then open `http://127.0.0.1:7337/`. The installer sets up the systemd user services `agent-hub-tmux.service` and `agent-hub.service`; flags, upgrade, rollback, uninstall and troubleshooting are in the [install guide](docs/install.md).
+
+## Development
 
 ```bash
 git clone <repo-url> agent-hub
@@ -30,7 +40,7 @@ Open `http://localhost:3000` in your browser (Vite dev server).
 - WSL2 with systemd enabled
 - Node.js 22 or later
 - pnpm 11 or later
-- tmux
+- tmux 3.2 or later
 - git
 - Claude Code CLI
 
@@ -44,6 +54,7 @@ Example files are in `examples/`.
 
 ## Documentation
 
+- [Install guide](docs/install.md)
 - [Architecture](docs/architecture.md) (in progress)
 - [Contributing](CONTRIBUTING.md)
 

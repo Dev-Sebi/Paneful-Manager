@@ -90,7 +90,8 @@ export const McpServerConfigMaskedSchema = z.discriminatedUnion('transport', [
 ])
 export type McpServerConfigMasked = z.infer<typeof McpServerConfigMaskedSchema>
 
-export const McpServerEntryMaskedSchema = McpServerEntrySchema.extend({ config: McpServerConfigMaskedSchema })
+/** `approved`: Claude Code runs the entry; false for a `.mcp.json` server the user has not approved (it is never health-checked). */
+export const McpServerEntryMaskedSchema = McpServerEntrySchema.extend({ config: McpServerConfigMaskedSchema, approved: z.boolean() })
 export type McpServerEntryMasked = z.infer<typeof McpServerEntryMaskedSchema>
 
 function maskMap(values: Record<string, string>): Record<string, string | McpMaskedValue> {
@@ -101,12 +102,12 @@ function maskMap(values: Record<string, string>): Record<string, string | McpMas
 }
 
 /** Replaces env and header values by `{ masked: true, set }`, except for `MCP_PLAIN_KEYS`. */
-export function maskMcpEntry(entry: McpServerEntry): McpServerEntryMasked {
+export function maskMcpEntry(entry: McpServerEntry, approved: boolean): McpServerEntryMasked {
   const { config } = entry
   const masked: McpServerConfigMasked = config.transport === 'stdio'
     ? { ...config, env: maskMap(config.env) }
     : { ...config, headers: maskMap(config.headers) }
-  return { ...entry, config: masked }
+  return { ...entry, config: masked, approved }
 }
 
 // Requests and responses
@@ -170,3 +171,33 @@ export const RemoveMcpServerResponseSchema = z.strictObject({
   removed: z.literal(true),
 })
 export type RemoveMcpServerResponse = z.infer<typeof RemoveMcpServerResponseSchema>
+
+// Health check
+
+export const McpHealthStatusSchema = z.enum(['ok', 'error', 'timeout', 'unsupported'])
+export type McpHealthStatus = z.infer<typeof McpHealthStatusSchema>
+
+export const MCP_HEALTH_ERROR_MAX = 200
+
+/** POST /api/mcp/health: spawns the server (stdio) or contacts it (http, sse) and performs the `initialize` handshake. */
+export const McpHealthRequestSchema = z.strictObject({ name: McpServerNameSchema, scope: McpScopeSchema })
+export type McpHealthRequest = z.infer<typeof McpHealthRequestSchema>
+
+/** `error` is scrubbed of env and header values. */
+export const McpHealthResultSchema = z.strictObject({
+  name: McpServerNameSchema,
+  scope: McpScopeSchema,
+  status: McpHealthStatusSchema,
+  latencyMs: z.number().int().nonnegative().optional(),
+  serverInfo: z.strictObject({ name: z.string(), version: z.string() }).optional(),
+  protocolVersion: z.string().optional(),
+  error: z.string().max(MCP_HEALTH_ERROR_MAX).optional(),
+})
+export type McpHealthResult = z.infer<typeof McpHealthResultSchema>
+
+/** POST /api/mcp/health/all; without `projectPath` every configured project and worktree is checked. */
+export const McpHealthAllRequestSchema = z.strictObject({ projectPath: PathSchema.optional() })
+export type McpHealthAllRequest = z.infer<typeof McpHealthAllRequestSchema>
+
+export const McpHealthListResponseSchema = z.strictObject({ results: z.array(McpHealthResultSchema) })
+export type McpHealthListResponse = z.infer<typeof McpHealthListResponseSchema>

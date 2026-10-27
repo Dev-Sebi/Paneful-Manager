@@ -30,6 +30,22 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  installer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install tmux and shellcheck
+        run: sudo apt-get update && sudo apt-get install -y tmux shellcheck
+      - run: shellcheck install.sh scripts/*.sh
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: sh scripts/test-install.sh
+
   e2e:
     needs: check
     runs-on: ubuntu-latest

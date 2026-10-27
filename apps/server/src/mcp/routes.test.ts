@@ -34,7 +34,7 @@ function start(fake: FakeRun, overrides: Partial<McpServiceOptions> & { logger?:
     home: box.home,
     ...overrides,
   })
-  app = buildApp({ config: DEFAULT_CONFIG, logger: overrides.logger ?? silentLogger, sessionToken: TOKEN, dev: false, mcp: service })
+  app = buildApp({ config: DEFAULT_CONFIG, logger: overrides.logger ?? silentLogger, sessionToken: TOKEN, dev: false, mcp: { service } })
   return app
 }
 
