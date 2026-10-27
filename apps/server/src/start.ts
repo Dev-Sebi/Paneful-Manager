@@ -2,8 +2,10 @@ import { join } from 'node:path'
 import { BIND_HOST, resolveStateDir, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
+import { createBackupStore } from './files/backups.js'
 import { createFileService } from './files/service.js'
 import { assertBackupDirOutsideScopes } from './files/state-dir.js'
+import { createMcpService } from './mcp/service.js'
 import { expandHome } from './paths.js'
 import { discoverScopes } from './scopes/discover.js'
 import { assertLoopbackAddress } from './security/origin.js'
@@ -36,7 +38,8 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const engine = new SessionEngine({ stateDir, logger, ...(tmux === undefined ? {} : { tmux }) })
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
-  const app = buildApp({ config, logger, files, engine })
+  const mcp = createMcpService({ getScopes, env, backupDir, logger })
+  const app = buildApp({ config, logger, files, engine, worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) }, mcp })
   try {
     await app.listen({ host: BIND_HOST, port: config.port })
   } catch (error) {

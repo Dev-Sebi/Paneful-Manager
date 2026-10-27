@@ -1,16 +1,21 @@
-import type { ApiError, ApiErrorCode, CreateSessionRequestInput, PatchConfigRequest, z } from '@agent-hub/shared'
+import type { ApiError, ApiErrorCode, CreateFileRequest, CreateSessionRequestInput, PatchConfigRequest, WriteFileRequest, z } from '@agent-hub/shared'
 import {
   API_ROUTES,
   ApiErrorSchema,
+  CreateFileResponseSchema,
   CreateSessionResponseSchema,
+  DeleteFileResponseSchema,
   GetConfigResponseSchema,
   HealthResponseSchema,
   KillSessionResponseSchema,
+  ListFilesResponseSchema,
   ListPresetsResponseSchema,
   ListSessionsResponseSchema,
   PatchConfigResponseSchema,
+  ReadFileResponseSchema,
   ScopesResponseSchema,
   SESSION_TOKEN_HEADER,
+  WriteFileResponseSchema,
 } from '@agent-hub/shared'
 import { getToken, refreshToken } from './token'
 
@@ -106,4 +111,13 @@ export const api = {
       fetchJson(API_ROUTES.session.replace(':id', encodeURIComponent(id)), { schema: KillSessionResponseSchema, method: 'DELETE' }),
   },
   listPresets: () => fetchJson(API_ROUTES.presets, { schema: ListPresetsResponseSchema }),
+  listFiles: () => fetchJson(API_ROUTES.files, { schema: ListFilesResponseSchema }),
+  readFile: (path: string) =>
+    fetchJson(`${API_ROUTES.fileContent}?${new URLSearchParams({ path })}`, { schema: ReadFileResponseSchema }),
+  writeFile: (request: WriteFileRequest) =>
+    fetchJson(API_ROUTES.fileContent, { schema: WriteFileResponseSchema, method: 'PUT', body: request }),
+  createFile: (request: CreateFileRequest) =>
+    fetchJson(API_ROUTES.files, { schema: CreateFileResponseSchema, method: 'POST', body: request }),
+  deleteFile: (path: string) =>
+    fetchJson(`${API_ROUTES.fileContent}?${new URLSearchParams({ path })}`, { schema: DeleteFileResponseSchema, method: 'DELETE' }),
 }
