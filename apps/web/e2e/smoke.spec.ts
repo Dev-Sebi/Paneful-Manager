@@ -27,6 +27,7 @@ test('navigates through every section via the sidebar', async ({ page }) => {
 
 test('Ctrl+2 switches to skills', async ({ page }) => {
   await page.goto('/workspaces')
+  await expect(page.getByText('Connected', { exact: true })).toBeVisible()
   await page.keyboard.press('Control+2')
   await expect(page).toHaveURL(/\/skills$/)
 })
