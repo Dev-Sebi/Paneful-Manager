@@ -53,6 +53,10 @@ describe('ApiErrorSchema', () => {
     expect(error.code === 'validation_failed' && error.details[0]?.path).toEqual(['cwd'])
   })
 
+  it('accepts tmux_unavailable', () => {
+    expect(ApiErrorSchema.parse({ code: 'tmux_unavailable', message: 'tmux server not running' }).code).toBe('tmux_unavailable')
+  })
+
   it('requires details for validation errors and rejects unknown codes and keys', () => {
     expect(issuePaths(ApiErrorSchema, { code: 'validation_failed', message: 'bad' })).toEqual(['details'])
     expect(issuePaths(ApiErrorSchema, { code: 'teapot', message: 'x' })).toEqual(['code'])

@@ -31,6 +31,7 @@ export const ApiErrorCodeSchema = z.enum([
   'not_found',
   'conflict',
   'session_spawn_failed',
+  'tmux_unavailable',
   'internal',
 ])
 export type ApiErrorCode = z.infer<typeof ApiErrorCodeSchema>
