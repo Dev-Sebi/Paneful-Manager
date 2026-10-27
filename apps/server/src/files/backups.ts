@@ -41,7 +41,7 @@ function errnoCode(error: unknown): string | undefined {
 async function writeUnique(dir: string, content: Buffer): Promise<string> {
   const base = timestamp()
   for (let attempt = 0; ; attempt++) {
-    const target = join(dir, attempt === 0 ? base : `${base}-${attempt}`)
+    const target = join(dir, attempt === 0 ? base : `${base}-${String(attempt).padStart(3, '0')}`)
     try {
       await writeFile(target, content, { mode: 0o600, flag: 'wx' })
       return target

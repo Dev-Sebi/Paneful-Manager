@@ -68,7 +68,7 @@ describe('file contracts', () => {
   })
 
   it('rejects skill names that could escape the skills directory', () => {
-    for (const name of ['..', '.hidden', 'a/b', 'a\\b', '', 'x'.repeat(65)]) {
+    for (const name of ['..', '.hidden', 'a/b', 'a\\b', '', 'x'.repeat(65), 'a..b', 'node_modules']) {
       expect(SkillNameSchema.safeParse(name).success).toBe(false)
     }
     expect(SkillNameSchema.parse('my_skill.v2')).toBe('my_skill.v2')

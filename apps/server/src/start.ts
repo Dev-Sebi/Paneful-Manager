@@ -1,6 +1,9 @@
 import { BIND_HOST, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
+import { createFileService } from './files/service.js'
+import { assertBackupDirOutsideScopes, resolveBackupDir } from './files/state-dir.js'
+import { discoverScopes } from './scopes/discover.js'
 import { assertLoopbackAddress } from './security/origin.js'
 
 export const SHUTDOWN_TIMEOUT_MS = 5000
@@ -12,8 +15,16 @@ export interface RunningServer {
   shutdown: () => Promise<boolean>
 }
 
-export async function startServer(config: AppConfig, logger: FastifyBaseLogger): Promise<RunningServer> {
-  const app = buildApp({ config, logger })
+export interface StartOptions {
+  env?: Record<string, string | undefined>
+}
+
+export async function startServer(config: AppConfig, logger: FastifyBaseLogger, { env = process.env }: StartOptions = {}): Promise<RunningServer> {
+  const getScopes = () => discoverScopes({ config, env, logger })
+  const backupDir = resolveBackupDir(env)
+  assertBackupDirOutsideScopes(backupDir, await getScopes())
+  const files = createFileService({ getScopes, backupDir, logger })
+  const app = buildApp({ config, logger, files })
   await app.listen({ host: BIND_HOST, port: config.port })
   const address = app.server.address()
   try {

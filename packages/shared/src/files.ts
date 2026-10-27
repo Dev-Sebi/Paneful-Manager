@@ -13,8 +13,11 @@ export type ManagedFileKind = z.infer<typeof ManagedFileKindSchema>
 /** Lowercase sha256 hex digest of the raw file bytes. */
 export const FileHashSchema = z.string().regex(/^[0-9a-f]{64}$/, 'hash must be a sha256 hex digest')
 
-/** Skill directory name: starts alphanumeric, no path separators, no leading dot. */
-export const SkillNameSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, 'invalid skill name')
+/** Skill directory name: starts alphanumeric, no path separators, no `..`, not `node_modules`. */
+export const SkillNameSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/, 'invalid skill name')
+  .refine(name => !name.includes('..') && name !== 'node_modules', 'invalid skill name')
 
 /**
  * A managed file. `path` is absolute and starts with `scope.path`; `relPath` is relative to it.

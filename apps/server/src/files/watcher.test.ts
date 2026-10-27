@@ -75,7 +75,8 @@ describe.skipIf(process.platform !== 'linux')('file watcher', () => {
   })
 
   it('reports atomic writes of the file service as changes', { timeout: 30_000 }, async () => {
-    const box = createSandbox({ watchDebounceMs: 50 })
+    const broadcasts: FileChangedMessage[] = []
+    const box = createSandbox({ watchDebounceMs: 50, broadcast: message => broadcasts.push(message) })
     try {
       const path = join(box.project, 'CLAUDE.md')
       writeFileSync(path, 'before')
@@ -87,6 +88,8 @@ describe.skipIf(process.platform !== 'linux')('file watcher', () => {
         await new Promise(done => setTimeout(done, 25))
       }
       expect(seen.find(message => message.hash === sha('after'))).toMatchObject({ path, event: 'change' })
+      expect(broadcasts).toEqual(seen)
+      await box.service.refresh()
       unsubscribe()
     } finally {
       await box.cleanup()

@@ -1,8 +1,8 @@
-import { createHash, randomBytes } from 'node:crypto'
-import { constants, type Stats } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { constants, realpathSync, type Stats } from 'node:fs'
 import { lstat, mkdir, open, readdir, rename, rm, stat, unlink } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import {
   MAX_MANAGED_FILE_BYTES,
   type CreateFileRequest,
@@ -33,6 +33,7 @@ import {
   skillsDirSegments,
   type ManagedMatch,
 } from './layout.js'
+import { errnoCode, readCurrent, type CurrentFile } from './read.js'
 import { createFileWatcher, type FileWatcher } from './watcher.js'
 
 export type FileServiceLogger = Pick<BaseLogger, 'debug' | 'info' | 'warn'>
@@ -47,6 +48,8 @@ export interface FileServiceOptions {
   backupLimits?: { perFile?: number; totalBytes?: number }
   /** Watcher debounce, mainly for tests. */
   watchDebounceMs?: number
+  /** Sink for watcher messages, e.g. the WS broadcast. */
+  broadcast?: (message: FileChangedMessage) => void
 }
 
 export interface FileService {
@@ -57,6 +60,8 @@ export interface FileService {
   delete: (path: string) => Promise<void>
   /** Starts the watcher on first use; returns an unsubscribe function. */
   watch: (listener: (message: FileChangedMessage) => void) => Promise<() => void>
+  /** Re-reads the scopes for a running watcher, e.g. after the project list changed. */
+  refresh: () => Promise<void>
   close: () => Promise<void>
 }
 
@@ -66,24 +71,10 @@ interface Context {
   realRoots: string[]
 }
 
-interface CurrentFile {
-  content: Buffer
-  stats: Stats
-  hash: string
-}
-
 const forbidden = (message: string): AppError => new AppError(message, 403, 'forbidden')
-
-function errnoCode(error: unknown): string | undefined {
-  return (error as NodeJS.ErrnoException).code
-}
 
 function expandHome(path: string): string {
   return path === '~' || path.startsWith('~/') ? join(homedir(), path.slice(1)) : path
-}
-
-function sha256(content: Buffer | string): string {
-  return createHash('sha256').update(content).digest('hex')
 }
 
 function decodeText(content: Buffer): string {
@@ -113,36 +104,6 @@ function conflict(current: CurrentFile | null, message = 'File changed since it 
 
 function skillTemplate(name: string): string {
   return `---\nname: ${name}\ndescription: Describe what this skill does and when to use it.\n---\n\n# ${name}\n\nWrite the instructions for this skill here.\n`
-}
-
-/** Reads a regular file without following a final symlink; `null` when it does not exist. */
-async function readCurrent(path: string): Promise<CurrentFile | null> {
-  let handle
-  try {
-    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW)
-  } catch (error) {
-    const code = errnoCode(error)
-    if (code === 'ENOENT') {
-      return null
-    }
-    if (code === 'ELOOP') {
-      throw forbidden('Path changed to a symbolic link')
-    }
-    throw error
-  }
-  try {
-    const stats = await handle.stat()
-    if (!stats.isFile()) {
-      throw new AppError('Not a regular file', 400, 'bad_request')
-    }
-    if (stats.size > MAX_MANAGED_FILE_BYTES) {
-      throw new AppError('File is larger than 1 MiB', 413, 'bad_request')
-    }
-    const content = await handle.readFile()
-    return { content, stats, hash: sha256(content) }
-  } finally {
-    await handle.close()
-  }
 }
 
 async function fsyncDir(dir: string): Promise<void> {
@@ -181,6 +142,14 @@ export async function atomicWrite(target: string, content: string, mode: number 
     throw error
   }
   await fsyncDir(dir)
+}
+
+function tryRealpath(path: string): string | undefined {
+  try {
+    return realpathSync.native(path)
+  } catch {
+    return undefined
+  }
 }
 
 function isInsideRoot(path: string, root: string): boolean {
@@ -246,12 +215,33 @@ export function createFileService(options: FileServiceOptions): FileService {
     }
   }
 
+  /**
+   * A resolved path must stay inside the scope root of the requested path and contain no hidden segment
+   * (except the skills prefix); a file must also be managed or Markdown, so `CLAUDE.md -> AGENTS.md` works.
+   */
+  function assertRealInScope(hit: { scope: Scope; root: string }, real: string, type: 'file' | 'entry'): void {
+    const realRoot = tryRealpath(hit.root) ?? hit.root
+    if (!isInsideRoot(real, realRoot)) {
+      throw forbidden('Link target leaves its scope')
+    }
+    const segments = relative(realRoot, real).split(sep).filter(Boolean)
+    const skills = skillsDirSegments(hit.scope)
+    const inSkills = segments.length > skills.length && skills.every((part, index) => segments[index] === part)
+    if ((inSkills ? segments.slice(skills.length) : segments).some(segment => segment.startsWith('.'))) {
+      throw forbidden('Link target is a hidden path')
+    }
+    if (type === 'file' && !matchManagedPath([hit.scope], real) && extname(real).toLowerCase() !== '.md') {
+      throw forbidden('Link target is not a managed file')
+    }
+  }
+
   function resolveManaged(ctx: Context, raw: string): { match: ManagedMatch; real: string } {
     const real = ctx.allowlist.resolveInside(raw)
     const match = matchManagedPath(ctx.scopes, resolve(expandHome(raw.trim())))
     if (!match) {
       throw forbidden('Not a managed file')
     }
+    assertRealInScope(match, real, 'file')
     return { match, real }
   }
 
@@ -310,6 +300,7 @@ export function createFileService(options: FileServiceOptions): FileService {
   async function tryListEntry(ctx: Context, match: ManagedMatch): Promise<FileEntry | undefined> {
     try {
       const real = ctx.allowlist.resolveInside(match.path)
+      assertRealInScope(match, real, 'file')
       const current = await readCurrent(real)
       if (!current) {
         return undefined
@@ -453,8 +444,12 @@ export function createFileService(options: FileServiceOptions): FileService {
       let content = ''
       if (request.kind === 'skill') {
         const name = request.name ?? ''
+        if (!isSkillName(name)) {
+          throw new AppError('Invalid skill name', 400, 'bad_request')
+        }
         const skillDir = join(root, ...skillsDirSegments(scope), name)
         const realDir = ctx.allowlist.resolveInside(skillDir)
+        assertRealInScope({ scope, root }, realDir, 'entry')
         const existing = await lstat(realDir).then(() => true, () => false)
         if (existing) {
           throw conflict(null, 'Skill already exists')
@@ -475,14 +470,23 @@ export function createFileService(options: FileServiceOptions): FileService {
       const ctx = await context()
       const lexical = resolve(expandHome(path.trim()))
       const skillDir = matchSkillDir(ctx.scopes, lexical)
-      if (!skillDir && !matchManagedPath(ctx.scopes, lexical)) {
+      const fileMatch = matchManagedPath(ctx.scopes, lexical)
+      const hit = skillDir ?? fileMatch
+      if (!hit) {
         ctx.allowlist.resolveInside(path)
         throw forbidden('Not a managed file')
       }
       // The entry itself is removed, so a symlinked file or skill directory loses only its link.
       const parent = ctx.allowlist.resolveInside(dirname(lexical))
       const entry = join(parent, basename(lexical))
-      await withLock(entry, async () => {
+      assertRealInScope(hit, entry, skillDir ? 'entry' : 'file')
+      let lockKey = entry
+      try {
+        lockKey = ctx.allowlist.resolveInside(lexical)
+      } catch {
+        // Dangling or escaping link: only the entry itself can be locked.
+      }
+      await withLock(lockKey, async () => {
         await assertNoSymlinks(ctx, parent)
         let info: Stats
         try {
@@ -494,7 +498,7 @@ export function createFileService(options: FileServiceOptions): FileService {
           throw error
         }
         if (info.isSymbolicLink()) {
-          ctx.allowlist.resolveInside(entry)
+          assertRealInScope(hit, ctx.allowlist.resolveInside(entry), skillDir ? 'entry' : 'file')
           await unlink(entry)
         } else if (skillDir) {
           if (!info.isDirectory()) {
@@ -514,7 +518,13 @@ export function createFileService(options: FileServiceOptions): FileService {
 
     async watch(listener) {
       watcher ??= (async () => {
-        const created = createFileWatcher({ getScopes, logger, allowlist: makeAllowlist, debounceMs: options.watchDebounceMs })
+        const created = createFileWatcher({
+          getScopes,
+          logger,
+          allowlist: makeAllowlist,
+          debounceMs: options.watchDebounceMs,
+          broadcast: options.broadcast,
+        })
         await created.start()
         return created
       })()
@@ -522,6 +532,10 @@ export function createFileService(options: FileServiceOptions): FileService {
         watcher = undefined
       })
       return (await watcher).onChange(listener)
+    },
+
+    async refresh() {
+      await (await watcher)?.refresh()
     },
 
     async close() {

@@ -1,10 +1,8 @@
-import { createHash } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { readFile, stat } from 'node:fs/promises'
+import { lstat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import {
   FileChangedMessageSchema,
-  MAX_MANAGED_FILE_BYTES,
   type FileChangeEvent,
   type FileChangedMessage,
   type Scope,
@@ -13,6 +11,7 @@ import { watch, type FSWatcher } from 'chokidar'
 import type { BaseLogger } from 'pino'
 import { createAllowlist, type Allowlist } from '../fs/allowlist.js'
 import { MAX_SKILL_DEPTH, allowlistRoots, isWatchCandidate, matchManagedPath } from './layout.js'
+import { readCurrent } from './read.js'
 
 /** Events for one path within this window collapse into one message. */
 export const WATCH_DEBOUNCE_MS = 100
@@ -58,10 +57,10 @@ export function createFileWatcher(options: FileWatcherOptions): FileWatcher {
   async function hashOf(path: string): Promise<string | undefined> {
     try {
       const real = makeAllowlist(allowlistRoots(scopes)).resolveInside(path)
-      if ((await stat(real)).size > MAX_MANAGED_FILE_BYTES) {
+      if (!(await lstat(real)).isFile()) {
         return undefined
       }
-      return createHash('sha256').update(await readFile(real)).digest('hex')
+      return (await readCurrent(real))?.hash
     } catch {
       return undefined
     }

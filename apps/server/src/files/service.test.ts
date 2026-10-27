@@ -93,6 +93,40 @@ describe('path checks', () => {
     expect(readFileSync(join(box.project, 'AGENTS.md'), 'utf8')).toBe('updated')
   })
 
+  it('rejects symlinks to unmanaged or hidden files inside the scope', async () => {
+    writeFileSync(join(box.project, 'package.json'), '{}')
+    mkdirSync(join(box.project, '.claude'))
+    writeFileSync(join(box.project, '.claude', 'settings.json'), '{}')
+    const cases: [string, string][] = [
+      ['package.json', join(box.project, 'CLAUDE.md')],
+      ['.claude/settings.json', join(box.project, 'CLAUDE.local.md')],
+    ]
+    for (const [target, link] of cases) {
+      symlinkSync(target, link)
+      expect((await appError(box.service.read(link))).statusCode).toBe(403)
+      expect((await appError(box.service.write({ path: link, content: 'x', expectedHash: sha('{}') }))).statusCode).toBe(403)
+    }
+    expect(readFileSync(join(box.project, 'package.json'), 'utf8')).toBe('{}')
+    expect(readFileSync(join(box.project, '.claude', 'settings.json'), 'utf8')).toBe('{}')
+    expect(await box.service.list()).toEqual([])
+  })
+
+  it('rejects a link into another scope', async () => {
+    writeFileSync(join(box.claudeDir, 'CLAUDE.md'), 'global')
+    symlinkSync(join(box.claudeDir, 'CLAUDE.md'), join(box.project, 'CLAUDE.md'))
+    expect((await appError(box.service.read(join(box.project, 'CLAUDE.md')))).statusCode).toBe(403)
+  })
+
+  it.skipIf(process.platform === 'win32')('does not hang on a FIFO named CLAUDE.md', { timeout: 2000 }, async () => {
+    const path = join(box.project, 'CLAUDE.md')
+    await run('mkfifo', [path], { timeoutMs: 5000, maxBuffer: 1024 })
+    const started = Date.now()
+    expect((await appError(box.service.read(path))).statusCode).toBe(403)
+    expect((await appError(box.service.write({ path, content: 'x', expectedHash: sha('') }))).statusCode).toBe(403)
+    expect(await box.service.list()).toEqual([])
+    expect(Date.now() - started).toBeLessThan(500)
+  })
+
   it('rejects writing through a dangling link', async () => {
     symlinkSync(join(box.project, 'missing.md'), join(box.project, 'CLAUDE.md'))
     expect((await appError(box.service.write({ path: join(box.project, 'CLAUDE.md'), content: 'x' }))).statusCode).toBe(403)
