@@ -1,9 +1,9 @@
-import { ApiErrorSchema, API_ROUTES, DEFAULT_CONFIG, HealthResponseSchema } from '@agent-hub/shared'
+import { ApiErrorSchema, PortSchema, API_ROUTES, DEFAULT_CONFIG, HealthResponseSchema } from '@agent-hub/shared'
 import type { FastifyInstance } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, describe, expect, it } from 'vitest'
-import { z } from 'zod'
 import { buildApp } from './app.js'
+import { AppError } from './errors.js'
 
 let app: FastifyInstance
 
@@ -31,12 +31,12 @@ describe('buildApp', () => {
   })
 
   it('maps ZodError to validation_failed', async () => {
-    build().get('/boom', () => z.object({ a: z.string() }).parse({}))
+    build().get('/boom', () => PortSchema.parse('x'))
     const response = await app.inject({ method: 'GET', url: '/boom' })
     expect(response.statusCode).toBe(400)
     const body = ApiErrorSchema.parse(response.json())
     expect(body.code).toBe('validation_failed')
-    expect(body.code === 'validation_failed' && body.details[0]?.path).toEqual(['a'])
+    expect(body.code === 'validation_failed' && body.details[0]?.path).toEqual([])
   })
 
   it('hides internal error details', async () => {
@@ -59,5 +59,35 @@ describe('buildApp', () => {
     })
     expect(response.statusCode).toBe(413)
     expect(ApiErrorSchema.parse(response.json()).code).toBe('bad_request')
+  })
+
+  it('does not echo messages of plain errors, even with a client status', async () => {
+    build().get('/boom', () => {
+      throw Object.assign(new Error('secret detail'), { statusCode: 400 })
+    })
+    const response = await app.inject({ method: 'GET', url: '/boom' })
+    expect(response.statusCode).toBe(400)
+    expect(response.body).not.toContain('secret')
+  })
+
+  it('maps AppError to its status and code and exposes its message', async () => {
+    build().get('/boom', () => {
+      throw new AppError('Name taken', 409, 'conflict')
+    })
+    const response = await app.inject({ method: 'GET', url: '/boom' })
+    expect(response.statusCode).toBe(409)
+    expect(response.json()).toEqual({ code: 'conflict', message: 'Name taken' })
+  })
+
+  it('maps status codes to error codes', async () => {
+    build().get('/m/:s', request => {
+      throw Object.assign(new Error('x'), { statusCode: Number((request.params as { s: string }).s) })
+    })
+    const codes: Record<string, string> = { 404: 'not_found', 415: 'bad_request', 503: 'internal' }
+    for (const [status, code] of Object.entries(codes)) {
+      const response = await app.inject({ method: 'GET', url: `/m/${status}` })
+      expect(response.statusCode).toBe(Number(status))
+      expect(ApiErrorSchema.parse(response.json()).code).toBe(code)
+    }
   })
 })

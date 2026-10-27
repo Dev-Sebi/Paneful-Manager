@@ -139,3 +139,8 @@ export function toValidationError(error: z.ZodError, message = 'Request validati
     })),
   }
 }
+
+/** Type guard for zod errors, so callers need no direct zod dependency. */
+export function isZodError(error: unknown): error is z.ZodError {
+  return error instanceof z.ZodError
+}

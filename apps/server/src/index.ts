@@ -1,17 +1,18 @@
 import { PORT_ENV_VAR } from '@agent-hub/shared'
 import { ConfigError, loadConfig } from './config/load-config.js'
 import { createLogger } from './logger.js'
-import { startServer, type RunningServer } from './start.js'
+import { installShutdown, startServer, type RunningServer } from './start.js'
 
 function fail(message: string): never {
   console.error(message)
   process.exit(1)
 }
 
+const logger = createLogger('info', process.env)
+
 async function main(): Promise<void> {
-  const bootstrap = createLogger('info', process.env)
-  const config = await loadConfig({ env: process.env, logger: bootstrap })
-  const logger = createLogger(config.logLevel, process.env)
+  const config = await loadConfig({ env: process.env, logger })
+  logger.level = config.logLevel
 
   let server: RunningServer
   try {
@@ -24,25 +25,18 @@ async function main(): Promise<void> {
   }
   logger.info(`Agent Hub listening on ${server.url}`)
 
-  const stop = (signal: string): void => {
-    logger.info(`Received ${signal}, shutting down`)
-    server.shutdown().then(
-      () => process.exit(0),
-      (error: unknown) => {
-        logger.error({ err: error }, 'Shutdown failed')
-        process.exit(1)
-      },
-    )
-  }
-  process.once('SIGINT', () => stop('SIGINT'))
-  process.once('SIGTERM', () => stop('SIGTERM'))
+  installShutdown(server, process, code => process.exit(code), logger)
 }
 
 process.on('unhandledRejection', reason => {
-  console.error('Unhandled rejection:', reason)
+  logger.fatal({ err: reason }, 'Unhandled rejection')
   process.exit(1)
 })
 
 main().catch((error: unknown) => {
-  fail(error instanceof ConfigError ? error.message : `Startup failed: ${String(error)}`)
+  if (error instanceof ConfigError) {
+    fail(error.message)
+  }
+  logger.fatal({ err: error }, 'Startup failed')
+  process.exit(1)
 })

@@ -93,6 +93,7 @@ describe('resolveConfigDir', () => {
   it('falls back to ~/.config without XDG_CONFIG_HOME', () => {
     expect(resolveConfigDir({})).toBe('~/.config/agent-hub')
     expect(resolveConfigDir({ XDG_CONFIG_HOME: '  ' })).toBe('~/.config/agent-hub')
+    expect(resolveConfigDir({ XDG_CONFIG_HOME: 'relative/dir' })).toBe('~/.config/agent-hub')
   })
 
   it('respects XDG_CONFIG_HOME', () => {
