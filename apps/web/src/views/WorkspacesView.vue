@@ -21,29 +21,47 @@
         />
 
         <template #append>
+          <AhButton
+            v-if="activeTab && activeTab.panes.length > 1"
+            prepend-icon="mdi-view-grid-outline"
+            size="sm"
+            variant="ghost"
+            @click="resetLayout"
+          >Reset layout</AhButton>
+
           <AhButton prepend-icon="mdi-plus" size="sm" variant="ghost" @click="openCreate">New session</AhButton>
         </template>
       </AhTabs>
 
       <AhTabPanel v-for="tab in tabs.tabs" :key="tab.id" class="workspaces__panel" :value="tab.id">
-        <!-- One pane per session until the split layout lands. -->
-        <AhTerminalPane
-          v-for="pane in tab.panes"
-          :key="pane.sessionId"
-          class="workspaces__pane"
-          :connection="sessions.byId.get(pane.sessionId)?.lifecycle === 'exited' ? 'exited' : 'connecting'"
-          :cwd="sessions.byId.get(pane.sessionId)?.cwd"
-          :exit-code="sessions.byId.get(pane.sessionId)?.exitCode"
-          :focused="tab.id === tabs.activeId"
-          :maximized="maximized === pane.sessionId"
-          :session-id="pane.sessionId"
-          :status="sessions.byId.get(pane.sessionId)?.state"
-          :title="paneTitle(pane.sessionId)"
-          @close="ui.notify('Closing panes is not available yet')"
-          @restart="ui.notify('Restarting sessions is not available yet')"
-          @split="ui.notify('Split panes are not available yet')"
-          @toggle-maximize="toggleMaximize(pane.sessionId)"
-        />
+        <AhSplitLayout
+          :ref="el => setLayoutRef(tab.id, el)"
+          class="workspaces__layout"
+          :layout="tab.layout"
+          :panes="tab.panes"
+          :tab-id="tab.id"
+          @resized="refit"
+        >
+          <template #pane="{ index }">
+            <AhTerminalPane
+              v-if="tab.panes[index]"
+              :ref="el => setPaneRef(tab.panes[index]!.sessionId, el)"
+              class="workspaces__pane"
+              :connection="sessions.byId.get(tab.panes[index]!.sessionId)?.lifecycle === 'exited' ? 'exited' : 'connecting'"
+              :cwd="sessions.byId.get(tab.panes[index]!.sessionId)?.cwd"
+              :exit-code="sessions.byId.get(tab.panes[index]!.sessionId)?.exitCode"
+              :focused="tab.id === tabs.activeId"
+              :maximized="maximized === tab.panes[index]!.sessionId"
+              :session-id="tab.panes[index]!.sessionId"
+              :status="sessions.byId.get(tab.panes[index]!.sessionId)?.state"
+              :title="paneTitle(tab.panes[index]!.sessionId)"
+              @close="ui.notify('Closing panes is not available yet')"
+              @restart="ui.notify('Restarting sessions is not available yet')"
+              @split="ui.notify('Split panes are not available yet')"
+              @toggle-maximize="toggleMaximize(tab.panes[index]!.sessionId)"
+            />
+          </template>
+        </AhSplitLayout>
       </AhTabPanel>
     </template>
 
@@ -124,17 +142,18 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhStatusBadgeState } from '@/components/ah'
+  import type { AhSplitLayoutExpose, AhStatusBadgeState, AhTerminalPaneExpose } from '@/components/ah'
   import type { AppTab } from '@agent-hub/shared'
   import { DEFAULT_COMMAND } from '@agent-hub/shared'
-  import { computed, ref, watch } from 'vue'
+  import { computed, nextTick, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { api } from '@/api/client'
-  import { AhButton, AhDialog, AhTab, AhTabPanel, AhTabs } from '@/components/ah'
+  import { AhButton, AhDialog, AhSplitLayout, AhTab, AhTabPanel, AhTabs } from '@/components/ah'
   // Imported directly, not through the barrel, so xterm stays in the lazy Workspaces chunk.
   import AhTerminalPane from '@/components/ah/AhTerminalPane.vue'
   import EmptyState from '@/components/EmptyState.vue'
   import { useCloseTab } from '@/composables/useCloseTab'
+  import { useLayoutSizesStore } from '@/stores/layoutSizes'
   import { useSessionsStore } from '@/stores/sessions'
   import { useTabsStore } from '@/stores/tabs'
   import { useUiStore } from '@/stores/ui'
@@ -143,6 +162,7 @@
   const router = useRouter()
   const tabs = useTabsStore()
   const sessions = useSessionsStore()
+  const layoutSizes = useLayoutSizesStore()
   const ui = useUiStore()
 
   const closing = useCloseTab()
@@ -151,6 +171,42 @@
   const creating = ref(false)
   const createCwd = ref('~/')
   const createCommand = ref(DEFAULT_COMMAND)
+
+  const activeTab = computed(() => tabs.tabs.find(tab => tab.id === tabs.activeId))
+  const layoutRefs = new Map<string, AhSplitLayoutExpose>()
+  const paneRefs = new Map<string, AhTerminalPaneExpose>()
+
+  function setLayoutRef (tabId: string, el: unknown) {
+    if (el) {
+      layoutRefs.set(tabId, el as AhSplitLayoutExpose)
+    } else {
+      layoutRefs.delete(tabId)
+    }
+  }
+
+  function setPaneRef (sessionId: string, el: unknown) {
+    if (el) {
+      paneRefs.set(sessionId, el as AhTerminalPaneExpose)
+    } else {
+      paneRefs.delete(sessionId)
+    }
+  }
+
+  /** Refits the panes of the active tab after a splitter move or a tab switch. */
+  function refit () {
+    for (const pane of activeTab.value?.panes ?? []) {
+      paneRefs.get(pane.sessionId)?.fit()
+    }
+  }
+
+  function resetLayout () {
+    if (tabs.activeId) {
+      layoutRefs.get(tabs.activeId)?.resetSizes()
+    }
+  }
+
+  watch(() => tabs.activeId, () => nextTick(refit))
+  watch(() => tabs.tabs.map(tab => tab.id), ids => layoutSizes.prune(ids))
 
   const canCreate = computed(() => createCwd.value.trim() !== '' && createCommand.value.trim() !== '')
 
@@ -243,7 +299,9 @@
   flex-direction: column;
 }
 
-.workspaces__pane { flex: 1; }
+.workspaces__layout { flex: 1; min-height: 0; }
+
+.workspaces__pane { height: 100%; }
 
 .workspaces__form {
   display: flex;
