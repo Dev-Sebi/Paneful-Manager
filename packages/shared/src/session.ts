@@ -37,6 +37,8 @@ export const SessionSchema = z
     lifecycle: SessionLifecycleSchema,
     exitCode: z.int().optional(),
     lastEventAt: IsoDateTimeSchema,
+    /** When `state` last changed; optional only so records written before it existed still load. */
+    stateSince: IsoDateTimeSchema.optional(),
     cols: TerminalSizeSchema,
     rows: TerminalSizeSchema,
   })
