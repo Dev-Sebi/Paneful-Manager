@@ -5,13 +5,20 @@ import { ref, watch } from 'vue'
 import { readStorage, writeStorage } from './storage'
 
 export const TABS_STORAGE_KEY = 'agent-hub.tabs.v1'
+/** Tabs opened from the Teams view; they only show sessions owned elsewhere. */
+export const TEAM_TAB_PREFIX = 'team-'
+
+export function isTeamTab (id: string): boolean {
+  return id.startsWith(TEAM_TAB_PREFIX)
+}
 
 const PersistedTabsSchema = z.strictObject({
-  tabs: z.array(AppTabSchema),
+  tabs: z.array(z.unknown()),
   activeId: z.string().nullable(),
 })
 
-function loadTabs (): z.infer<typeof PersistedTabsSchema> {
+/** Keeps every valid persisted tab; an invalid one is dropped on its own, not the whole list. */
+function loadTabs (): { tabs: AppTab[], activeId: string | null } {
   const raw = readStorage(TABS_STORAGE_KEY)
   const parsed = PersistedTabsSchema.safeParse(raw)
   if (!parsed.success) {
@@ -20,7 +27,15 @@ function loadTabs (): z.infer<typeof PersistedTabsSchema> {
     }
     return { tabs: [], activeId: null }
   }
-  const { tabs, activeId } = parsed.data
+  const tabs = parsed.data.tabs.flatMap(item => {
+    const tab = AppTabSchema.safeParse(item)
+    if (!tab.success) {
+      console.warn('[tabs] dropped an invalid persisted tab')
+      return []
+    }
+    return [tab.data]
+  })
+  const { activeId } = parsed.data
   return { tabs, activeId: tabs.some(tab => tab.id === activeId) ? activeId : (tabs[0]?.id ?? null) }
 }
 
@@ -33,6 +48,17 @@ export const useTabsStore = defineStore('tabs', () => {
 
   function add (tab: AppTab) {
     tabs.value.push(tab)
+    activeId.value = tab.id
+  }
+
+  /** Replaces the tab with the same id in place, or adds it; either way it becomes active. */
+  function upsert (tab: AppTab) {
+    const index = tabs.value.findIndex(item => item.id === tab.id)
+    if (index === -1) {
+      add(tab)
+      return
+    }
+    tabs.value[index] = tab
     activeId.value = tab.id
   }
 
@@ -67,5 +93,5 @@ export const useTabsStore = defineStore('tabs', () => {
 
   watch([tabs, activeId], () => writeStorage(TABS_STORAGE_KEY, { tabs: tabs.value, activeId: activeId.value }), { deep: true })
 
-  return { tabs, activeId, dirty, add, close, activate, move, setDirty }
+  return { tabs, activeId, dirty, add, upsert, close, activate, move, setDirty }
 })

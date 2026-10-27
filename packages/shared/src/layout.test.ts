@@ -91,6 +91,13 @@ describe('AppTabSchema', () => {
     )
   })
 
+  it('accepts placeholder panes and rejects panes with both or neither', () => {
+    const placeholder = { title: 'tester', reason: 'No pane' }
+    expect(AppTabSchema.safeParse({ id: 't1', title: 'Tab', layout: { kind: 'row' }, panes: [{ sessionId: 's1' }, { placeholder }] }).success).toBe(true)
+    expect(AppTabSchema.safeParse({ id: 't1', title: 'Tab', layout: { kind: 'single' }, panes: [{ sessionId: 's1', placeholder }] }).success).toBe(false)
+    expect(AppTabSchema.safeParse({ id: 't1', title: 'Tab', layout: { kind: 'single' }, panes: [{}] }).success).toBe(false)
+  })
+
   it('round-trips through JSON', () => {
     const tab = AppTabSchema.parse({ id: 't1', title: 'Tab', layout: { kind: 'custom', root: customRoot }, panes: panes(3) })
     expect(AppTabSchema.parse(JSON.parse(JSON.stringify(tab)))).toEqual(tab)

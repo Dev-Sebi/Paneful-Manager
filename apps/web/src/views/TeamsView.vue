@@ -25,12 +25,19 @@
 
     <p v-if="store.loaded && store.teams.length === 0" class="teams-view__empty">No team task lists found yet.</p>
 
-    <TeamBoard v-for="team in store.teams" :key="team.name" :now="now" :team="team" />
+    <TeamBoard
+      v-for="team in store.teams"
+      :key="team.name"
+      :now="now"
+      :team="team"
+      @open-tab="openTab"
+    />
   </div>
 </template>
 
 <script lang="ts" setup>
   import type { AhStatusBadgeState } from '@/components/ah'
+  import type { Team } from '@agent-hub/shared'
   import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import { connection } from '@/api/connection'
@@ -38,13 +45,22 @@
   import { AhStatusBadge } from '@/components/ah'
   import EmptyState from '@/components/EmptyState.vue'
   import TeamBoard from '@/components/teams/TeamBoard.vue'
+  import { buildTeamTab } from '@/components/teams/teamTab'
+  import { useLayoutSizesStore } from '@/stores/layoutSizes'
+  import { useSessionsStore } from '@/stores/sessions'
+  import { useTabsStore } from '@/stores/tabs'
   import { useTeamsStore } from '@/stores/teams'
+  import { useUiStore } from '@/stores/ui'
 
   /** Relative times are re-rendered this often. */
   const CLOCK_TICK_MS = 30_000
 
   const router = useRouter()
   const store = useTeamsStore()
+  const sessions = useSessionsStore()
+  const tabs = useTabsStore()
+  const layoutSizes = useLayoutSizesStore()
+  const ui = useUiStore()
   const now = ref(Date.now())
 
   const badge = computed<{ label: string, state: AhStatusBadgeState }>(() => {
@@ -53,6 +69,21 @@
     }
     return connection.value === 'connected' ? { label: 'Live', state: 'idle' } : { label: 'Reconnecting', state: 'waiting' }
   })
+  /** Opens (or rebuilds) the team's tab with one pane per member and switches to it. */
+  function openTab (team: Team) {
+    const result = buildTeamTab(team, id => sessions.byId.has(id))
+    if (!result) {
+      ui.notify('This team has no members yet')
+      return
+    }
+    layoutSizes.reset(result.tab.id)
+    tabs.upsert(result.tab)
+    if (result.dropped.length > 0) {
+      ui.notify(`Tab is full, not shown: ${result.dropped.join(', ')}`)
+    }
+    void router.push(`/workspaces/${result.tab.id}`)
+  }
+
   let unbind: (() => void) | undefined
   let clock: ReturnType<typeof setInterval> | undefined
 
