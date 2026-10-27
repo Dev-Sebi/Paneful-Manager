@@ -7,6 +7,7 @@ import type { BaseLogger } from 'pino'
 
 export const CONFIG_FILE_NAME = 'config.yaml'
 export const WORKSPACES_DIR_NAME = 'workspaces'
+export const TEAM_TEMPLATES_DIR_NAME = 'teams'
 
 export class ConfigError extends Error {
   override readonly name = 'ConfigError'
@@ -37,6 +38,11 @@ export function resolveConfigFile(env: Record<string, string | undefined>, confi
 /** Directory holding the workspace preset files, next to `config.yaml`. */
 export function resolveWorkspacesDir(env: Record<string, string | undefined>, configDir?: string): string {
   return join(expandHome(configDir ?? resolveConfigDir(env)), WORKSPACES_DIR_NAME)
+}
+
+/** `<configDir>/teams`: team templates (experimental). */
+export function resolveTeamTemplatesDir(env: Record<string, string | undefined>, configDir?: string): string {
+  return join(expandHome(configDir ?? resolveConfigDir(env)), TEAM_TEMPLATES_DIR_NAME)
 }
 
 /** Loads and validates `<configDir>/config.yaml`; a missing file yields the defaults. */

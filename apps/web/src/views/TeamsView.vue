@@ -23,6 +23,8 @@
       </ul>
     </div>
 
+    <TeamTemplatesPanel v-if="store.enabled" />
+
     <p v-if="store.loaded && store.teams.length === 0" class="teams-view__empty">No team task lists found yet.</p>
 
     <TeamBoard
@@ -46,6 +48,7 @@
   import EmptyState from '@/components/EmptyState.vue'
   import TeamBoard from '@/components/teams/TeamBoard.vue'
   import { buildTeamTab } from '@/components/teams/teamTab'
+  import TeamTemplatesPanel from '@/components/teams/TeamTemplatesPanel.vue'
   import { useLayoutSizesStore } from '@/stores/layoutSizes'
   import { useSessionsStore } from '@/stores/sessions'
   import { useTabsStore } from '@/stores/tabs'

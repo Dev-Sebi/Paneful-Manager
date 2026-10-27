@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { BIND_HOST, HOOK_ENV, resolveStateDir, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
-import { resolveConfigFile, resolveWorkspacesDir } from './config/load-config.js'
+import { resolveConfigFile, resolveTeamTemplatesDir, resolveWorkspacesDir } from './config/load-config.js'
 import { createConfigStore } from './config/store.js'
 import { createBackupStore } from './files/backups.js'
 import { createFileService } from './files/service.js'
@@ -21,6 +21,9 @@ import { assertLoopbackAddress, DEV_ORIGINS_ENV_VAR, parseDevOrigins } from './s
 import { SessionEngine } from './sessions/engine.js'
 import { resolveWebDist } from './static.js'
 import { resolveClaudeDir } from './teams/reader.js'
+import { createTeamTemplateLauncher } from './team-templates/launch.js'
+import { TeamLaunchLedger } from './team-templates/ledger.js'
+import { createTeamTemplateStore } from './team-templates/store.js'
 import type { Tmux } from './tmux/tmux.js'
 
 /** Backups live in `<stateDir>/backups` (see the file-write policy). */
@@ -76,6 +79,10 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const ledger = new LaunchLedger(stateDir, logger)
   await ledger.load()
   const launcher = createPresetLauncher({ store: presetStore, engine, ledger, logger })
+  const teamTemplateStore = createTeamTemplateStore({ dir: resolveTeamTemplatesDir(env, configDir), logger, backups })
+  const teamLedger = new TeamLaunchLedger(stateDir, logger)
+  await teamLedger.load()
+  const teamLauncher = createTeamTemplateLauncher({ store: teamTemplateStore, engine, ledger: teamLedger, logger })
   const app = buildApp({
     config,
     logger,
@@ -87,6 +94,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     mcp: { service: mcp, health: createHealthRunner({ logger }) },
     configStore: store,
     teams: { claudeDir: resolveClaudeDir(env) },
+    teamTemplates: { store: teamTemplateStore, launcher: teamLauncher },
     ...(webDist === undefined ? {} : { webDist }),
     hookToken,
     hookSettings,

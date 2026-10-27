@@ -13,7 +13,8 @@ import { mountWithVuetify } from '@/test/mount'
 import TeamsView from './TeamsView.vue'
 
 const listTeams = vi.hoisted(() => vi.fn())
-vi.mock('@/api/client', () => ({ api: { listTeams } }))
+const listTeamTemplates = vi.hoisted(() => vi.fn())
+vi.mock('@/api/client', () => ({ api: { listTeams, listTeamTemplates } }))
 vi.mock('@/api/ws', () => ({ wsClient: { on: vi.fn(() => vi.fn()) } }))
 
 async function mountView () {
@@ -29,6 +30,8 @@ describe('TeamsView', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
     listTeams.mockReset()
+    listTeamTemplates.mockReset()
+    listTeamTemplates.mockResolvedValue({ templates: [], launches: [] })
     connection.value = 'connected'
   })
 
@@ -36,7 +39,9 @@ describe('TeamsView', () => {
     listTeams.mockResolvedValue({ enabled: false, teams: [], warnings: [] })
     const { wrapper, router } = await mountView()
     expect(wrapper.text()).toContain('experimental.agentTeams')
-    const push = vi.spyOn(router, 'push')
+    expect(wrapper.text()).not.toContain('Templates')
+    expect(listTeamTemplates).not.toHaveBeenCalled()
+    const push = vi.spyOn(router, 'push').mockResolvedValue(undefined)
     await wrapper.find('button').trigger('click')
     expect(push).toHaveBeenCalledWith('/settings')
   })
@@ -137,6 +142,6 @@ describe('TeamsView', () => {
   it('has no controls that change team data; only Open as tab', async () => {
     listTeams.mockResolvedValue({ enabled: true, teams: [{ ...makeTeam('alpha'), tasks: [makeTask('1')] }], warnings: [] })
     const { wrapper } = await mountView()
-    expect(wrapper.findAll('button, input, textarea, select').map(item => item.text())).toEqual(['Open as tab'])
+    expect(wrapper.findAll('.team-board button, .team-board input, .team-board textarea, .team-board select').map(item => item.text())).toEqual(['Open as tab'])
   })
 })

@@ -1,0 +1,16 @@
+# Experimental: needs experimental.agentTeams in config.yaml and Claude Code 2.1.309 or later.
+name: review-team
+description: A lead with an implementer and a reviewer
+experimental: true
+goal: Implement the open task from the issue tracker and get it reviewed
+lead:
+  cwd: ~/git/project1
+  model: opus
+teammates:
+  - name: implementer
+    prompt: Implement the changes the lead assigns and keep the tests green.
+  - name: reviewer
+    model: sonnet
+    prompt: Review every finished change for correctness and readability and report findings to the lead.
+env:
+  CLAUDE_CODE_SUBAGENT_MODEL: sonnet
