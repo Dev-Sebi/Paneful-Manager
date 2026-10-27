@@ -9,7 +9,6 @@ import {
   type McpScope,
   type McpServerConfig,
   type McpServerConfigInput,
-  type McpServerEntryMasked,
   type RemoveMcpServerRequest,
   type Scope,
   type UpsertMcpServerRequest,
@@ -17,8 +16,10 @@ import {
 } from '@agent-hub/shared'
 import type { BaseLogger } from 'pino'
 import { AppError } from '../errors.js'
+import { createMcpApproval, type McpApproval } from './approval.js'
 import { createClaudeCli, type ClaudeCli, type CliRun } from './cli.js'
 import { createMcpFileStore, type McpFileStore } from './files.js'
+import type { HealthTarget } from './health.js'
 import { fromNative, toNative, type NativeServer } from './native.js'
 
 export type McpServiceLogger = Pick<BaseLogger, 'info' | 'warn'>
@@ -33,6 +34,8 @@ export interface McpServiceOptions {
   mode?: McpMode | 'auto'
   run?: CliRun
   home?: string
+  /** Managed settings directory; defaults to the platform location (`/etc/claude-code` on Linux). */
+  managedDir?: string
   now?: () => number
 }
 
@@ -40,6 +43,10 @@ export interface McpService {
   list: (query?: ListMcpServersQuery) => Promise<ListMcpServersResponse>
   upsert: (request: UpsertMcpServerRequest) => Promise<UpsertMcpServerResponse>
   remove: (request: RemoveMcpServerRequest) => Promise<void>
+  /** Unmasked entries for internal use (health checks); never send them to a client. */
+  entries: (query?: ListMcpServersQuery) => Promise<HealthTarget[]>
+  /** One unmasked entry; 404 when the project or the server is unknown. */
+  entry: (name: string, scope: McpScope) => Promise<HealthTarget>
 }
 
 function expandHome(path: string, home: string): string {
@@ -84,6 +91,7 @@ function resolveKeep(input: McpServerConfigInput, existing: McpServerConfig | un
 export function createMcpService(options: McpServiceOptions): McpService {
   const { getScopes, env, logger, home = homedir() } = options
   const files: McpFileStore = createMcpFileStore({ env, backupDir: options.backupDir, home })
+  const approval: McpApproval = createMcpApproval({ env, home, managedDir: options.managedDir })
   const cli: ClaudeCli = createClaudeCli({ env, run: options.run, now: options.now })
   let queue: Promise<unknown> = Promise.resolve()
 
@@ -125,6 +133,35 @@ export function createMcpService(options: McpServiceOptions): McpService {
     return { kind: scope.kind, projectPath: wanted }
   }
 
+  async function readEntries(query: ListMcpServersQuery = {}): Promise<HealthTarget[]> {
+    const all = await projectPaths()
+    let paths = all
+    if (query.projectPath !== undefined) {
+      const wanted = canonical(expandHome(query.projectPath.trim(), home))
+      if (!all.includes(wanted)) {
+        throw new AppError('Unknown project', 404, 'not_found')
+      }
+      paths = [wanted]
+    }
+    const scopes: McpScope[] = [{ kind: 'user' }]
+    for (const projectPath of paths) {
+      scopes.push({ kind: 'project', projectPath }, { kind: 'local', projectPath })
+    }
+    const servers: HealthTarget[] = []
+    const session = approval.session()
+    for (const scope of scopes) {
+      try {
+        for (const entry of (await files.read(scope)).entries) {
+          servers.push({ ...entry, scope, source: 'file', approved: await session.isApproved(scope, entry.name) })
+        }
+      } catch (error) {
+        // One broken `.mcp.json` must not hide every other scope.
+        logger.warn({ scope: scope.kind, err: error instanceof AppError ? error.message : error }, 'Skipping MCP scope')
+      }
+    }
+    return servers
+  }
+
   function cwdOf(scope: McpScope): string {
     return scope.kind === 'user' ? home : scope.projectPath
   }
@@ -155,31 +192,19 @@ export function createMcpService(options: McpServiceOptions): McpService {
 
   return {
     async list(query = {}) {
-      const all = await projectPaths()
-      let paths = all
-      if (query.projectPath !== undefined) {
-        const wanted = canonical(expandHome(query.projectPath.trim(), home))
-        if (!all.includes(wanted)) {
-          throw new AppError('Unknown project', 404, 'not_found')
-        }
-        paths = [wanted]
-      }
-      const scopes: McpScope[] = [{ kind: 'user' }]
-      for (const projectPath of paths) {
-        scopes.push({ kind: 'project', projectPath }, { kind: 'local', projectPath })
-      }
-      const servers: McpServerEntryMasked[] = []
-      for (const scope of scopes) {
-        try {
-          for (const entry of (await files.read(scope)).entries) {
-            servers.push(maskMcpEntry({ ...entry, scope, source: 'file' }))
-          }
-        } catch (error) {
-          // One broken `.mcp.json` must not hide every other scope.
-          logger.warn({ scope: scope.kind, err: error instanceof AppError ? error.message : error }, 'Skipping MCP scope')
-        }
-      }
+      const servers = (await readEntries(query)).map(({ approved, ...entry }) => maskMcpEntry(entry, approved))
       return { servers, ...(await currentMode()) }
+    },
+
+    entries: readEntries,
+
+    async entry(name, requested) {
+      const scope = await knownScope(requested)
+      const found = (await files.read(scope)).entries.find(candidate => candidate.name === name)
+      if (!found) {
+        throw new AppError(`MCP server "${name}" not found`, 404, 'not_found')
+      }
+      return { ...found, scope, source: 'file', approved: await approval.session().isApproved(scope, name) }
     },
 
     async upsert(request) {
@@ -208,7 +233,7 @@ export function createMcpService(options: McpServiceOptions): McpService {
           await add(mode, scope, name, native, secrets)
         }
         logger.info({ name, scope: scope.kind, mode, created: existingRaw === undefined }, 'MCP server saved')
-        return { server: maskMcpEntry({ name, scope, config, source: mode }), created: existingRaw === undefined }
+        return { server: maskMcpEntry({ name, scope, config, source: mode }, await approval.session().isApproved(scope, name)), created: existingRaw === undefined }
       })
     },
 
