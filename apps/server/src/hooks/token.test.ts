@@ -1,10 +1,46 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { HOOK_TOKEN_FILE, loadHookToken } from './token.js'
 
 let dir: string
+
+const PROCESSES = 8
+const ROUNDS = 5
+const TOKEN_MODULE = fileURLToPath(new URL('token.ts', import.meta.url))
+
+/** Child script: imports the module, signals readiness, waits for the shared start signal, prints its token. */
+function childCode(stateDir: string, barrier: string, index: number): string {
+  return [
+    `const { loadHookToken } = await import(${JSON.stringify(TOKEN_MODULE)})`,
+    `const fs = await import('node:fs')`,
+    `fs.writeFileSync(${JSON.stringify(join(barrier, `ready-${index}`))}, '')`,
+    `while (!fs.existsSync(${JSON.stringify(join(barrier, 'go'))})) { await new Promise(r => setTimeout(r, 1)) }`,
+    `process.stdout.write(await loadHookToken(${JSON.stringify(stateDir)}))`,
+  ].join('\n')
+}
+
+/** Runs `loadHookToken` in a separate Node process (via the tsx loader) and returns the token it printed. */
+function loadInChild(stateDir: string, barrier: string, index: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', childCode(stateDir, barrier, index)], { timeout: 30_000 }, (error, stdout) => {
+      if (error) {
+        reject(error)
+      } else {
+        resolve(stdout)
+      }
+    })
+  })
+}
+
+async function waitForReady(barrier: string): Promise<void> {
+  while ((await readdir(barrier)).filter(name => name.startsWith('ready-')).length < PROCESSES) {
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+}
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'agent-hub-hook-token-'))
@@ -43,4 +79,20 @@ describe('loadHookToken', () => {
     expect(replaced).not.toBe('short')
     expect((await readFile(file, 'utf8')).trim()).toBe(replaced)
   })
+
+  it('agrees on one token across separate processes starting on a fresh state dir', async () => {
+    for (let round = 0; round < ROUNDS; round++) {
+      const state = join(dir, `state-${round}`)
+      const barrier = join(dir, `barrier-${round}`)
+      await mkdir(barrier)
+      const running = Promise.all(Array.from({ length: PROCESSES }, (_, index) => loadInChild(state, barrier, index)))
+      await waitForReady(barrier)
+      await writeFile(join(barrier, 'go'), '')
+      const tokens = await running
+      const onDisk = (await readFile(join(state, HOOK_TOKEN_FILE), 'utf8')).trim()
+      expect(onDisk).toMatch(/^[\w-]{43}$/)
+      expect(tokens).toEqual(Array.from({ length: PROCESSES }, () => onDisk))
+      expect(await readdir(state)).toEqual([HOOK_TOKEN_FILE])
+    }
+  }, 120_000)
 })
