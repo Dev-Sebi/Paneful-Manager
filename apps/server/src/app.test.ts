@@ -1,5 +1,5 @@
 import { ApiErrorSchema, PortSchema, API_ROUTES, DEFAULT_CONFIG, HealthResponseSchema } from '@agent-hub/shared'
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, InjectOptions } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildApp } from './app.js'
@@ -7,9 +7,20 @@ import { AppError } from './errors.js'
 
 let app: FastifyInstance
 
+const TOKEN = 'test-token'
+
 function build(): FastifyInstance {
-  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }) })
-  return app
+  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, dev: false })
+  const inject = app.inject.bind(app)
+  const local = (options: InjectOptions) =>
+    inject({ ...options, headers: {
+        host: `localhost:${DEFAULT_CONFIG.port}`,
+        origin: `http://localhost:${DEFAULT_CONFIG.port}`,
+        'x-agent-hub-token': TOKEN,
+        ...options.headers,
+      },
+    })
+  return Object.assign(app, { inject: local })
 }
 
 afterEach(async () => {
@@ -83,7 +94,7 @@ describe('buildApp', () => {
     build().get('/m/:s', request => {
       throw Object.assign(new Error('x'), { statusCode: Number((request.params as { s: string }).s) })
     })
-    const codes: Record<string, string> = { 404: 'not_found', 415: 'bad_request', 503: 'internal' }
+    const codes: Record<string, string> = { 401: 'unauthorized', 403: 'forbidden', 404: 'not_found', 415: 'bad_request', 503: 'internal' }
     for (const [status, code] of Object.entries(codes)) {
       const response = await app.inject({ method: 'GET', url: `/m/${status}` })
       expect(response.statusCode).toBe(Number(status))

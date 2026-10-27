@@ -216,41 +216,43 @@ The policy is coalesce, then close with `4008`; output is never dropped, because
 - **Atomic write:** write `<dir>/.<name>.agent-hub-<random>.tmp` in the same directory (same filesystem), copy the target's mode, `fsync`, `rename` over the target. A crash leaves either the old or the new file, never a partial one.
 - **Conflict detection:** every read returns a version `{ mtimeMs, sha256 }`. Writes carry the version they are based on; right before the rename the server re-stats and re-hashes the target. Mismatch (or file created/deleted meanwhile) returns `409 conflict` with the current version, and the UI shows a diff or reload choice.
 - **Never silent overwrite:** there is no force flag in the API. Overwriting after a conflict needs a fresh read. External changes are pushed to the UI by a file watcher (T31).
-- **Symlinks:** paths are resolved with `realpath` and the resolved path must still be inside an allowlisted root. Writes go to the resolved target, so the link itself is kept. Links that resolve outside the allowlist are shown read-only. New files are never created through a dangling link.
+- **Symlinks:** paths are resolved with `realpath` and the resolved path must still be inside an allowlisted root. Writes go to the resolved target, so the link itself is kept. Links that resolve outside the allowlist are rejected. New files are never created through a dangling link.
 - **Backups:** before the server overwrites or deletes a file it does not exclusively own (Claude settings, CLAUDE.md, skills, presets, `config.yaml`), the previous content is copied to `$STATE/backups/<encoded-path>/<timestamp>` with mode `0600`. A deleted skill directory is backed up as one tar archive of the directory. Retention: the last 20 backups per file and at most 50 MB in total; the oldest backups are pruned first.
 
 ## Security model
 
-Agent Hub is a single-user tool on loopback. The main attacker is a web page open in the same browser, not another user on the machine. The Origin check is the primary CSRF control; the token is defense in depth. `POST /api/hooks` takes its own path (hook token, see below).
+Agent Hub is a single-user tool on loopback. The main attacker is a web page open in the same browser, not another user on the machine. The Origin check is the primary CSRF control; the token is defense in depth. `POST /api/hooks` takes its own path (hook token, see below). All request checks live in `apps/server/src/security/` and run in one `onRequest` hook (`registerSecurity`) before routing, so they also cover unknown routes.
 
 ```mermaid
 flowchart LR
   REQ[Incoming request] --> H{Host in allowlist?}
-  H -- no --> X403[403]
+  H -- no --> X403[403 forbidden]
   H -- yes --> K{POST /api/hooks?}
   K -- yes --> HO{Origin header present?}
   HO -- yes --> X403
   HO -- no --> HT{Hook token valid?}
   HT -- no --> X403
   HT -- yes --> OK
-  K -- no --> M{Mutating or WS?}
+  K -- no --> O{Origin present and not allowed?}
+  O -- yes --> X403
+  O -- no --> M{Mutating?}
   M -- no --> OK[Handle]
-  M -- yes --> O{Origin allowed?}
-  O -- no --> X403
-  O -- yes --> T{Token valid?}
-  T -- no --> X403
+  M -- yes --> T{Origin present and token valid?}
+  T -- no --> X401[401 unauthorized]
   T -- yes --> OK
 ```
 
 | Control | Rule |
 | --- | --- |
-| Loopback bind | `127.0.0.1` only (`BIND_HOST`), not configurable. WSL localhost forwarding makes it reachable from the Windows browser (assumed, verify in T60). |
-| Host allowlist | `127.0.0.1:<port>` and `localhost:<port>` (plus the Vite dev port in development). Blocks DNS rebinding, where an attacker domain resolves to 127.0.0.1. |
-| Origin allowlist | Mutating requests and WS upgrades need `Origin` equal to `http://127.0.0.1:<port>` or `http://localhost:<port>` (plus the dev origin). Missing `Origin` is rejected, except on the hook endpoint. No CORS headers are ever sent. |
-| Per-boot token | 32 random bytes generated at startup, kept in memory, new on every restart. Required as `X-Agent-Hub-Token` on every `POST`/`PUT`/`PATCH`/`DELETE` (except `POST /api/hooks`) and as `token.<t>` subprotocol on `/ws`. The SPA fetches it from `GET /api/session-token` (owner T11) before every WS connect and once more after any `401`/`403`; the Host/Origin checks plus missing CORS keep other origins from reading it. |
-| Hook token | Separate random token in `$STATE/hook-token` (`0600`), stable across restarts because re-adopted sessions keep their environment. Only valid on `POST /api/hooks`, which is exempt from the per-boot token and rejects any request that carries an `Origin` header (Claude Code sends none; browsers always do). `POST /api/hooks` is added to `API_ROUTES` in T26. |
-| Process spawning | `execFile`/node-pty with argument arrays only; never a shell, never string-built commands. Commands after `--` in `new-session`. |
-| Path allowlist | Every path from a request is `~`-expanded, `path.resolve`d, `realpath`ed and checked against the allowlisted roots (prefix plus separator). `..` and symlink escapes fail. |
+| Loopback bind | `127.0.0.1` only (`BIND_HOST`), not configurable. After `listen`, `startServer` asserts that the bound address is `127.0.0.1` and closes the server otherwise (the process exits 1). WSL localhost forwarding makes it reachable from the Windows browser (assumed, verify in T60). |
+| Host allowlist | `localhost:<port>`, `127.0.0.1:<port>`, `[::1]:<port>` and bare `localhost` (case-insensitive), else `403 forbidden` on every route. Blocks DNS rebinding, where an attacker domain resolves to 127.0.0.1. No dev Host is allowed: in development the UI on `:3000` reaches the server only through the Vite proxy (`/api` and `/ws`, `changeOrigin: true`, `ws: true`; config lands in T22), which rewrites Host to the server's. Reusable as `isAllowedHost(host, port)`. |
+| Origin allowlist | Checked on every request that carries `Origin`, and required on every mutating request except `POST /api/hooks`. Allowed: exactly `http://localhost:<port>`, `http://127.0.0.1:<port>` or `http://[::1]:<port>`; with `NODE_ENV=development` also `http://localhost:3000` / `http://127.0.0.1:3000` (Vite). A mismatch, including `null`, is `403`; a missing `Origin` on a mutation is `401`. Reads without `Origin` pass. No CORS headers are ever sent. Reusable as `isAllowedOrigin(origin, port, dev)`. |
+| Per-boot token | `randomBytes(32)` base64url generated at startup, kept in memory, new on every restart. Required as `X-Agent-Hub-Token` (`SESSION_TOKEN_HEADER`) on every `POST`/`PUT`/`PATCH`/`DELETE` (except `POST /api/hooks`) and as `token.<t>` subprotocol on `/ws`; compared in constant time (SHA-256 + `timingSafeEqual`); missing or wrong is `401 unauthorized`. `GET /api/health` stays token-free. The SPA fetches it from `GET /api/session-token` (`SessionTokenResponseSchema`) before every WS connect and once more after any `401`/`403`. That route sits behind the Host and Origin checks and also rejects `Sec-Fetch-Site: cross-site`; without CORS headers other origins cannot read it. |
+| WebSocket upgrade | `authorizeUpgrade(req, { port, token, dev })`: Host allowed, `Origin` present and allowed, `Sec-WebSocket-Protocol` offers `agent-hub.v1` (`WS_SUBPROTOCOL`) and exactly one `token.<token>`. The server echoes only `agent-hub.v1`. No token in the query string. |
+| Hook token | Separate random token in `$STATE/hook-token` (`0600`), stable across restarts because re-adopted sessions keep their environment. Only valid on `POST /api/hooks` (`API_ROUTES.hooks`), which is exempt from the per-boot token (`POST` only; other methods need it) and rejects any request that carries an `Origin` header (Claude Code sends none; browsers always do). The route itself lands in T26. |
+| Process spawning | `run(file, args, { cwd, timeoutMs, maxBuffer, env })` in `src/process/exec.ts`: `spawn` with an argument array, `shell: false` and `detached: true` (own process group); on timeout or output overflow the whole group gets `SIGKILL`. Rejects with `RunError` (`exit`/`signal`/`timeout`/`max-buffer`/`spawn`) unless exit code 0. The child env is `PATH`, `HOME`, `LANG`, `LC_ALL`, `USER`, `TMPDIR`, `SHELL` from the server env, overridden by the caller's `env`. node-pty also takes argument arrays only; commands after `--` in `new-session`. ESLint bans in `apps/server`: `exec`/`execSync` imports, default/namespace/dynamic `child_process` imports, a `shell` option other than `false` in `spawn`/`execFile`/`fork` calls, and options passed as a variable or spread there. |
+| Path allowlist | `createAllowlist(roots).resolveInside(candidate)` in `src/fs/allowlist.ts`: rejects empty, relative and NUL-byte paths, `~`-expands, `path.resolve`s, then `realpath`s the candidate (or its nearest existing parent for new files) and checks it against the `realpath` of each root (`path.relative`, no `..` segment). `..` and symlink escapes, and paths through dangling links, fail with `403 forbidden`. Callers must use the returned path; writers use temp file + rename in the resolved directory (TOCTOU). |
+| Security headers | Every response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`; `/api/*` also `Cache-Control: no-store`. A strict CSP for the SPA is not set yet; it comes with serving the built web client. |
 | No secrets to the browser | MCP `env` values and `headers` are masked (`***`) in API responses; an unchanged mask on save keeps the stored value. |
 | Logging | pino `redact` removes the `authorization`, `x-agent-hub-token`, `x-agent-hub-hook-token` and `sec-websocket-protocol` request headers. Query strings carry no secrets. |
 | Validation | Every REST body and WS frame is parsed with strict zod schemas; unknown keys fail. |
@@ -259,16 +261,16 @@ flowchart LR
 
 | Threat | In scope | Mitigation |
 | --- | --- | --- |
-| Malicious web page sends requests to `localhost:7337` (CSRF) | yes | Origin check + per-boot token |
+| Malicious web page sends requests to `localhost:7337` (CSRF) | yes | Origin check (required on mutations) + per-boot token |
 | DNS rebinding | yes | Host allowlist |
-| Cross-site WebSocket hijacking | yes | Origin check + token on upgrade |
+| Cross-site WebSocket hijacking | yes | Origin check + token in `Sec-WebSocket-Protocol` on upgrade |
 | Path traversal / symlink escape via file API | yes | realpath + allowlist |
-| Command injection via session `command`/`args`/`cwd` | yes | `execFile` only, zod validation |
+| Command injection via session `command`/`args`/`cwd` | yes | `execFile` only, zod validation, ESLint ban on shells |
 | Secret leakage (MCP env, tokens) to page or logs | yes | Masking, log redaction |
 | Forged hook events from a web page | yes | Hook token + session id header, requests with `Origin` rejected, no CORS |
 | Hook token readable from session environment | accepted | Visible to the same user and to child processes of the session; impact is forged session status only |
-| Oversized frames / memory exhaustion | yes | `maxPayload`, backpressure limits |
-| Exposure to the LAN | yes | Loopback bind only; user-made port proxies are out of scope |
+| Oversized frames / memory exhaustion | yes | `maxPayload`, backpressure limits, 1 MiB body limit, bounded `run()` output |
+| Exposure to the LAN | yes | Loopback bind only, asserted after listen; user-made port proxies are out of scope |
 | Other local processes of the same user | no | They can already read `~/.claude` and run `claude` |
 | Other OS users on a shared machine | no | v1 targets personal machines; the token is only a partial barrier |
 | Malicious repository content (CLAUDE.md, skills, MCP servers in a project) | no | Claude Code's own trust model applies |

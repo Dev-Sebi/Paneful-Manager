@@ -15,8 +15,19 @@ export const API_ROUTES = {
   presets: `${API_PREFIX}/presets`,
   preset: `${API_PREFIX}/presets/:name`,
   config: `${API_PREFIX}/config`,
+  sessionToken: `${API_PREFIX}/session-token`,
+  hooks: `${API_PREFIX}/hooks`,
   scopes: `${API_PREFIX}/scopes`,
 } as const
+
+// Security
+
+/** Header carrying the per-boot token on every mutating request. */
+export const SESSION_TOKEN_HEADER = 'x-agent-hub-token'
+
+/** WS subprotocol echoed by the server; the client also offers `token.<token>`. */
+export const WS_SUBPROTOCOL = 'agent-hub.v1'
+export const WS_TOKEN_PROTOCOL_PREFIX = 'token.'
 
 // Errors
 
@@ -29,6 +40,8 @@ export type ValidationIssue = z.infer<typeof ValidationIssueSchema>
 export const ApiErrorCodeSchema = z.enum([
   'validation_failed',
   'bad_request',
+  'unauthorized',
+  'forbidden',
   'not_found',
   'conflict',
   'session_spawn_failed',
@@ -62,6 +75,12 @@ export const HealthResponseSchema = z.strictObject({
   uptimeSec: z.number().nonnegative(),
 })
 export type HealthResponse = z.infer<typeof HealthResponseSchema>
+
+// Session token
+
+/** GET /api/session-token; only served to same-origin requests on an allowed Host. */
+export const SessionTokenResponseSchema = z.strictObject({ token: z.string().min(1) })
+export type SessionTokenResponse = z.infer<typeof SessionTokenResponseSchema>
 
 // Sessions
 

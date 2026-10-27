@@ -14,6 +14,8 @@ import {
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { AppError } from './errors.js'
 import { registerScopes } from './scopes/routes.js'
+import { registerSecurity } from './security/register-security.js'
+import { createSessionToken } from './security/token.js'
 
 export const BODY_LIMIT_BYTES = 1024 * 1024
 
@@ -22,9 +24,12 @@ const { version } = createRequire(import.meta.url)('../package.json') as { versi
 export interface BuildAppOptions {
   config: AppConfig
   logger: FastifyBaseLogger
+  /** Per-boot token; generated when omitted. */
+  sessionToken?: string
+  /** Allows the Vite dev origins; defaults to `NODE_ENV === 'development'`. */
+  dev?: boolean
 }
 
-/** Hook point for core routes and plugins; the security plugin (T11) registers here. */
 function registerCore(app: FastifyInstance): void {
   app.get(API_ROUTES.health, (): HealthResponse => ({
     status: 'ok',
@@ -36,6 +41,8 @@ function registerCore(app: FastifyInstance): void {
 }
 
 function codeForStatus(status: number): ApiErrorCode {
+  if (status === 401) {return 'unauthorized'}
+  if (status === 403) {return 'forbidden'}
   if (status === 404) {return 'not_found'}
   if (status === 409) {return 'conflict'}
   return status >= 400 && status < 500 ? 'bad_request' : 'internal'
@@ -68,7 +75,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -77,6 +84,15 @@ export function buildApp({ config, logger }: BuildAppOptions): FastifyInstance {
     forceCloseConnections: true,
   })
   registerErrorHandlers(app)
+  const getPort = (): number => {
+    const address = app.server.address()
+    return typeof address === 'object' && address !== null ? address.port : config.port
+  }
+  registerSecurity(app, {
+    getPort,
+    token: sessionToken ?? createSessionToken(),
+    dev: dev ?? process.env.NODE_ENV === 'development',
+  })
   registerCore(app)
   registerScopes(app, { getConfig: () => config })
   return app
