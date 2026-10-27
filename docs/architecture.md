@@ -54,21 +54,24 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-  SD["systemd --user"] --> SVC["agent-hub.service: node server"]
-  SD --> SCOPE["agent-hub-tmux.scope"]
-  SCOPE --> TS["tmux server, socket name agent-hub"]
+  SD["systemd --user"] --> TU["agent-hub-tmux.service (Type=forking)"]
+  SD --> SVC["agent-hub.service: node server"]
+  SVC -.->|"Wants + After"| TU
+  TU --> TS["tmux server, socket name agent-hub"]
   TS --> S1["tmux session ah-id1: claude"]
   TS --> S2["tmux session ah-id2: claude"]
   SVC -.->|"node-pty: tmux attach-session"| S1
   SVC -.->|"execFile: new-session, kill-session, ls, capture-pane"| TS
 ```
 
-- **Server.** Runs as the systemd user service `agent-hub.service` inside WSL (`Restart=on-failure`), installed by `install.sh` (T60). It binds `127.0.0.1:<port>` only (`BIND_HOST`, `resolvePort`). In development `pnpm dev` runs it with `tsx watch` instead.
-- **One tmux server** with the dedicated socket name `agent-hub` (`tmux -L agent-hub ...`), so the user's own tmux sessions are never listed, touched or killed. It starts with a generated config `$STATE/tmux.conf` (`-f`): status line off, `remain-on-exit on` (exit codes stay readable), large `history-limit` for scrollback, `window-size latest`.
-- **Own cgroup for tmux.** systemd kills every process in a service's cgroup on stop, which would take all sessions with it. When running under systemd the server starts the tmux server through `systemd-run --user --scope --unit=agent-hub-tmux`, so it lives outside the service cgroup. Without systemd (dev) tmux daemonizes itself and survives anyway. Exact unit flags are fixed in T60.
+- **Server.** Runs as the systemd user service `agent-hub.service` inside WSL (`Restart=on-failure`, `Wants=` and `After=agent-hub-tmux.service`), installed by `install.sh` (T60). It binds `127.0.0.1:<port>` only (`BIND_HOST`, `resolvePort`). In development `pnpm dev` runs it with `tsx watch` instead.
+- **One tmux server** with the dedicated socket name `agent-hub` (`tmux -L agent-hub ...`), so the user's own tmux sessions are never listed, touched or killed. It is owned by its own user unit `agent-hub-tmux.service` (`Type=forking`, `ExecStart=tmux -L agent-hub -f %S/agent-hub/tmux.conf start-server`), so restarting or stopping `agent-hub.service` never kills sessions.
+- **tmux.conf** (`$STATE/tmux.conf`, written by the installer): `exit-empty off` (server stays up without sessions), `remain-on-exit on` (exit codes stay readable), status line off, large `history-limit` for scrollback, `window-size latest`. tmux reads it only when the tmux server starts; changes need a restart of `agent-hub-tmux.service`.
+- **The engine never starts the tmux server.** If the socket is missing it reports `tmux_unavailable` (to be added to `ApiErrorCodeSchema` in T12), refuses to create sessions and keeps retrying the listing. In development the developer starts it with the same command.
+- **Requirements:** tmux 3.2 or later (`new-session -e`); the installer checks `tmux -V`. The installer runs `loginctl enable-linger` so user units run without a login session, and documents that WSL shuts the VM down when idle, which ends all sessions (assumed, verify in T60).
 - **One tmux session per Agent Hub session**, running exactly one command (default `claude`) in one window and pane. Agent Hub layouts (splits, tabs) are drawn in the browser, never with tmux panes.
 - **One pty per attached session.** When the first client attaches, the engine spawns `tmux -L agent-hub attach-session -t =ah-<id>` with node-pty and fans its output out to every attached WS client. When the last client detaches, the pty is closed; the tmux session keeps running. tmux therefore only ever sees one client per session, and the pty size is the session size.
-- **All other tmux calls** (`new-session`, `kill-session`, `list-sessions`, `list-panes`, `capture-pane`, `resize-window`) use `execFile` with argument arrays. Targets always use the exact-match form `=ah-<id>` because tmux otherwise prefix-matches session names.
+- **All other tmux calls** (`new-session`, `kill-session`, `list-sessions`, `list-panes`, `list-clients`, `capture-pane`, `refresh-client`) use `execFile` with argument arrays. Targets use the exact-match form because tmux otherwise prefix-matches names: `=ah-<id>` for session targets (`kill-session`, `attach-session`), `=ah-<id>:` for window and pane targets (`list-panes`, `capture-pane`, `list-clients`).
 
 ### Lifecycle operations
 
@@ -80,18 +83,20 @@ flowchart TB
 | Command exits | Pane stays dead (`remain-on-exit`); engine sets `lifecycle: exited` with `exitCode` from `#{pane_dead_status}`. The session stays visible until the user closes it. |
 | Server restart | Re-adoption, see below. |
 
-Exit detection polls `list-panes -F '#{pane_dead} #{pane_dead_status}'` for attached and unattached sessions on a short interval; the `SessionEnd` hook is only a hint that triggers an early poll.
+Exit detection polls `list-panes -t =ah-<id>: -F '#{pane_dead} #{pane_dead_status}'` for attached and unattached sessions on a short interval; the `SessionEnd` hook is only a hint that triggers an early poll. A tmux `pane-died` hook calling back into the server is an optional later optimization.
 
 ### Re-adoption after restart
 
-On startup the engine runs `tmux -L agent-hub list-sessions -F '#{session_name}\t#{session_created}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_current_path}'` (no server running = no sessions) and reconciles it with `$STATE/sessions/*.json`:
+On startup the engine runs `tmux -L agent-hub list-sessions -F '#{session_name}\t#{session_created}\t#{session_path}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_start_command}'` (no server running = `tmux_unavailable`) and reconciles it with `$STATE/sessions/*.json`:
 
 | tmux session | Metadata | Result |
 | --- | --- | --- |
 | `ah-<id>` exists | `sessions/<id>.json` exists | Adopted: `lifecycle` from `pane_dead`, `state` reset to `idle` until the next hook arrives. |
-| `ah-<id>` exists | missing (orphan) | Adopted with reconstructed metadata: `cwd` from `pane_current_path`, `createdAt` from `session_created`, `title: "Recovered"`, `command` from `pane_start_command`. Never killed automatically. |
+| `ah-<id>` exists | missing (orphan) | Adopted with reconstructed metadata (below). Never killed automatically. |
 | missing | `sessions/<id>.json` exists | Stale record deleted. Clients still referencing the id get `unknown_session` and drop the pane. |
 | name without `ah-` prefix | - | Ignored, never touched (someone used the socket manually). |
+
+Reconstructed orphan record: `cwd` from `session_path`, `createdAt` from `session_created`, `title: "Recovered"`. `pane_start_command` is a shell-quoted string that cannot be split back reliably, so it is only logged and the record stores `command: 'tmux'`, `args: []`. Required fields without a source get defaults: `cols` 80, `rows` 24, `state: idle`, `lastEventAt` now, `hostId: local`. Recovered sessions are shown in a synthetic "Recovered" tab. When loading `tabs.json` the server prunes session ids that no longer exist.
 
 Re-adopted sessions keep the environment they were created with, which is why the hook token is persisted and not per boot (see [Security model](#security-model)).
 
@@ -113,8 +118,8 @@ Re-adopted sessions keep the environment they were created with, which is why th
 | `$STATE/sessions/<id>.json` | one `Session` record, rewritten on every lifecycle or state change | server |
 | `$STATE/tabs.json` | runtime tabs (`AppTabSchema[]`) incl. pane sizes, so tabs survive browser close | server |
 | `$STATE/hook-token` | hook token, mode `0600`, created once | server |
-| `$STATE/tmux.conf` | generated tmux config | server |
-| `$STATE/backups/` | backups before overwriting or deleting files (see below) | server |
+| `$STATE/tmux.conf` | tmux config, read by `agent-hub-tmux.service` at tmux start | installer |
+| `$STATE/backups/<encoded-path>/<timestamp>` | backups before overwriting or deleting files (see below) | server |
 | journald (`journalctl --user -u agent-hub`) | logs (pino to stdout) | server |
 
 The state directory follows the XDG base directory spec the same way `resolveConfigDir` does for config: `$XDG_STATE_HOME/agent-hub` when set, otherwise `~/.local/state/agent-hub`. A `resolveStateDir(env)` helper belongs next to `resolveConfigDir` in `packages/shared` (T12).
@@ -129,20 +134,22 @@ The frame catalogue is in [Shared contracts](#websocket-protocol). This section 
 sequenceDiagram
     participant C as Browser
     participant S as Server
-    C->>S: GET /ws?v=1&token=... (Upgrade)
+    C->>S: GET /api/session-token
+    S-->>C: token
+    C->>S: GET /ws?v=1, Sec-WebSocket-Protocol agent-hub.v1 + token.t
     Note over S: Host, Origin, token, version checked before upgrade
     alt check fails
         S-->>C: HTTP 403 (bad Host/Origin/token)
     else version mismatch
         S-->>C: upgrade, error protocol_mismatch, close 4001
     else ok
-        S-->>C: 101 Switching Protocols
+        S-->>C: 101, Sec-WebSocket-Protocol agent-hub.v1
         C->>S: attach (one per visible pane)
         S-->>C: scrollback, then output ...
     end
 ```
 
-1. The client opens one socket per browser tab at `/ws?v=<WS_PROTOCOL_VERSION>&token=<token>` (browsers cannot set headers on WebSocket requests, so the token travels in the query; the logger redacts it).
+1. Before every connect the client fetches the current per-boot token from `GET /api/session-token` (route name fixed, added to `API_ROUTES` in T11). It opens one socket per browser tab at `/ws?v=<WS_PROTOCOL_VERSION>` with the subprotocols `agent-hub.v1` and `token.<token>` (`new WebSocket(url, ['agent-hub.v1', 'token.' + token])`). The server validates the token entry and echoes only `agent-hub.v1`. Browsers cannot set other headers on WebSocket requests; the subprotocol header keeps the token out of URLs and access logs.
 2. It sends `attach` for every pane that is visible. Hidden app tabs are detached to save bandwidth and re-attached when shown.
 3. `session.created`, `session.removed` and `state` frames are broadcast to every connection, attached or not, so sidebars stay current.
 4. Invalid frames get `error bad_message` and are ignored; the connection stays open.
@@ -155,7 +162,7 @@ For each `attach {sessionId, cols, rows, scrollback}`:
 2. Register the client on the session; spawn the pty if it is the first client. Live output for this client is buffered from now on.
 3. Apply the size (resize rule below).
 4. If `scrollback` is `true`: `capture-pane -p -e -J -S -<history> -E -1 -t =ah-<id>` (history above the visible screen, with escape sequences) and send it as one `scrollback` frame. The client resets its xterm before writing it.
-5. Ask tmux to redraw the visible screen (`refresh-client` through the pty), then flush the buffered output and stream `output` frames.
+5. Ask tmux to redraw the visible screen: read the pty's client tty with `list-clients -t =ah-<id>: -F '#{client_tty}'`, then `execFile tmux refresh-client -t <client_tty>`. Flush the buffered output and stream `output` frames. The redraw goes through the shared pty, so every viewer of that session receives it; it is a harmless repaint.
 
 The visible screen always comes from tmux's redraw, so it is never duplicated. Lines that scroll off the screen exactly between capture and redraw may be missing from history; this is accepted for v1.
 
@@ -175,7 +182,7 @@ v1 has no flow-control frames. Per connection the server keeps one pending outpu
 | at or above 1 MiB | Coalesce: append to the pending string for that session and flush it as one frame when the buffer drains (checked on a short timer). |
 | pending output for one connection above 8 MiB | The client is too slow: close the connection with code `4008`. The client reconnects and re-attaches with `scrollback: true`, which resynchronizes the screen. |
 
-Output is never dropped silently in the middle of a stream, because dropping escape sequences corrupts the terminal. The pty itself is never paused in v1, since it is shared by all clients of a session. Protocol v2 reserves `pause`/`resume` frames for real per-client flow control.
+The policy is coalesce, then close with `4008`; output is never dropped, because dropping escape sequences corrupts the terminal. The pty itself is never paused in v1, since it is shared by all clients of a session. Protocol v2 reserves `pause`/`resume` frames for real per-client flow control.
 
 ### Limits, heartbeat, close codes
 
@@ -187,20 +194,21 @@ Output is never dropped silently in the middle of a stream, because dropping esc
 
 - The client reconnects automatically with exponential backoff (0.5 s doubling to 10 s, with jitter), except after `4001` (reload the page to get a matching client).
 - After reconnect it re-sends `attach` with `scrollback: true` for every visible pane and refetches `GET /api/sessions`, because `session.created`/`session.removed` frames during the outage were missed.
-- Server restart looks like a reconnect: sessions were re-adopted, so attaching works unchanged. `GET /api/health` `protocolVersion` tells the client whether it must reload.
+- Server restart looks like a reconnect: sessions were re-adopted, so attaching works unchanged. The per-boot token changed, so the client always refetches it before connecting. `GET /api/health` `protocolVersion` tells the client whether it must reload.
+- REST calls that fail with `401` or `403` refetch the token once and retry once; a second failure is shown to the user.
 - Graceful shutdown closes all sockets with `1001` and all ptys; tmux sessions are left running.
 
 ## File-write policy
 
-The server writes only these files; everything else is read-only:
+`$CLAUDE_DIR` is `$CLAUDE_CONFIG_DIR` when set, otherwise `~/.claude`; the server honors it everywhere it reads or writes Claude Code files. The server writes only these files; everything else is read-only:
 
 | Target | How | Notes |
 | --- | --- | --- |
 | Own config: `config.yaml`, `workspaces/*.yaml` | File service, atomic | YAML written through the `yaml` Document API so user comments and unknown keys survive. Preset file name must equal `PresetNameSchema`. |
 | Own state: `$STATE/**` | Atomic | No conflict check (server is the only writer). |
-| Claude settings: `~/.claude/settings.json` | Merge `hooks` key only, atomic, conflict-checked | Adds Agent Hub hook entries if missing; never changes or removes other entries or keys. Uninstall removes only entries pointing at Agent Hub's hook URL. |
-| `CLAUDE.md` and skills | File service, atomic, conflict-checked | Only inside allowlisted scopes: global `~/.claude/CLAUDE.md` and `~/.claude/skills/**`; for each configured project and its git worktrees `<root>/CLAUDE.md`, `<root>/CLAUDE.local.md`, `<root>/.claude/skills/**`. |
-| MCP servers | `claude mcp add-json` / `claude mcp remove` via `execFile` | Never edit `~/.claude.json` or `.mcp.json` directly; the CLI owns their format. Exact subcommands are assumed, verify in T40. |
+| Claude settings: `$CLAUDE_DIR/settings.json` | Merge `hooks` key only, atomic, conflict-checked | Adds Agent Hub hook entries if missing; never changes or removes other entries or keys. Uninstall removes only entries pointing at Agent Hub's hook URL. The port is baked into that URL, so a port change re-merges the entries; running Claude Code sessions pick up hook edits live. |
+| `CLAUDE.md` and skills | File service, atomic, conflict-checked | Only inside allowlisted scopes: global `$CLAUDE_DIR/CLAUDE.md` and `$CLAUDE_DIR/skills/**`; for each configured project and its git worktrees `<root>/CLAUDE.md`, `<root>/CLAUDE.local.md`, `<root>/.claude/skills/**`. |
+| MCP servers | `claude mcp add-json` / `claude mcp remove` via `execFile` (verified subcommands) | Never edit `~/.claude.json` or `.mcp.json` directly; the CLI owns their format. There is no update command: an edit is remove + add, which is not atomic (a failed add leaves the server removed; the UI reports it and offers to retry). Removing a remote (`http`/`sse`) server also drops its stored OAuth tokens, so the user must re-authenticate; the UI warns before editing one. |
 | Worktree helper | Copy gitignored files into a new worktree | Only after explicit confirmation, target must be inside the worktree (T34). |
 
 ### Rules
@@ -209,17 +217,23 @@ The server writes only these files; everything else is read-only:
 - **Conflict detection:** every read returns a version `{ mtimeMs, sha256 }`. Writes carry the version they are based on; right before the rename the server re-stats and re-hashes the target. Mismatch (or file created/deleted meanwhile) returns `409 conflict` with the current version, and the UI shows a diff or reload choice.
 - **Never silent overwrite:** there is no force flag in the API. Overwriting after a conflict needs a fresh read. External changes are pushed to the UI by a file watcher (T31).
 - **Symlinks:** paths are resolved with `realpath` and the resolved path must still be inside an allowlisted root. Writes go to the resolved target, so the link itself is kept. Links that resolve outside the allowlist are shown read-only. New files are never created through a dangling link.
-- **Backups:** before the server overwrites or deletes a file it does not exclusively own (Claude settings, CLAUDE.md, skills, presets, `config.yaml`), the previous content is copied to `$STATE/backups/<yyyy-mm-dd>/<path-with-slashes-encoded>.<time>`; the last 20 backups per file are kept.
+- **Backups:** before the server overwrites or deletes a file it does not exclusively own (Claude settings, CLAUDE.md, skills, presets, `config.yaml`), the previous content is copied to `$STATE/backups/<encoded-path>/<timestamp>` with mode `0600`. A deleted skill directory is backed up as one tar archive of the directory. Retention: the last 20 backups per file and at most 50 MB in total; the oldest backups are pruned first.
 
 ## Security model
 
-Agent Hub is a single-user tool on loopback. The main attacker is a web page open in the same browser, not another user on the machine.
+Agent Hub is a single-user tool on loopback. The main attacker is a web page open in the same browser, not another user on the machine. The Origin check is the primary CSRF control; the token is defense in depth. `POST /api/hooks` takes its own path (hook token, see below).
 
 ```mermaid
 flowchart LR
   REQ[Incoming request] --> H{Host in allowlist?}
   H -- no --> X403[403]
-  H -- yes --> M{Mutating or WS?}
+  H -- yes --> K{POST /api/hooks?}
+  K -- yes --> HO{Origin header present?}
+  HO -- yes --> X403
+  HO -- no --> HT{Hook token valid?}
+  HT -- no --> X403
+  HT -- yes --> OK
+  K -- no --> M{Mutating or WS?}
   M -- no --> OK[Handle]
   M -- yes --> O{Origin allowed?}
   O -- no --> X403
@@ -230,14 +244,15 @@ flowchart LR
 
 | Control | Rule |
 | --- | --- |
-| Loopback bind | `127.0.0.1` only (`BIND_HOST`), not configurable. WSL localhost forwarding makes it reachable from the Windows browser. |
+| Loopback bind | `127.0.0.1` only (`BIND_HOST`), not configurable. WSL localhost forwarding makes it reachable from the Windows browser (assumed, verify in T60). |
 | Host allowlist | `127.0.0.1:<port>` and `localhost:<port>` (plus the Vite dev port in development). Blocks DNS rebinding, where an attacker domain resolves to 127.0.0.1. |
 | Origin allowlist | Mutating requests and WS upgrades need `Origin` equal to `http://127.0.0.1:<port>` or `http://localhost:<port>` (plus the dev origin). Missing `Origin` is rejected, except on the hook endpoint. No CORS headers are ever sent. |
-| Per-boot token | 32 random bytes generated at startup, kept in memory. Required as `X-Agent-Hub-Token` on every `POST`/`PUT`/`PATCH`/`DELETE` and as `token` query on `/ws`. The SPA gets it from a same-origin bootstrap endpoint (added to `API_ROUTES` in T11); the Host/Origin checks plus missing CORS keep other origins from reading it. |
-| Hook token | Separate random token in `$STATE/hook-token` (`0600`), stable across restarts because re-adopted sessions keep their environment. Only valid on `POST /api/hooks`. |
+| Per-boot token | 32 random bytes generated at startup, kept in memory, new on every restart. Required as `X-Agent-Hub-Token` on every `POST`/`PUT`/`PATCH`/`DELETE` (except `POST /api/hooks`) and as `token.<t>` subprotocol on `/ws`. The SPA fetches it from `GET /api/session-token` (owner T11) before every WS connect and once more after any `401`/`403`; the Host/Origin checks plus missing CORS keep other origins from reading it. |
+| Hook token | Separate random token in `$STATE/hook-token` (`0600`), stable across restarts because re-adopted sessions keep their environment. Only valid on `POST /api/hooks`, which is exempt from the per-boot token and rejects any request that carries an `Origin` header (Claude Code sends none; browsers always do). `POST /api/hooks` is added to `API_ROUTES` in T26. |
 | Process spawning | `execFile`/node-pty with argument arrays only; never a shell, never string-built commands. Commands after `--` in `new-session`. |
 | Path allowlist | Every path from a request is `~`-expanded, `path.resolve`d, `realpath`ed and checked against the allowlisted roots (prefix plus separator). `..` and symlink escapes fail. |
-| No secrets to the browser | MCP `env` values and `headers` are masked (`***`) in API responses; an unchanged mask on save keeps the stored value. Tokens never appear in logs. |
+| No secrets to the browser | MCP `env` values and `headers` are masked (`***`) in API responses; an unchanged mask on save keeps the stored value. |
+| Logging | pino `redact` removes the `authorization`, `x-agent-hub-token`, `x-agent-hub-hook-token` and `sec-websocket-protocol` request headers. Query strings carry no secrets. |
 | Validation | Every REST body and WS frame is parsed with strict zod schemas; unknown keys fail. |
 
 ### Threats
@@ -250,13 +265,14 @@ flowchart LR
 | Path traversal / symlink escape via file API | yes | realpath + allowlist |
 | Command injection via session `command`/`args`/`cwd` | yes | `execFile` only, zod validation |
 | Secret leakage (MCP env, tokens) to page or logs | yes | Masking, log redaction |
-| Forged hook events from a web page | yes | Hook token + session id header, no CORS |
+| Forged hook events from a web page | yes | Hook token + session id header, requests with `Origin` rejected, no CORS |
+| Hook token readable from session environment | accepted | Visible to the same user and to child processes of the session; impact is forged session status only |
 | Oversized frames / memory exhaustion | yes | `maxPayload`, backpressure limits |
 | Exposure to the LAN | yes | Loopback bind only; user-made port proxies are out of scope |
 | Other local processes of the same user | no | They can already read `~/.claude` and run `claude` |
 | Other OS users on a shared machine | no | v1 targets personal machines; the token is only a partial barrier |
 | Malicious repository content (CLAUDE.md, skills, MCP servers in a project) | no | Claude Code's own trust model applies |
-| Supply-chain attacks on dependencies | partly | Lockfile, CI dependency audit |
+| Supply-chain attacks on dependencies | partly | Lockfile with `--frozen-lockfile` in CI, Dependabot update PRs |
 
 ## Session state machine
 
@@ -267,14 +283,15 @@ stateDiagram-v2
     [*] --> starting: POST /api/sessions
     starting --> running: tmux new-session ok
     starting --> [*]: spawn failed
-    running --> exited: pane dead (exitCode)
+    running --> exited: pane dead (exitCode), SessionEnd triggers the poll
     running --> [*]: kill (close tab)
     exited --> [*]: kill (close tab)
 
     state running {
         [*] --> idle
         idle --> working: UserPromptSubmit
-        working --> working: PreToolUse / PostToolUse / SubagentStart
+        idle --> working: SubagentStart
+        working --> working: PreToolUse / PostToolUse / PostToolUseFailure / SubagentStart
         working --> waiting: PermissionRequest / Notification(permission_prompt, elicitation_dialog)
         waiting --> working: PostToolUse / UserPromptSubmit
         working --> idle: Stop / Notification(idle_prompt)
@@ -287,7 +304,9 @@ stateDiagram-v2
 
 ### Hook mapping
 
-Claude Code supports `http` hooks that POST the hook input JSON to a URL, configured in `~/.claude/settings.json` (verified in the Claude Code hooks reference). Agent Hub merges one `http` handler per event below into the user settings, pointing at `http://127.0.0.1:<port>/api/hooks` with headers `X-Agent-Hub-Session: $AGENT_HUB_SESSION_ID` and `X-Agent-Hub-Hook-Token: $AGENT_HUB_HOOK_TOKEN` (`allowedEnvVars` lists both). Claude sessions not started by Agent Hub have no such variables; the server ignores their requests.
+Claude Code supports `http` hooks that POST the hook input JSON to a URL, configured in `$CLAUDE_DIR/settings.json` (verified in the Claude Code hooks reference). Agent Hub merges one `http` handler per event below into the user settings, pointing at `http://127.0.0.1:<port>/api/hooks` with headers `X-Agent-Hub-Session: $AGENT_HUB_SESSION_ID` and `X-Agent-Hub-Hook-Token: $AGENT_HUB_HOOK_TOKEN` (`allowedEnvVars` lists both) and `timeout: 5` seconds. Claude sessions not started by Agent Hub have no such variables; the server ignores their requests. A non-2xx response, connection failure or timeout is a non-blocking error for Claude Code (verified in the hooks reference), so a stopped Agent Hub never blocks a session.
+
+These Claude Code settings can disable status reporting: `disableAllHooks`, `allowManagedHooksOnly`, `allowedHttpHookUrls` (if it does not include the Agent Hub URL) and `httpHookAllowedEnvVars` (if it does not include both variables). The server checks the merged settings it can read and the UI shows "status unavailable" for affected sessions instead of a stale state.
 
 | Hook event (matcher) | New `state` | Verified |
 | --- | --- | --- |
@@ -306,7 +325,7 @@ Assumed, verify in T26/T50:
 
 - Environment variable interpolation in `http` hook headers works for variables set with `tmux new-session -e`, and an unset variable yields an empty header instead of a failed hook.
 - `PostToolUse` after an approved permission prompt reliably moves `waiting` back to `working`; a denied prompt is followed by `Stop` or `UserPromptSubmit`.
-- Hook delivery is fire-and-forget for Claude Code: a non-2xx response or an unreachable server (Agent Hub stopped) never blocks the session (the reference documents non-blocking errors; timing impact is unverified).
+- How much latency a slow or unreachable hook endpoint adds per event within the 5 s timeout.
 - Agent-team teammates (`TeammateIdle`, `TaskCreated`, `TaskCompleted`) need their own mapping behind `experimental.agentTeams`; not part of v1 state (T50).
 - The minimum Claude Code version that supports `http` hooks and `StopFailure`; older versions would need a `command` hook fallback.
 
@@ -332,12 +351,20 @@ examples/          config.yaml and preset examples, validated by tests
 | `pnpm dev` | Builds `@agent-hub/shared`, then runs in parallel: shared `tsc --watch`, server `tsx watch`, web Vite dev server. Vite proxies `/api` and `/ws` to the server port (set up with the server skeleton). |
 | `pnpm build` | `tsc` for shared and server, `vite build` for web. In production the server serves `apps/web/dist` and the SPA uses relative URLs, so one origin serves everything. |
 | `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint (flat config, `eslint-config-vuetify` + `typescript-eslint`), `tsc`/`vue-tsc --noEmit`, vitest per package. |
+| `pnpm e2e` | Playwright end-to-end tests in `apps/web`. |
 
 TypeScript is strict everywhere (`tsconfig.base.json`: `strict`, `noUncheckedIndexedAccess`). Node 22 and pnpm 11 are the minimum (`engines`).
 
 Design tokens flow from `docs/design-system/tokens.json` through a build script into a generated Vuetify theme, CSS variables and an xterm theme (see `docs/design-system/README.md`); generated files are never edited by hand.
 
-**CI** (GitHub Actions, T14): one workflow on push and pull request with a pnpm store cache running lint, typecheck, unit tests (vitest) and Playwright end-to-end tests. Merges to `main` require it to pass.
+**CI** (`.github/workflows/ci.yml`): runs on push to `main` and on every pull request, cancels superseded runs, read-only token permissions, Node 22 with pnpm cache.
+
+| Job | Steps |
+| --- | --- |
+| `check` | install tmux, `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` |
+| `e2e` (after `check`) | install, cached Playwright Chromium, build `@agent-hub/shared`, `pnpm e2e`; uploads the Playwright report on failure |
+
+Dependabot (`.github/dependabot.yml`) opens dependency update pull requests. Required status checks for merging are a repository setting, not part of the repo.
 
 ## Shared contracts
 

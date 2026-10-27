@@ -9,17 +9,18 @@ Agent Hub edits files that belong to the user and to Claude Code (settings, CLAU
 
 ## Decision
 
-- The server writes only: its own config, presets and state; the `hooks` key of `~/.claude/settings.json` (merge, never replace foreign entries); CLAUDE.md and skills inside allowlisted scopes (global `~/.claude`, configured projects and their git worktrees). MCP servers change only through the `claude mcp` CLI via `execFile`.
+- The server writes only: its own config, presets and state; the `hooks` key of `settings.json` in the Claude config dir (`$CLAUDE_CONFIG_DIR` or `~/.claude`; merge, never replace foreign entries); CLAUDE.md and skills inside allowlisted scopes (global Claude config dir, configured projects and their git worktrees). MCP servers change only through `claude mcp add-json` / `claude mcp remove` via `execFile`; an edit is remove + add.
 - Every write is atomic: temp file in the same directory, `fsync`, `rename`.
 - Every write carries the `{ mtimeMs, sha256 }` version it was based on; a mismatch returns `409 conflict`. There is no force overwrite.
 - Paths are resolved with `realpath`; symlinks are followed only if the target stays inside the allowlist, and the link is preserved.
-- Before overwriting or deleting a non-state file, the old content is backed up to `$STATE/backups/` (last 20 per file).
+- Before overwriting or deleting a non-state file, the old content is backed up to `$STATE/backups/<encoded-path>/<timestamp>` (mode `0600`; deleted skill directories as a tar archive). Retention: last 20 per file, 50 MB total, oldest pruned first.
 
 ## Consequences
 
 - Concurrent edits in an editor and in Agent Hub are detected instead of lost.
 - Claude Code file formats stay owned by Claude Code where a CLI exists.
-- Backups cost a little disk space in the state directory.
+- Backups cost at most 50 MB in the state directory.
+- MCP edits are not atomic (remove + add), and removing a remote server drops its OAuth tokens; the UI warns and offers a retry.
 
 ## Alternatives considered
 
