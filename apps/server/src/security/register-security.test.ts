@@ -11,8 +11,8 @@ const ORIGIN = `http://127.0.0.1:${PORT}`
 
 let app: FastifyInstance | undefined
 
-function build(dev = false): FastifyInstance {
-  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, dev })
+function build(dev = false, devOrigins: string[] = []): FastifyInstance {
+  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, dev, devOrigins })
   app.post('/api/test-mutation', () => ({ done: true }))
   app.post(API_ROUTES.hooks, () => ({ received: true }))
   app.delete(API_ROUTES.hooks, () => ({ deleted: true }))
@@ -75,6 +75,17 @@ describe('Origin check', () => {
     for (const origin of ['http://localhost:3000', 'http://127.0.0.1:3000']) {
       expect((await send(dev, 'GET', API_ROUTES.health, { origin })).statusCode).toBe(200)
     }
+  })
+
+  it('accepts configured dev origins only in development and still rejects foreign ones', async () => {
+    const extra = ['http://localhost:3001']
+    const prod = build(false, extra)
+    await expectError(await send(prod, 'GET', API_ROUTES.health, { origin: 'http://localhost:3001' }), 403, 'forbidden')
+    await prod.close()
+    const dev = build(true, extra)
+    expect((await send(dev, 'GET', API_ROUTES.health, { origin: 'http://localhost:3001' })).statusCode).toBe(200)
+    await expectError(await send(dev, 'GET', API_ROUTES.health, { origin: 'http://evil.example' }), 403, 'forbidden')
+    await expectError(await send(dev, 'POST', '/api/test-mutation', { origin: 'http://evil.example', 'x-agent-hub-token': TOKEN }), 403, 'forbidden')
   })
 
   it('derives dev mode from NODE_ENV', async () => {

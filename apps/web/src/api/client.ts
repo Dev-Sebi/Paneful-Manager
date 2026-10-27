@@ -1,4 +1,14 @@
-import type { ApiError, ApiErrorCode, CreateFileRequest, CreateSessionRequestInput, PatchConfigRequest, WriteFileRequest, z } from '@agent-hub/shared'
+import type {
+  ApiError,
+  ApiErrorCode,
+  CreateFileRequest,
+  CreateSessionRequestInput,
+  PatchConfigRequest,
+  RemoveMcpServerRequest,
+  UpsertMcpServerRequestInput,
+  WriteFileRequest,
+  z,
+} from '@agent-hub/shared'
 import {
   API_ROUTES,
   ApiErrorSchema,
@@ -9,12 +19,16 @@ import {
   HealthResponseSchema,
   KillSessionResponseSchema,
   ListFilesResponseSchema,
+  ListMcpServersResponseSchema,
   ListPresetsResponseSchema,
   ListSessionsResponseSchema,
+  ListTeamsResponseSchema,
   PatchConfigResponseSchema,
   ReadFileResponseSchema,
+  RemoveMcpServerResponseSchema,
   ScopesResponseSchema,
   SESSION_TOKEN_HEADER,
+  UpsertMcpServerResponseSchema,
   WriteFileResponseSchema,
 } from '@agent-hub/shared'
 import { getToken, refreshToken } from './token'
@@ -106,6 +120,7 @@ export const api = {
   listSessions: () => fetchJson(API_ROUTES.sessions, { schema: ListSessionsResponseSchema }),
   createSession: (request: CreateSessionRequestInput) =>
     fetchJson(API_ROUTES.sessions, { schema: CreateSessionResponseSchema, method: 'POST', body: request }),
+  listTeams: () => fetchJson(API_ROUTES.teams, { schema: ListTeamsResponseSchema }),
   killSession: (id: string) =>
     fetchJson(API_ROUTES.session.replace(':id', encodeURIComponent(id)), { schema: KillSessionResponseSchema, method: 'DELETE' }),
   listPresets: () => fetchJson(API_ROUTES.presets, { schema: ListPresetsResponseSchema }),
@@ -118,4 +133,14 @@ export const api = {
     fetchJson(API_ROUTES.files, { schema: CreateFileResponseSchema, method: 'POST', body: request }),
   deleteFile: (path: string) =>
     fetchJson(`${API_ROUTES.fileContent}?${new URLSearchParams({ path })}`, { schema: DeleteFileResponseSchema, method: 'DELETE' }),
+  mcp: {
+    list: (projectPath?: string) => {
+      const query = projectPath ? `?${new URLSearchParams({ projectPath })}` : ''
+      return fetchJson(`${API_ROUTES.mcp}${query}`, { schema: ListMcpServersResponseSchema })
+    },
+    upsert: (request: UpsertMcpServerRequestInput) =>
+      fetchJson(API_ROUTES.mcp, { schema: UpsertMcpServerResponseSchema, method: 'PUT', body: request }),
+    remove: (request: RemoveMcpServerRequest) =>
+      fetchJson(API_ROUTES.mcp, { schema: RemoveMcpServerResponseSchema, method: 'DELETE', body: request }),
+  },
 }
