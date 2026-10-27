@@ -79,6 +79,15 @@ describe('buildApp', () => {
     expect(response.json()).toEqual({ code: 'conflict', message: 'Name taken' })
   })
 
+  it('keeps the code and message of server-side AppErrors', async () => {
+    build().get('/boom', () => {
+      throw new AppError('tmux server is not running', 503, 'tmux_unavailable', { detail: 'no server' })
+    })
+    const response = await app.inject({ method: 'GET', url: '/boom' })
+    expect(response.statusCode).toBe(503)
+    expect(response.json()).toEqual({ code: 'tmux_unavailable', message: 'tmux server is not running', details: { detail: 'no server' } })
+  })
+
   it('maps status codes to error codes', async () => {
     build().get('/m/:s', request => {
       throw Object.assign(new Error('x'), { statusCode: Number((request.params as { s: string }).s) })

@@ -13,6 +13,9 @@ import {
 } from '@agent-hub/shared'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { AppError } from './errors.js'
+import type { SessionEngine } from './sessions/engine.js'
+import { registerSessions } from './sessions/routes.js'
+import { registerWs, type AuthorizeUpgrade } from './ws/plugin.js'
 
 export const BODY_LIMIT_BYTES = 1024 * 1024
 
@@ -21,6 +24,9 @@ const { version } = createRequire(import.meta.url)('../package.json') as { versi
 export interface BuildAppOptions {
   config: AppConfig
   logger: FastifyBaseLogger
+  /** Session engine; closed (ptys detached, tmux kept) when the app closes. */
+  engine?: SessionEngine
+  authorizeUpgrade?: AuthorizeUpgrade
 }
 
 /** Hook point for core routes and plugins; the security plugin (T11) registers here. */
@@ -59,15 +65,16 @@ function registerErrorHandlers(app: FastifyInstance): void {
     if (status >= 500) {
       request.log.error({ err: error }, 'Unhandled error')
     }
-    const code = error instanceof AppError && status < 500 ? error.code : codeForStatus(status)
-    const message = status < 500 && isClientSafe(error) ? (error as Error).message : status < 500 ? 'Bad request' : 'Internal server error'
+    const code = error instanceof AppError ? error.code : codeForStatus(status)
+    const safe = error instanceof AppError || (status < 500 && isClientSafe(error))
+    const message = safe ? (error as Error).message : status < 500 ? 'Bad request' : 'Internal server error'
     const details = error instanceof AppError ? error.details : undefined
     const body = { code, message, ...(details === undefined ? {} : { details }) } as ApiError
     return reply.code(status).send(body)
   })
 }
 
-export function buildApp({ logger }: BuildAppOptions): FastifyInstance {
+export function buildApp({ logger, engine, authorizeUpgrade }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -77,5 +84,12 @@ export function buildApp({ logger }: BuildAppOptions): FastifyInstance {
   })
   registerErrorHandlers(app)
   registerCore(app)
+  if (engine !== undefined) {
+    registerSessions(app, { engine })
+    registerWs(app, { engine, ...(authorizeUpgrade === undefined ? {} : { authorizeUpgrade }) })
+    app.addHook('onClose', async () => {
+      await engine.close()
+    })
+  }
   return app
 }

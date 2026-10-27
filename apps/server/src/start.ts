@@ -1,6 +1,7 @@
 import { BIND_HOST, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
+import type { SessionEngine } from './sessions/engine.js'
 
 export const SHUTDOWN_TIMEOUT_MS = 5000
 
@@ -11,8 +12,12 @@ export interface RunningServer {
   shutdown: () => Promise<boolean>
 }
 
-export async function startServer(config: AppConfig, logger: FastifyBaseLogger): Promise<RunningServer> {
-  const app = buildApp({ config, logger })
+export interface StartServerOptions {
+  engine?: SessionEngine
+}
+
+export async function startServer(config: AppConfig, logger: FastifyBaseLogger, options: StartServerOptions = {}): Promise<RunningServer> {
+  const app = buildApp({ config, logger, ...options })
   await app.listen({ host: BIND_HOST, port: config.port })
   const address = app.server.address()
   const port = typeof address === 'object' && address !== null ? address.port : config.port

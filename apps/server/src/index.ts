@@ -1,6 +1,8 @@
-import { PORT_ENV_VAR } from '@agent-hub/shared'
+import { PORT_ENV_VAR, resolveStateDir } from '@agent-hub/shared'
 import { ConfigError, loadConfig } from './config/load-config.js'
 import { createLogger } from './logger.js'
+import { expandHome } from './paths.js'
+import { SessionEngine } from './sessions/engine.js'
 import { installShutdown, startServer, type RunningServer } from './start.js'
 
 function fail(message: string): never {
@@ -14,9 +16,12 @@ async function main(): Promise<void> {
   const config = await loadConfig({ env: process.env, logger })
   logger.level = config.logLevel
 
+  const engine = new SessionEngine({ stateDir: expandHome(resolveStateDir(process.env)), logger })
+  await engine.start()
+
   let server: RunningServer
   try {
-    server = await startServer(config, logger)
+    server = await startServer(config, logger, { engine })
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
       fail(`Port ${config.port} is already in use. Change \`port\` in config.yaml or set ${PORT_ENV_VAR}.`)
