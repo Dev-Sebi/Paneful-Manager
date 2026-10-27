@@ -1,5 +1,4 @@
-import type { ApiError, ApiErrorCode, CreateFileRequest, CreateSessionRequestInput, PatchConfigRequest, WriteFileRequest } from '@agent-hub/shared'
-import type { z } from 'zod'
+import type { ApiError, ApiErrorCode, CreateFileRequest, CreateSessionRequestInput, PatchConfigRequest, WriteFileRequest, z } from '@agent-hub/shared'
 import {
   API_ROUTES,
   ApiErrorSchema,
@@ -17,7 +16,6 @@ import {
   SESSION_TOKEN_HEADER,
   WriteFileResponseSchema,
 } from '@agent-hub/shared'
-import { connection } from './connection'
 import { getToken, refreshToken } from './token'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -55,11 +53,8 @@ async function send (route: string, init: RequestInit, mutating: boolean, token?
     headers.set(SESSION_TOKEN_HEADER, token)
   }
   try {
-    const response = await fetch(route, { ...init, headers })
-    connection.value = 'online'
-    return response
+    return await fetch(route, { ...init, headers })
   } catch (error) {
-    connection.value = 'offline'
     throw new ApiClientError(0, 'network', error instanceof Error ? error.message : 'Network error')
   }
 }
@@ -74,7 +69,7 @@ async function toError (response: Response): Promise<ApiClientError> {
 }
 
 /**
- * Fetches `route`, sends the session token on mutations and retries once with a fresh token on 401/403.
+ * Fetches `route`, sends the session token on mutations and retries a mutation once with a fresh token on 401/403.
  * The body is validated with `init.schema`.
  */
 export async function fetchJson<S extends z.ZodType> (route: string, init: FetchJsonInit<S>): Promise<z.infer<S>> {
@@ -84,7 +79,7 @@ export async function fetchJson<S extends z.ZodType> (route: string, init: Fetch
   const request: RequestInit = { ...rest, method, body: body === undefined ? undefined : JSON.stringify(body) }
 
   let response = await send(route, request, mutating, mutating ? await getToken().catch(() => undefined) : undefined)
-  if (RETRY_STATUSES.has(response.status)) {
+  if (mutating && RETRY_STATUSES.has(response.status)) {
     const fresh = await refreshToken().catch(() => undefined)
     if (fresh) {
       response = await send(route, request, mutating, fresh)

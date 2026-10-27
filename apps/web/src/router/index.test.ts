@@ -6,6 +6,16 @@ import { createAppRouter } from '@/router'
 import { useConfigStore } from '@/stores/config'
 import { useUiStore } from '@/stores/ui'
 
+// Lazy views are stubbed so a cold transform cannot time the tests out.
+vi.mock('@/views/WorkspacesView.vue', () => ({ default: {} }))
+vi.mock('@/views/SkillsView.vue', () => ({ default: {} }))
+vi.mock('@/views/ClaudeMdView.vue', () => ({ default: {} }))
+vi.mock('@/views/McpView.vue', () => ({ default: {} }))
+vi.mock('@/views/TeamsView.vue', () => ({ default: {} }))
+vi.mock('@/views/SettingsView.vue', () => ({ default: {} }))
+vi.mock('@/views/NotFoundView.vue', () => ({ default: {} }))
+vi.mock('@/views/dev/ComponentsView.vue', () => ({ default: {} }))
+
 const getConfig = vi.hoisted(() => vi.fn())
 vi.mock('@/api/client', () => ({ api: { getConfig } }))
 

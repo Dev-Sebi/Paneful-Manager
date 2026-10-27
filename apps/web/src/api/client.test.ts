@@ -1,7 +1,7 @@
-import type * as ClientModule from './client'
 // @vitest-environment jsdom
+import type * as ClientModule from './client'
+import { z } from '@agent-hub/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { z } from 'zod'
 import { jsonResponse } from '@/test/fixtures'
 
 type Client = typeof ClientModule
@@ -91,12 +91,17 @@ describe('api client', () => {
     await expect(fetchJson('/api/x', { schema })).rejects.toMatchObject({ code: 'invalid_response' })
   })
 
-  it('reports an unreachable server as a network error and flips the connection state', async () => {
+  it('reports an unreachable server as a network error', async () => {
     const { fetchJson } = await load()
-    const { connection } = await import('./connection')
     fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
     await expect(fetchJson('/api/x', { schema })).rejects.toMatchObject({ status: 0, code: 'network' })
-    expect(connection.value).toBe('offline')
+  })
+
+  it('does not retry GET requests on 401', async () => {
+    const { fetchJson } = await load()
+    fetchMock.mockResolvedValueOnce(jsonResponse({ code: 'unauthorized', message: 'no' }, 401))
+    await expect(fetchJson('/api/x', { schema })).rejects.toMatchObject({ status: 401 })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('validates typed helpers with the shared schemas', async () => {

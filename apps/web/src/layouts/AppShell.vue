@@ -1,5 +1,7 @@
 <template>
   <v-app>
+    <a class="shell__skip" href="#main-content" @click.prevent="focusMain">Skip to content</a>
+
     <v-navigation-drawer
       aria-label="Main navigation"
       class="shell__drawer"
@@ -49,7 +51,7 @@
       </div>
     </v-app-bar>
 
-    <v-main class="shell__main">
+    <v-main id="main-content" ref="mainRef" class="shell__main" tabindex="-1">
       <router-view />
     </v-main>
 
@@ -59,6 +61,7 @@
       :color="current.color"
       :model-value="true"
       role="status"
+      :timeout="current.persistent ? -1 : 5000"
       @update:model-value="ui.dismiss(current.id)"
     >
       {{ current.text }}
@@ -67,9 +70,10 @@
 </template>
 
 <script lang="ts" setup>
+  import type { ConnectionState } from '@/api/connection'
   import type { AhStatusBadgeState } from '@/components/ah'
   import type { Theme } from '@agent-hub/shared'
-  import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
+  import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { useTheme } from 'vuetify'
   import { connection } from '@/api/connection'
@@ -97,32 +101,38 @@
   const current = computed(() => ui.snackbars[0])
   const activeTheme = computed(() => ui.theme ?? config.theme)
 
-  const connectionState = computed<AhStatusBadgeState>(() => {
-    if (connection.value === 'online') {
-      return 'working'
-    }
-    return connection.value === 'offline' ? 'error' : 'idle'
-  })
-  const connectionLabel = computed(() => {
-    if (connection.value === 'online') {
-      return 'Connected'
-    }
-    return connection.value === 'offline' ? 'Disconnected' : 'Connecting'
-  })
+  const CONNECTION_BADGES: Record<ConnectionState, { state: AhStatusBadgeState, label: string }> = {
+    connected: { state: 'idle', label: 'Connected' },
+    connecting: { state: 'working', label: 'Connecting' },
+    disconnected: { state: 'error', label: 'Disconnected' },
+  }
+
+  const connectionState = computed(() => CONNECTION_BADGES[connection.value].state)
+  const connectionLabel = computed(() => CONNECTION_BADGES[connection.value].label)
+
+  const mainRef = ref<{ $el: HTMLElement }>()
+
+  function focusMain () {
+    mainRef.value?.$el.focus()
+  }
+
+  function isEditable (target: EventTarget | null): boolean {
+    return target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, [contenteditable], .xterm') !== null)
+  }
 
   watch(activeTheme, value => theme.change(value), { immediate: true })
 
   function onKeydown (event: KeyboardEvent) {
-    if (!event.ctrlKey || event.altKey || event.metaKey) {
-      return
-    }
-    if (event.shiftKey && event.key.toLowerCase() === 't') {
+    if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.code === 'KeyN') {
       event.preventDefault()
       ui.notify('New tab is not available yet')
       return
     }
-    const index = /^[1-5]$/.test(event.key) && !event.shiftKey ? Number(event.key) - 1 : -1
-    const section = SECTIONS[index]
+    if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || isEditable(event.target)) {
+      return
+    }
+    const index = /^[1-5]$/.test(event.key) ? Number(event.key) - 1 : -1
+    const section = visibleSections.value[index]
     if (section) {
       event.preventDefault()
       void router.push(section.to)
@@ -130,10 +140,12 @@
   }
 
   let unbind: (() => void) | undefined
+  let offFatal: (() => void) | undefined
 
   onMounted(() => {
     window.addEventListener('keydown', onKeydown)
     unbind = sessions.bind(wsClient)
+    offFatal = wsClient.onFatal(() => ui.notify('Protocol mismatch, reload the page', 'error', true))
     void config.ensureLoaded()
     void sessions.load()
     wsClient.connect()
@@ -142,6 +154,7 @@
   onBeforeUnmount(() => {
     window.removeEventListener('keydown', onKeydown)
     unbind?.()
+    offFatal?.()
     wsClient.close()
   })
 </script>
@@ -153,6 +166,20 @@
   background: var(--ah-color-bg-surface);
   color: var(--ah-color-fg-primary);
 }
+
+.shell__skip {
+  position: absolute;
+  z-index: var(--ah-z-toast);
+  padding: var(--ah-space-2) var(--ah-space-4);
+  border-radius: var(--ah-radius-md);
+  background: var(--ah-color-accent-default);
+  color: var(--ah-color-fg-on-accent);
+  inset-block-start: var(--ah-space-2);
+  inset-inline-start: var(--ah-space-2);
+  transform: translateY(-200%);
+}
+
+.shell__skip:focus { transform: none; }
 
 .shell__name {
   padding-inline: var(--ah-space-4);

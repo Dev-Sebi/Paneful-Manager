@@ -1,5 +1,4 @@
 import { API_ROUTES, SessionTokenResponseSchema } from '@agent-hub/shared'
-import { connection } from './connection'
 
 let cached: Promise<string> | undefined
 
@@ -8,7 +7,6 @@ async function requestToken (): Promise<string> {
   if (!response.ok) {
     throw new Error(`Token request failed with status ${response.status}`)
   }
-  connection.value = 'online'
   return SessionTokenResponseSchema.parse(await response.json()).token
 }
 

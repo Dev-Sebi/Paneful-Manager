@@ -7,7 +7,7 @@ export interface Section {
   flagged?: boolean
 }
 
-/** Sidebar sections in display order; `Ctrl+1..5` selects the first five. */
+/** Sidebar sections in display order; `Ctrl+1..5` selects the first five visible ones. */
 export const SECTIONS: readonly Section[] = [
   { key: 'workspaces', label: 'Workspaces', icon: 'mdi-console', to: '/workspaces' },
   { key: 'skills', label: 'Skills', icon: 'mdi-lightning-bolt-outline', to: '/skills' },

@@ -47,6 +47,7 @@ export const ApiErrorCodeSchema = z.enum([
   'not_found',
   'conflict',
   'session_spawn_failed',
+  'tmux_unavailable',
   'internal',
 ])
 export type ApiErrorCode = z.infer<typeof ApiErrorCodeSchema>
@@ -75,6 +76,8 @@ export const HealthResponseSchema = z.strictObject({
   version: z.string(),
   protocolVersion: z.int().positive(),
   uptimeSec: z.number().nonnegative(),
+  /** Whether the session engine can reach its tmux server. */
+  tmux: z.enum(['available', 'unavailable']),
 })
 export type HealthResponse = z.infer<typeof HealthResponseSchema>
 
@@ -94,10 +97,14 @@ export const ListSessionsResponseSchema = z.strictObject({ sessions: z.array(Ses
 export type ListSessionsResponse = z.infer<typeof ListSessionsResponseSchema>
 
 /** POST /api/sessions */
+/** No NUL (cannot pass through exec) and no `=` (would be read as an `env` assignment instead of the command). */
+export const SessionCommandSchema = z.string().regex(/^[^\0=]+$/, 'command must be non-empty and contain no NUL or =')
+export const SessionArgSchema = z.string().regex(/^[^\0]*$/, 'arguments must not contain NUL')
+
 export const CreateSessionRequestSchema = z.strictObject({
   cwd: PathSchema,
-  command: z.string().min(1).default(DEFAULT_COMMAND),
-  args: z.array(z.string()).default(() => []),
+  command: SessionCommandSchema.default(DEFAULT_COMMAND),
+  args: z.array(SessionArgSchema).default(() => []),
   title: z.string().optional(),
   cols: TerminalSizeSchema.default(DEFAULT_COLS),
   rows: TerminalSizeSchema.default(DEFAULT_ROWS),

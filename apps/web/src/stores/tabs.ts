@@ -1,8 +1,7 @@
 import type { AppTab } from '@agent-hub/shared'
-import { AppTabSchema } from '@agent-hub/shared'
+import { AppTabSchema, z } from '@agent-hub/shared'
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import { z } from 'zod'
 import { readStorage, writeStorage } from './storage'
 
 export const TABS_STORAGE_KEY = 'agent-hub.tabs.v1'
@@ -13,8 +12,12 @@ const PersistedTabsSchema = z.strictObject({
 })
 
 function loadTabs (): z.infer<typeof PersistedTabsSchema> {
-  const parsed = PersistedTabsSchema.safeParse(readStorage(TABS_STORAGE_KEY))
+  const raw = readStorage(TABS_STORAGE_KEY)
+  const parsed = PersistedTabsSchema.safeParse(raw)
   if (!parsed.success) {
+    if (raw !== undefined) {
+      console.warn('[tabs] dropped invalid persisted tabs payload')
+    }
     return { tabs: [], activeId: null }
   }
   const { tabs, activeId } = parsed.data

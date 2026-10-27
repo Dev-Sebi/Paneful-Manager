@@ -17,10 +17,10 @@ export const useConfigStore = defineStore('config', () => {
     try {
       config.value = (await api.getConfig()).config
       error.value = undefined
+      loaded.value = true
     } catch (error_) {
       error.value = error_ instanceof Error ? error_.message : 'Could not load config'
-    } finally {
-      loaded.value = true
+      loaded.value = false
     }
   }
 

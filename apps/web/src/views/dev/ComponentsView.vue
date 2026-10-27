@@ -1,5 +1,5 @@
 <template>
-  <main class="ah-home">
+  <div class="ah-home">
     <h1 class="ah-home__title">Components</h1>
     <p class="ah-home__note">Development-only component gallery.</p>
 
@@ -102,7 +102,7 @@
     </section>
 
     <EditorShowcase />
-  </main>
+  </div>
 </template>
 
 <script lang="ts" setup>
