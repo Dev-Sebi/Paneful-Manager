@@ -310,7 +310,7 @@ flowchart LR
 
 ## Session state machine
 
-`lifecycle` (process) and `state` (activity) are independent fields of `Session`. `state` only has meaning while `lifecycle` is `running`; on `exited` it keeps its last value and the UI shows the exit instead. `stateSince` records when `state` last changed (creation, re-adoption or a hook that changed it); the UI derives its elapsed timer from it and pulses the badge once on `waiting`.
+`lifecycle` (process) and `state` (activity) are independent fields of `Session`. `state` only has meaning while `lifecycle` is `running`; on `exited` it keeps its last value and the UI shows the exit instead. `stateSince` records when `state` last changed (creation, re-adoption or a hook that changed it); the UI is meant to derive its elapsed timer from it and pulses the badge once on `waiting`. The timer is a follow-up: the web sessions store does not copy `stateSince` from `state` frames yet.
 
 ```mermaid
 stateDiagram-v2
@@ -541,7 +541,7 @@ Terminal data (`input`, `output`, `scrollback`) is a plain UTF-8 string, not bas
 | client to server | `ping` | - | Keep-alive. |
 | server to client | `output` | `sessionId`, `data` | Live terminal output. |
 | server to client | `scrollback` | `sessionId`, `data` | History sent once after `attach`, before any `output`. |
-| server to client | `state` | `sessionId`, `state`, `lifecycle`, `exitCode?`, `stateSince?` | Activity or lifecycle changed; the UI's elapsed timer counts from `stateSince`. |
+| server to client | `state` | `sessionId`, `state`, `lifecycle`, `exitCode?`, `stateSince?` | Activity or lifecycle changed; `stateSince` is the base for the UI's elapsed timer (follow-up). |
 | server to client | `session.created` | `session` | A session was created (by any client or a preset). |
 | server to client | `session.removed` | `sessionId` | A session was killed or cleaned up. |
 | server to client | `error` | `sessionId?`, `code`, `message` | `bad_message`, `protocol_mismatch`, `unknown_session`, `not_attached`, `tmux_unavailable`, `internal`. |
