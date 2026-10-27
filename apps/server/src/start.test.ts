@@ -41,6 +41,27 @@ describe('installShutdown', () => {
   })
 })
 
+describe('bind assertion', () => {
+  it('closes the server and fails when it is not bound to loopback', async () => {
+    vi.resetModules()
+    const close = vi.fn().mockResolvedValue(undefined)
+    vi.doMock('./app.js', () => ({
+      buildApp: () => ({
+        listen: () => Promise.resolve(),
+        server: { address: () => ({ address: '0.0.0.0', family: 'IPv4', port: 1 }) },
+        close,
+      }),
+    }))
+    try {
+      const mocked = await import('./start.js')
+      await expect(mocked.startServer({ ...DEFAULT_CONFIG, port: 1 }, pino({ level: 'silent' }))).rejects.toThrow(/Refusing to serve/)
+      expect(close).toHaveBeenCalled()
+    } finally {
+      vi.doUnmock('./app.js')
+    }
+  })
+})
+
 describe('shutdown timeout', () => {
   it('warns and resolves false when close hangs', async () => {
     vi.useFakeTimers()
@@ -49,7 +70,7 @@ describe('shutdown timeout', () => {
       vi.doMock('./app.js', () => ({
         buildApp: () => ({
           listen: () => Promise.resolve(),
-          server: { address: () => ({ port: 1 }) },
+          server: { address: () => ({ address: '127.0.0.1', port: 1 }) },
           close: () => new Promise<void>(() => undefined),
         }),
       }))

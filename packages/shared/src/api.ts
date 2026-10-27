@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { AppConfigSchema, ConfigPatchSchema } from './config.js'
 import { DEFAULT_COLS, DEFAULT_COMMAND, DEFAULT_ROWS } from './defaults.js'
 import { PresetNameSchema, WorkspacePresetSchema } from './preset.js'
-import { PathSchema } from './scope.js'
+import { PathSchema, ScopeSchema } from './scope.js'
 import { SessionIdSchema, SessionSchema, TerminalSizeSchema } from './session.js'
 
 export const API_PREFIX = '/api'
@@ -15,7 +15,19 @@ export const API_ROUTES = {
   presets: `${API_PREFIX}/presets`,
   preset: `${API_PREFIX}/presets/:name`,
   config: `${API_PREFIX}/config`,
+  sessionToken: `${API_PREFIX}/session-token`,
+  hooks: `${API_PREFIX}/hooks`,
+  scopes: `${API_PREFIX}/scopes`,
 } as const
+
+// Security
+
+/** Header carrying the per-boot token on every mutating request. */
+export const SESSION_TOKEN_HEADER = 'x-agent-hub-token'
+
+/** WS subprotocol echoed by the server; the client also offers `token.<token>`. */
+export const WS_SUBPROTOCOL = 'agent-hub.v1'
+export const WS_TOKEN_PROTOCOL_PREFIX = 'token.'
 
 // Errors
 
@@ -28,6 +40,8 @@ export type ValidationIssue = z.infer<typeof ValidationIssueSchema>
 export const ApiErrorCodeSchema = z.enum([
   'validation_failed',
   'bad_request',
+  'unauthorized',
+  'forbidden',
   'not_found',
   'conflict',
   'session_spawn_failed',
@@ -61,6 +75,12 @@ export const HealthResponseSchema = z.strictObject({
   uptimeSec: z.number().nonnegative(),
 })
 export type HealthResponse = z.infer<typeof HealthResponseSchema>
+
+// Session token
+
+/** GET /api/session-token; only served to same-origin requests on an allowed Host. */
+export const SessionTokenResponseSchema = z.strictObject({ token: z.string().min(1) })
+export type SessionTokenResponse = z.infer<typeof SessionTokenResponseSchema>
 
 // Sessions
 
@@ -110,6 +130,12 @@ export type PresetResponse = z.infer<typeof PresetResponseSchema>
 /** DELETE /api/presets/:name */
 export const DeletePresetResponseSchema = z.strictObject({ name: PresetNameSchema, deleted: z.literal(true) })
 export type DeletePresetResponse = z.infer<typeof DeletePresetResponseSchema>
+
+// Scopes
+
+/** GET /api/scopes */
+export const ScopesResponseSchema = z.strictObject({ scopes: z.array(ScopeSchema) })
+export type ScopesResponse = z.infer<typeof ScopesResponseSchema>
 
 // Config
 
