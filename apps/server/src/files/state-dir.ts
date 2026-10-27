@@ -1,15 +1,7 @@
 import { realpathSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { Scope } from '@agent-hub/shared'
 import { scopeRoot } from './layout.js'
-
-/** `$XDG_STATE_HOME/agent-hub/backups`, else `~/.local/state/agent-hub/backups`; replace with `resolveStateDir` once T12 lands. */
-export function resolveBackupDir(env: Record<string, string | undefined>): string {
-  const xdg = env.XDG_STATE_HOME?.trim()
-  const stateHome = xdg && isAbsolute(xdg) ? xdg : join(homedir(), '.local', 'state')
-  return join(resolve(stateHome), 'agent-hub', 'backups')
-}
 
 function forms(path: string): string[] {
   try {
