@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { AppConfigSchema, resolveConfigDir, resolvePort, type AppConfig } from '@agent-hub/shared'
 import { parse } from 'yaml'
+import { expandHome } from '../paths.js'
 import type { BaseLogger } from 'pino'
 
 export const CONFIG_FILE_NAME = 'config.yaml'
@@ -15,10 +15,6 @@ export interface LoadConfigOptions {
   env: Record<string, string | undefined>
   configDir?: string
   logger?: Pick<BaseLogger, 'info'>
-}
-
-function expandHome(path: string): string {
-  return path === '~' || path.startsWith('~/') ? join(homedir(), path.slice(1)) : path
 }
 
 async function readConfigFile(file: string): Promise<string | undefined> {

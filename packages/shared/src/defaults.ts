@@ -29,6 +29,9 @@ export const CONFIG_DIR = `~/.config/${CONFIG_DIR_NAME}`
 export const CONFIG_FILE = `${CONFIG_DIR}/config.yaml`
 export const WORKSPACES_DIR = `${CONFIG_DIR}/workspaces`
 
+/** Default runtime state directory without `XDG_STATE_HOME` (see `resolveStateDir`). */
+export const STATE_DIR = `~/.local/state/${CONFIG_DIR_NAME}`
+
 /** Equals `AppConfigSchema.parse({})`; asserted by tests. */
 export const DEFAULT_CONFIG = {
   port: DEFAULT_PORT,

@@ -10,7 +10,8 @@ export type SessionState = z.infer<typeof SessionStateSchema>
 export const SessionLifecycleSchema = z.enum(['starting', 'running', 'exited'])
 export type SessionLifecycle = z.infer<typeof SessionLifecycleSchema>
 
-export const SessionIdSchema = z.string().min(1)
+/** Server-generated ids use the base64url charset, so `ah-<id>` is always a valid tmux name. */
+export const SessionIdSchema = z.string().regex(/^[A-Za-z0-9_-]+$/, 'session id may only contain letters, digits, _ and -')
 
 export const TerminalSizeSchema = z.int().min(1).max(MAX_TERMINAL_SIZE)
 

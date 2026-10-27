@@ -1,3 +1,4 @@
+export { z } from 'zod'
 export const APP_NAME = 'Agent Hub'
 
 export * from './api.js'
@@ -9,4 +10,5 @@ export * from './mcp.js'
 export * from './preset.js'
 export * from './scope.js'
 export * from './session.js'
+export * from './worktrees.js'
 export * from './ws.js'

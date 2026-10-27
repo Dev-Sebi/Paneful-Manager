@@ -1,7 +1,7 @@
 <template>
-  <main class="ah-home">
-    <h1 class="ah-home__title">Agent Hub</h1>
-    <p class="ah-home__note">Temporary component showcase (T20); replaced by the router and gallery in T22.</p>
+  <div class="ah-home">
+    <h1 class="ah-home__title">Components</h1>
+    <p class="ah-home__note">Development-only component gallery.</p>
 
     <section class="ah-home__section">
       <h2>AhButton</h2>
@@ -100,13 +100,16 @@
         Escape and scrim are blocked.
       </AhDialog>
     </section>
-  </main>
+
+    <EditorShowcase />
+  </div>
 </template>
 
 <script lang="ts" setup>
   import type { AhButtonSize, AhButtonVariant, AhStatusBadgeState, AhStatusBadgeVariant, AhTabsReorderPayload } from '@/components/ah'
   import { ref } from 'vue'
   import { AhButton, AhDialog, AhStatusBadge, AhTab, AhTabPanel, AhTabs } from '@/components/ah'
+  import EditorShowcase from '@/components/editor/EditorShowcase.vue'
 
   interface DemoTab {
     value: string
@@ -160,10 +163,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--ah-space-4);
-  min-height: 100%;
   padding: var(--ah-space-8);
   color: var(--ah-color-fg-primary);
-  background: var(--ah-color-bg-canvas);
 }
 
 .ah-home__title {

@@ -38,6 +38,8 @@ describe('SessionSchema', () => {
   it('rejects invalid fields with their paths', () => {
     expect(issuePaths(SessionSchema, { ...valid, state: 'busy' })).toEqual(['state'])
     expect(issuePaths(SessionSchema, { ...valid, tmuxSession: 'bad:name' })).toEqual(['tmuxSession'])
+    expect(issuePaths(SessionSchema, { ...valid, id: 'a.b' })).toEqual(['id'])
+    expect(issuePaths(SessionSchema, { ...valid, id: '' })).toEqual(['id'])
     expect(issuePaths(SessionSchema, { ...valid, createdAt: 'yesterday' })).toEqual(['createdAt'])
     expect(issuePaths(SessionSchema, { ...valid, cols: 0, rows: 1.5 })).toEqual(['cols', 'rows'])
   })

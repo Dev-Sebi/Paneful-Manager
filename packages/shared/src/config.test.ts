@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parse, stringify } from 'yaml'
-import { AppConfigSchema, applyConfigPatch, ConfigPatchSchema, resolveConfigDir, resolvePort } from './config.js'
+import { AppConfigSchema, applyConfigPatch, ConfigPatchSchema, resolveConfigDir, resolvePort, resolveStateDir } from './config.js'
 import { DEFAULT_CONFIG } from './defaults.js'
 import { issuePaths } from './test-utils.js'
 
@@ -99,5 +99,18 @@ describe('resolveConfigDir', () => {
   it('respects XDG_CONFIG_HOME', () => {
     expect(resolveConfigDir({ XDG_CONFIG_HOME: '/home/dev/.cfg' })).toBe('/home/dev/.cfg/agent-hub')
     expect(resolveConfigDir({ XDG_CONFIG_HOME: '/home/dev/.cfg/' })).toBe('/home/dev/.cfg/agent-hub')
+  })
+})
+
+describe('resolveStateDir', () => {
+  it('falls back to ~/.local/state without XDG_STATE_HOME', () => {
+    expect(resolveStateDir({})).toBe('~/.local/state/agent-hub')
+    expect(resolveStateDir({ XDG_STATE_HOME: '' })).toBe('~/.local/state/agent-hub')
+    expect(resolveStateDir({ XDG_STATE_HOME: 'relative/state' })).toBe('~/.local/state/agent-hub')
+  })
+
+  it('respects XDG_STATE_HOME and ignores XDG_CONFIG_HOME', () => {
+    expect(resolveStateDir({ XDG_STATE_HOME: '/home/dev/.st/' })).toBe('/home/dev/.st/agent-hub')
+    expect(resolveStateDir({ XDG_CONFIG_HOME: '/home/dev/.cfg' })).toBe('~/.local/state/agent-hub')
   })
 })
