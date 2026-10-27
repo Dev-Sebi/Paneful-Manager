@@ -1,7 +1,7 @@
+import { enableAutoUnmount } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 // @vitest-environment jsdom
 import { defineComponent, ref } from 'vue'
-import { enableAutoUnmount } from '@vue/test-utils'
 import { mountWithVuetify } from '@/test/mount'
 import AhTab from './AhTab.vue'
 import AhTabPanel from './AhTabPanel.vue'
