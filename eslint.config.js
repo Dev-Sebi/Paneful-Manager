@@ -44,7 +44,7 @@ export default [
     ? config
     : { ...config, files: config.files ?? ['apps/web/**/*.{js,ts,vue}'] }),
   {
-    files: ['apps/web/**/*.{ts,vue}'],
+    files: ['apps/web/**/*.vue'],
     rules: { 'vue/attribute-hyphenation': ['error', 'always', { ignore: ['ariaLabel'] }] },
   },
   ...tseslint.configs.recommended.map(config => ({

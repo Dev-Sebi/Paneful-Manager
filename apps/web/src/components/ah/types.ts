@@ -220,4 +220,3 @@ export interface AhDialogSlots {
   /** Replaces the default actions (cancel + confirm). */
   actions?: (props: { confirm: () => void, cancel: () => void }) => unknown
 }
-
