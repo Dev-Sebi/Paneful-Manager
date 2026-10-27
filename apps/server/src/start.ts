@@ -1,6 +1,7 @@
 import { BIND_HOST, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
+import { createBackupStore } from './files/backups.js'
 import { createFileService } from './files/service.js'
 import { assertBackupDirOutsideScopes, resolveBackupDir } from './files/state-dir.js'
 import { discoverScopes } from './scopes/discover.js'
@@ -24,7 +25,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const backupDir = resolveBackupDir(env)
   assertBackupDirOutsideScopes(backupDir, await getScopes())
   const files = createFileService({ getScopes, backupDir, logger })
-  const app = buildApp({ config, logger, files })
+  const app = buildApp({ config, logger, files, worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) } })
   await app.listen({ host: BIND_HOST, port: config.port })
   const address = app.server.address()
   try {

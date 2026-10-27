@@ -20,6 +20,9 @@ export const API_ROUTES = {
   scopes: `${API_PREFIX}/scopes`,
   files: `${API_PREFIX}/files`,
   fileContent: `${API_PREFIX}/files/content`,
+  worktreeCopyPlan: `${API_PREFIX}/worktrees/copy-plan`,
+  worktreeCopyApply: `${API_PREFIX}/worktrees/copy`,
+  worktreeDiff: `${API_PREFIX}/worktrees/diff`,
 } as const
 
 // Security

@@ -16,8 +16,10 @@ import { AppError } from './errors.js'
 import { registerFiles } from './files/routes.js'
 import type { FileService } from './files/service.js'
 import { registerScopes } from './scopes/routes.js'
+import { runFile } from './scopes/run-git.js'
 import { registerSecurity } from './security/register-security.js'
 import { createSessionToken } from './security/token.js'
+import { registerWorktrees, type WorktreeDeps } from './worktrees/routes.js'
 
 export const BODY_LIMIT_BYTES = 1024 * 1024
 
@@ -32,6 +34,8 @@ export interface BuildAppOptions {
   dev?: boolean
   /** Managed-file service; the file routes are only registered when it is given. */
   files?: FileService
+  /** Worktree helper; its routes are only registered when this is given. */
+  worktrees?: Omit<WorktreeDeps, 'run'> & Partial<Pick<WorktreeDeps, 'run'>>
 }
 
 function registerCore(app: FastifyInstance): void {
@@ -79,7 +83,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, files }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, files, worktrees }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -102,6 +106,9 @@ export function buildApp({ config, logger, sessionToken, dev, files }: BuildAppO
   if (files) {
     registerFiles(app, { service: files })
     app.addHook('onClose', async () => files.close())
+  }
+  if (worktrees) {
+    registerWorktrees(app, { ...worktrees, run: worktrees.run ?? runFile })
   }
   return app
 }
