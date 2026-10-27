@@ -66,7 +66,7 @@ Status: `todo` | `doing` | `review` | `done` | `blocked`. A task starts only whe
 | ID | Task | Model | Deps | Status | Branch |
 |---|---|---|---|---|---|
 | T60 | `install.sh`: checks, install, systemd user service, wsl.conf, Windows logon task, idempotent, `--uninstall` | Opus | T10, T12 | done | merged c85083b |
-| T61 | Playwright E2E main flows | Sonnet | Waves 2–4 | doing | |
+| T61 | Playwright E2E main flows | Sonnet | Waves 2–4 | done | merged 53eb515 |
 | T62 | Full security review of server and installer | Opus | T60 | todo | |
 | T63 | Final docs: install, config reference, screenshots, troubleshooting | Haiku | T60 | todo | |
 | T15 | Lint infra: deterministic Vue parsing at root, ignore `.claude/**`, package lint scripts hooked into root lint | Opus | T14 | done | |
