@@ -16,6 +16,8 @@ describe('index', () => {
       'ApiErrorSchema',
       'ClientMessageSchema',
       'ServerMessageSchema',
+      'FileEntrySchema',
+      'FileChangedMessageSchema',
     ]) {
       expect(shared).toHaveProperty(name)
     }
