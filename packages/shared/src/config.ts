@@ -64,9 +64,9 @@ export function resolvePort(configPort: number, envValue: string | undefined): n
   return port
 }
 
-/** Config directory: `$XDG_CONFIG_HOME/agent-hub`, falling back to `~/.config/agent-hub`. */
+/** Config directory: `$XDG_CONFIG_HOME/agent-hub`, falling back to `~/.config/agent-hub` (a relative value is ignored per the XDG spec). */
 export function resolveConfigDir(env: Record<string, string | undefined>): string {
   const xdg = env.XDG_CONFIG_HOME?.trim()
-  const base = xdg ? xdg.replace(/\/+$/, '') : '~/.config'
+  const base = xdg?.startsWith('/') ? xdg.replace(/\/+$/, '') : '~/.config'
   return `${base}/${CONFIG_DIR_NAME}`
 }

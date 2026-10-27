@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
   API_ROUTES,
   ApiErrorSchema,
@@ -10,6 +11,7 @@ import {
   ListSessionsResponseSchema,
   PatchConfigResponseSchema,
   PresetParamsSchema,
+  isZodError,
   toValidationError,
   UpsertPresetRequestSchema,
 } from './api.js'
@@ -113,5 +115,13 @@ describe('config API', () => {
     roundTrip(GetConfigResponseSchema, { config: DEFAULT_CONFIG })
     roundTrip(PatchConfigResponseSchema, { config: { ...DEFAULT_CONFIG, port: 8000 }, restartRequired: true })
     expect(issuePaths(PatchConfigResponseSchema, { config: DEFAULT_CONFIG })).toEqual(['restartRequired'])
+  })
+})
+
+describe('isZodError', () => {
+  it('detects zod errors only', () => {
+    const result = z.string().safeParse(1)
+    expect(!result.success && isZodError(result.error)).toBe(true)
+    expect(isZodError(new Error('x'))).toBe(false)
   })
 })
