@@ -14,6 +14,60 @@ To be written in T03.
 
 To be written in T03.
 
+## Security model
+
+Agent Hub is a single-user tool on loopback. The main attacker is a web page open in the same browser, not another user on the machine. All request checks live in `apps/server/src/security/` and run in one `onRequest` hook (`registerSecurity`) before routing, so they also cover unknown routes.
+
+```mermaid
+flowchart LR
+  REQ[Incoming request] --> H{Host in allowlist?}
+  H -- no --> X403[403 forbidden]
+  H -- yes --> HK{Hook route?}
+  HK -- yes --> HO{Origin header?}
+  HO -- yes --> X403
+  HO -- no --> OK[Handle]
+  HK -- no --> O{Origin present and not allowed?}
+  O -- yes --> X403
+  O -- no --> M{Mutating?}
+  M -- no --> OK
+  M -- yes --> T{Token valid?}
+  T -- no --> X401[401 unauthorized]
+  T -- yes --> OK
+```
+
+| Control | Rule |
+| --- | --- |
+| Loopback bind | `127.0.0.1` only (`BIND_HOST`), not configurable; `startServer` asserts it before `listen` (`assertLoopbackBind`). WSL localhost forwarding makes it reachable from the Windows browser. |
+| Host allowlist | `localhost:<port>`, `127.0.0.1:<port>`, `[::1]:<port>` and bare `localhost` (case-insensitive), else `403 forbidden` on every route. Blocks DNS rebinding, where an attacker domain resolves to 127.0.0.1. Reusable as `isAllowedHost(host, port)`. |
+| Origin allowlist | Any request that carries `Origin` needs exactly `http://localhost:<port>`, `http://127.0.0.1:<port>` or `http://[::1]:<port>`; with `NODE_ENV=development` also `http://localhost:3000` / `http://127.0.0.1:3000` (Vite). Mismatch, including `null`, is `403`. Requests without `Origin` pass this check; mutating ones still need the token. No CORS headers are ever sent. Reusable as `isAllowedOrigin(origin, port, dev)`. |
+| Per-boot token | `randomBytes(32)` base64url, generated at startup, kept in memory only. Required as `X-Agent-Hub-Token` (`SESSION_TOKEN_HEADER`) on every `POST`/`PUT`/`PATCH`/`DELETE`, compared in constant time (SHA-256 + `timingSafeEqual`); missing or wrong is `401 unauthorized`. `GET /api/health` stays token-free. |
+| Token bootstrap | `GET /api/session-token` (`API_ROUTES.sessionToken`) returns `{ token }` (`SessionTokenResponseSchema`). It sits behind the Host and Origin checks, and without CORS headers other origins cannot read the response. |
+| WebSocket upgrade | `authorizeUpgrade(req, { port, token, dev })`: Host allowed, `Origin` present and allowed, `Sec-WebSocket-Protocol` offers `agent-hub.v1` (`WS_SUBPROTOCOL`) and exactly one `token.<token>`. The server echoes only `agent-hub.v1`. No token in the query string. |
+| Hook token | Separate random token in `$STATE/hook-token` (`0600`), stable across restarts because re-adopted sessions keep their environment. Only valid on `POST /api/hooks` (`API_ROUTES.hooks`, route in T26), which is exempt from the per-boot token and rejects any request carrying `Origin` with `403`. |
+| Process spawning | `run(file, args, { cwd, timeoutMs, maxBuffer, env })` in `src/process/exec.ts`: `execFile` with `shell: false`, `SIGKILL` on timeout, bounded output, rejects with `RunError` (`exit`/`timeout`/`max-buffer`/`spawn`) unless exit code 0. node-pty also takes argument arrays only; commands after `--` in `new-session`. ESLint bans `exec`/`execSync` imports, default/namespace/dynamic `child_process` imports and any `shell` option other than `false` in `apps/server`. |
+| Path allowlist | `createAllowlist(roots).resolveInside(candidate)` in `src/fs/allowlist.ts`: rejects empty, relative and NUL-byte paths, `~`-expands, `path.resolve`s, then `realpath`s the candidate (or its nearest existing parent for new files) and checks it against the `realpath` of each root (`path.relative`, no `..` segment). `..` and symlink escapes, and paths through dangling links, fail with `403 forbidden`. Returns the resolved path, so writes go to the link target. |
+| Security headers | Every response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`; `/api/*` also `Cache-Control: no-store`. A strict CSP for the SPA is not set yet; it comes with serving the built web client. |
+| No secrets to the browser | MCP `env` values and `headers` are masked (`***`) in API responses; an unchanged mask on save keeps the stored value. Tokens never appear in logs: pino redacts `authorization`, `x-agent-hub-token` and `sec-websocket-protocol` request headers. |
+| Validation | Every REST body and WS frame is parsed with strict zod schemas; unknown keys fail. |
+
+### Threats
+
+| Threat | In scope | Mitigation |
+| --- | --- | --- |
+| Malicious web page sends requests to `localhost:7337` (CSRF) | yes | Origin check + per-boot token |
+| DNS rebinding | yes | Host allowlist |
+| Cross-site WebSocket hijacking | yes | Origin check + token in `Sec-WebSocket-Protocol` on upgrade |
+| Path traversal / symlink escape via file API | yes | realpath + allowlist |
+| Command injection via session `command`/`args`/`cwd` | yes | `execFile` only, zod validation, ESLint ban on shells |
+| Secret leakage (MCP env, tokens) to page or logs | yes | Masking, log redaction |
+| Forged hook events from a web page | yes | Hook token + session id header, `Origin` rejected, no CORS |
+| Oversized frames / memory exhaustion | yes | `maxPayload`, backpressure limits, 1 MiB body limit, bounded `run()` output |
+| Exposure to the LAN | yes | Loopback bind only; user-made port proxies are out of scope |
+| Other local processes of the same user | no | They can already read `~/.claude` and run `claude` |
+| Other OS users on a shared machine | no | v1 targets personal machines; the token is only a partial barrier |
+| Malicious repository content (CLAUDE.md, skills, MCP servers in a project) | no | Claude Code's own trust model applies |
+| Supply-chain attacks on dependencies | partly | Lockfile, CI dependency audit |
+
 ## Shared contracts
 
 All contracts live in `packages/shared` (`@agent-hub/shared`) as zod schemas. Every schema is exported as `XSchema` with its inferred type `X` (and `XInput` where defaults make input and output differ). Server and web client import the same schemas, so validation and types never drift.

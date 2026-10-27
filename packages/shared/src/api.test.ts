@@ -11,6 +11,7 @@ import {
   ListSessionsResponseSchema,
   PatchConfigResponseSchema,
   PresetParamsSchema,
+  SessionTokenResponseSchema,
   isZodError,
   toValidationError,
   UpsertPresetRequestSchema,
@@ -123,5 +124,24 @@ describe('isZodError', () => {
     const result = z.string().safeParse(1)
     expect(!result.success && isZodError(result.error)).toBe(true)
     expect(isZodError(new Error('x'))).toBe(false)
+  })
+})
+
+describe('session token', () => {
+  it('parses and rejects empty or extra keys', () => {
+    roundTrip(SessionTokenResponseSchema, { token: 'abc_-123' })
+    expect(issuePaths(SessionTokenResponseSchema, { token: '' })).toEqual(['token'])
+    expect(issuePaths(SessionTokenResponseSchema, { token: 'a', extra: 1 })).toEqual([''])
+  })
+
+  it('has fixed routes for the token bootstrap and hooks', () => {
+    expect(API_ROUTES.sessionToken).toBe('/api/session-token')
+    expect(API_ROUTES.hooks).toBe('/api/hooks')
+  })
+
+  it('knows the auth error codes', () => {
+    for (const code of ['unauthorized', 'forbidden']) {
+      expect(ApiErrorSchema.parse({ code, message: 'x' }).code).toBe(code)
+    }
   })
 })

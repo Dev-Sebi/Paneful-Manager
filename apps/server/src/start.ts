@@ -1,6 +1,7 @@
 import { BIND_HOST, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
+import { assertLoopbackBind } from './security/origin.js'
 
 export const SHUTDOWN_TIMEOUT_MS = 5000
 
@@ -12,6 +13,7 @@ export interface RunningServer {
 }
 
 export async function startServer(config: AppConfig, logger: FastifyBaseLogger): Promise<RunningServer> {
+  assertLoopbackBind(BIND_HOST)
   const app = buildApp({ config, logger })
   await app.listen({ host: BIND_HOST, port: config.port })
   const address = app.server.address()
