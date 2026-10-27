@@ -1,4 +1,4 @@
-import type { AppConfig } from '@agent-hub/shared'
+import type { AppConfig, PatchConfigRequest } from '@agent-hub/shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/api/client'
@@ -39,5 +39,13 @@ export const useConfigStore = defineStore('config', () => {
     await ensureLoaded()
   }
 
-  return { config, loaded, error, agentTeams, confirmCloseTab, theme, ensureLoaded, reload }
+  /** Persists a partial update and replaces the local config with the server's result. */
+  async function patch (update: PatchConfigRequest) {
+    const result = await api.patchConfig(update)
+    config.value = result.config
+    loaded.value = true
+    return result
+  }
+
+  return { config, loaded, error, agentTeams, confirmCloseTab, theme, ensureLoaded, reload, patch }
 })

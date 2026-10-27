@@ -7,7 +7,7 @@
         :model-value="tabs.activeId ?? undefined"
         reorderable
         @add="ui.notify('New tab is not available yet')"
-        @close="requestClose"
+        @close="closing.closeTab"
         @reorder="({ from, to }) => tabs.move(from, to)"
         @update:model-value="select"
       >
@@ -37,14 +37,22 @@
     />
 
     <AhDialog
-      confirm-text="Close tab"
-      :model-value="pendingClose !== undefined"
-      title="Close tab"
+      confirm-text="Close and kill sessions"
+      initial-focus="[data-ah-cancel]"
+      :loading="closing.busy.value"
+      :model-value="closing.pendingTabId.value !== undefined"
+      title="Close tab?"
       tone="danger"
-      @confirm="confirmClose"
-      @update:model-value="pendingClose = undefined"
+      @confirm="closing.confirm"
+      @update:model-value="closing.cancel"
     >
-      This tab has unacknowledged activity. Close it anyway?
+      <p>Closing this tab kills its running sessions:</p>
+
+      <ul class="workspaces__sessions">
+        <li v-for="session in closing.pendingSessions.value" :key="session.id">{{ session.title }}</li>
+      </ul>
+
+      <v-checkbox v-model="closing.dontAskAgain.value" density="compact" hide-details label="Don't ask again" />
     </AhDialog>
   </div>
 </template>
@@ -52,11 +60,11 @@
 <script lang="ts" setup>
   import type { AhStatusBadgeState } from '@/components/ah'
   import type { AppTab } from '@agent-hub/shared'
-  import { ref, watch } from 'vue'
+  import { watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { AhDialog, AhTab, AhTabPanel, AhTabs } from '@/components/ah'
   import EmptyState from '@/components/EmptyState.vue'
-  import { useConfigStore } from '@/stores/config'
+  import { useCloseTab } from '@/composables/useCloseTab'
   import { useSessionsStore } from '@/stores/sessions'
   import { useTabsStore } from '@/stores/tabs'
   import { useUiStore } from '@/stores/ui'
@@ -65,10 +73,9 @@
   const router = useRouter()
   const tabs = useTabsStore()
   const sessions = useSessionsStore()
-  const config = useConfigStore()
   const ui = useUiStore()
 
-  const pendingClose = ref<string>()
+  const closing = useCloseTab()
 
   function tabState (tab: AppTab): AhStatusBadgeState | undefined {
     const first = tab.panes[0]
@@ -77,21 +84,6 @@
 
   function select (id: string) {
     void router.push(`/workspaces/${id}`)
-  }
-
-  function requestClose (id: string) {
-    if (config.confirmCloseTab && tabs.dirty[id]) {
-      pendingClose.value = id
-    } else {
-      tabs.close(id)
-    }
-  }
-
-  function confirmClose () {
-    if (pendingClose.value) {
-      tabs.close(pendingClose.value)
-    }
-    pendingClose.value = undefined
   }
 
   // Keeps the URL and the store in agreement: the URL wins when it names a tab, otherwise the active tab is shown.
@@ -125,6 +117,11 @@
 .workspaces__panel {
   flex: 1;
   padding: var(--ah-space-4);
+}
+
+.workspaces__sessions {
+  margin: var(--ah-space-2) 0;
+  padding-left: var(--ah-space-6);
 }
 
 .workspaces__pane { color: var(--ah-color-fg-muted); }

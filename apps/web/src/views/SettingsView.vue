@@ -10,7 +10,16 @@
 
     <template v-else>
       <h1 class="settings__title">Settings</h1>
-      <p class="settings__note">Read-only for now.</p>
+
+      <v-switch
+        color="primary"
+        density="compact"
+        hide-details
+        label="Confirm before closing a tab"
+        :model-value="config.confirmCloseTab"
+        @update:model-value="setConfirmCloseTab"
+      />
+
       <pre class="settings__config" tabindex="0">{{ JSON.stringify(config.config, null, 2) }}</pre>
     </template>
   </div>
@@ -20,8 +29,18 @@
   import { onMounted } from 'vue'
   import EmptyState from '@/components/EmptyState.vue'
   import { useConfigStore } from '@/stores/config'
+  import { useUiStore } from '@/stores/ui'
 
   const config = useConfigStore()
+  const ui = useUiStore()
+
+  async function setConfirmCloseTab (value: boolean | null) {
+    try {
+      await config.patch({ confirmCloseTab: value === true })
+    } catch (error) {
+      ui.notify(error instanceof Error ? error.message : 'Could not save the setting', 'error')
+    }
+  }
 
   onMounted(() => config.ensureLoaded())
 </script>
@@ -39,8 +58,6 @@
   font-size: var(--ah-font-size-xl);
   font-weight: var(--ah-font-weight-semibold);
 }
-
-.settings__note { color: var(--ah-color-fg-muted); }
 
 .settings__config {
   padding: var(--ah-space-4);
