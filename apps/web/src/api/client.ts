@@ -7,6 +7,7 @@ import type {
   RemoveMcpServerRequest,
   UpsertMcpServerRequestInput,
   UpsertPresetRequest,
+  UpsertTeamTemplateRequest,
   WriteFileRequest,
   z,
 } from '@agent-hub/shared'
@@ -17,21 +18,25 @@ import {
   CreateSessionResponseSchema,
   DeleteFileResponseSchema,
   DeletePresetResponseSchema,
+  DeleteTeamTemplateResponseSchema,
   GetConfigResponseSchema,
   HealthResponseSchema,
   KillSessionResponseSchema,
   LaunchPresetResponseSchema,
+  LaunchTeamTemplateResponseSchema,
   ListFilesResponseSchema,
   ListMcpServersResponseSchema,
   ListPresetsResponseSchema,
   ListSessionsResponseSchema,
   ListTeamsResponseSchema,
+  ListTeamTemplatesResponseSchema,
   PatchConfigResponseSchema,
   PresetResponseSchema,
   ReadFileResponseSchema,
   RemoveMcpServerResponseSchema,
   ScopesResponseSchema,
   SESSION_TOKEN_HEADER,
+  TeamTemplateResponseSchema,
   UpsertMcpServerResponseSchema,
   WriteFileResponseSchema,
 } from '@agent-hub/shared'
@@ -136,6 +141,15 @@ export const api = {
     fetchJson(API_ROUTES.preset.replace(':name', encodeURIComponent(name)), { schema: DeletePresetResponseSchema, method: 'DELETE' }),
   launchPreset: (name: string) =>
     fetchJson(API_ROUTES.presetLaunch.replace(':name', encodeURIComponent(name)), { schema: LaunchPresetResponseSchema, method: 'POST' }),
+  listTeamTemplates: () => fetchJson(API_ROUTES.teamTemplates, { schema: ListTeamTemplatesResponseSchema }),
+  createTeamTemplate: (request: UpsertTeamTemplateRequest) =>
+    fetchJson(API_ROUTES.teamTemplates, { schema: TeamTemplateResponseSchema, method: 'POST', body: request }),
+  updateTeamTemplate: (name: string, request: UpsertTeamTemplateRequest) =>
+    fetchJson(API_ROUTES.teamTemplate.replace(':name', encodeURIComponent(name)), { schema: TeamTemplateResponseSchema, method: 'PUT', body: request }),
+  deleteTeamTemplate: (name: string) =>
+    fetchJson(API_ROUTES.teamTemplate.replace(':name', encodeURIComponent(name)), { schema: DeleteTeamTemplateResponseSchema, method: 'DELETE' }),
+  launchTeamTemplate: (name: string) =>
+    fetchJson(API_ROUTES.teamTemplateLaunch.replace(':name', encodeURIComponent(name)), { schema: LaunchTeamTemplateResponseSchema, method: 'POST' }),
   listFiles: () => fetchJson(API_ROUTES.files, { schema: ListFilesResponseSchema }),
   readFile: (path: string) =>
     fetchJson(`${API_ROUTES.fileContent}?${new URLSearchParams({ path })}`, { schema: ReadFileResponseSchema }),

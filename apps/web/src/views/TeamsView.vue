@@ -23,6 +23,8 @@
       </ul>
     </div>
 
+    <TeamTemplatesPanel v-if="store.enabled" />
+
     <p v-if="store.loaded && store.teams.length === 0" class="teams-view__empty">No team task lists found yet.</p>
 
     <TeamBoard v-for="team in store.teams" :key="team.name" :now="now" :team="team" />
@@ -38,6 +40,7 @@
   import { AhStatusBadge } from '@/components/ah'
   import EmptyState from '@/components/EmptyState.vue'
   import TeamBoard from '@/components/teams/TeamBoard.vue'
+  import TeamTemplatesPanel from '@/components/teams/TeamTemplatesPanel.vue'
   import { useTeamsStore } from '@/stores/teams'
 
   /** Relative times are re-rendered this often. */
