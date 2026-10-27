@@ -35,12 +35,39 @@ describe('useCloseTab', () => {
     vi.clearAllMocks()
   })
 
-  it('closes a tab without live sessions immediately', async () => {
+  it('closes a tab without sessions immediately', async () => {
     const { tabs, sessions, flow } = setup()
     sessions.remove('s-a')
     await flow.closeTab('a')
     expect(tabs.tabs).toEqual([])
     expect(killSession).not.toHaveBeenCalled()
+  })
+
+  it('kills exited sessions without asking', async () => {
+    const { tabs, sessions, flow } = setup()
+    sessions.upsert(makeSession('s-a', { lifecycle: 'exited' }))
+    await flow.closeTab('a')
+    expect(flow.pendingTabId.value).toBeUndefined()
+    expect(killSession).toHaveBeenCalledWith('s-a')
+    expect(tabs.tabs).toEqual([])
+  })
+
+  it('also kills exited sessions after confirming', async () => {
+    const { tabs, sessions, flow } = setup()
+    tabs.tabs[0]?.panes.push({ sessionId: 's-x' })
+    sessions.upsert(makeSession('s-x', { lifecycle: 'exited' }))
+    await flow.closeTab('a')
+    expect(flow.pendingSessions.value.map(session => session.id)).toEqual(['s-a'])
+    await flow.confirm()
+    expect(killSession).toHaveBeenCalledTimes(2)
+    expect(killSession).toHaveBeenCalledWith('s-x')
+  })
+
+  it('treats a 404 on kill as success', async () => {
+    const { tabs, flow } = setup(false)
+    killSession.mockRejectedValue(new client.ApiClientError(404, 'not_found', 'gone'))
+    await flow.closeTab('a')
+    expect(tabs.tabs).toEqual([])
   })
 
   it('asks first, then kills the sessions and removes the tab', async () => {

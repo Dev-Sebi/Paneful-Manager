@@ -7,7 +7,7 @@ import { useTabsStore } from '@/stores/tabs'
 import { useUiStore } from '@/stores/ui'
 
 /**
- * Close flow for app tabs: asks first (unless disabled), kills the tab's sessions, then removes the tab.
+ * Close flow for app tabs: asks first (unless disabled), kills all of the tab's sessions (exited ones too), then removes the tab.
  * Closing the browser or unfocusing a tab must never reach this code: sessions live in tmux.
  */
 export function useCloseTab () {
@@ -22,10 +22,13 @@ export function useCloseTab () {
 
   const pendingSessions = computed(() => (pendingTabId.value ? liveSessions(pendingTabId.value) : []))
 
-  function liveSessions (tabId: string): Session[] {
+  function tabSessions (tabId: string): Session[] {
     const tab = tabs.tabs.find(item => item.id === tabId)
-    const found = (tab?.panes ?? []).flatMap(pane => sessions.byId.get(pane.sessionId) ?? [])
-    return found.filter(session => session.lifecycle !== 'exited')
+    return (tab?.panes ?? []).flatMap(pane => sessions.byId.get(pane.sessionId) ?? [])
+  }
+
+  function liveSessions (tabId: string): Session[] {
+    return tabSessions(tabId).filter(session => session.lifecycle !== 'exited')
   }
 
   async function kill (session: Session): Promise<string | undefined> {
@@ -40,8 +43,8 @@ export function useCloseTab () {
     return undefined
   }
 
-  async function closeNow (tabId: string, live: Session[]) {
-    const failures = (await Promise.all(live.map(session => kill(session)))).filter(message => message !== undefined)
+  async function closeNow (tabId: string) {
+    const failures = (await Promise.all(tabSessions(tabId).map(session => kill(session)))).filter(message => message !== undefined)
     if (failures.length > 0) {
       ui.notify(`Could not kill ${failures.length} session(s): ${failures.join('; ')}`, 'error')
       return false
@@ -60,14 +63,13 @@ export function useCloseTab () {
 
   /** Entry point for tab close buttons and the keyboard shortcut. */
   async function closeTab (tabId: string) {
-    const live = liveSessions(tabId)
-    if (live.length === 0) {
-      tabs.close(tabId)
+    if (liveSessions(tabId).length === 0) {
+      await closeNow(tabId)
     } else if (config.confirmCloseTab) {
       dontAskAgain.value = false
       pendingTabId.value = tabId
     } else {
-      await closeNow(tabId, live)
+      await closeNow(tabId)
     }
   }
 
@@ -78,7 +80,8 @@ export function useCloseTab () {
     }
     busy.value = true
     try {
-      await closeNow(tabId, liveSessions(tabId))
+      await closeNow(tabId)
+      // The choice is persisted even when a kill failed: the user already declined the prompt.
       if (dontAskAgain.value) {
         await rememberChoice()
       }

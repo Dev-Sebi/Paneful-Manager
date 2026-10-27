@@ -51,6 +51,7 @@ test('closing asks first and cancel keeps the tab', async ({ page }) => {
   await closeTab(page, 'Tab a')
   const dialog = page.getByRole('alertdialog', { name: 'Close tab?' })
   await expect(dialog).toContainText('Session s-a')
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(dialog).toBeHidden()
   await expect(page.getByRole('tab', { name: /Tab a/ })).toBeVisible()
@@ -58,12 +59,13 @@ test('closing asks first and cancel keeps the tab', async ({ page }) => {
 })
 
 test('confirming kills the sessions and removes the tab', async ({ page }) => {
-  const { deletes } = await mockApi(page)
+  const { deletes, patches } = await mockApi(page)
   await page.goto('/workspaces')
   await closeTab(page, 'Tab a')
   await page.getByRole('button', { name: 'Close and kill sessions' }).click()
   await expect(page.getByRole('tab', { name: /Tab a/ })).toHaveCount(0)
   expect(deletes).toEqual(['DELETE /api/sessions/s-a'])
+  expect(patches).toEqual([])
 })
 
 test('dont-ask-again sends a PATCH and the next close is silent', async ({ page }) => {

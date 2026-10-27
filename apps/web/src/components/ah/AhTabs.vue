@@ -51,6 +51,7 @@
   const listRef = ref<HTMLUListElement>()
   const announcement = ref('')
   const ready = ref(false)
+  const closing = new Map<string, string>()
 
   const context: AhTabsContext = {
     activeValue: toRef(props, 'modelValue'),
@@ -67,8 +68,15 @@
     },
     select: value => emit('update:modelValue', value),
     close: (value, title) => {
+      closing.set(value, title)
       emit('close', value)
-      announcement.value = `Closed ${title}`
+    },
+    unmounted: value => {
+      const title = closing.get(value)
+      if (title !== undefined) {
+        closing.delete(value)
+        announcement.value = `Closed ${title}`
+      }
     },
   }
 

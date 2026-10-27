@@ -38,6 +38,7 @@
 
     <AhDialog
       confirm-text="Close and kill sessions"
+      initial-focus="[data-ah-cancel]"
       :loading="closing.busy.value"
       :model-value="closing.pendingTabId.value !== undefined"
       title="Close tab?"

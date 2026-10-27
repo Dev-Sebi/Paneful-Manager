@@ -1,7 +1,7 @@
-import { mkdir, readFile, stat } from 'node:fs/promises'
+import { mkdir, readFile, realpath, stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { applyConfigPatch, type AppConfig, type ConfigPatch } from '@agent-hub/shared'
-import { parseDocument } from 'yaml'
+import { isMap, parseDocument } from 'yaml'
 import { AppError } from '../errors.js'
 import { atomicWrite } from '../files/service.js'
 
@@ -17,6 +17,16 @@ export interface ConfigStore {
   onChange: (listener: (config: AppConfig) => void) => () => void
 }
 
+export interface ConfigStoreOptions {
+  /** `config.yaml` to merge patches into; without it patches only change the live config. */
+  file?: string
+  /** Port the server listens on; a different configured port needs a restart. Defaults to the initial port. */
+  getListeningPort?: () => number
+  /** Rejects (throws) when the patched config must not be applied; runs before anything is written. */
+  validate?: (next: AppConfig) => Promise<void>
+}
+
+const STRUCTURE_ERROR = 'config.yaml has an unexpected structure'
 const CONFIG_FILE_MODE = 0o600
 
 async function readExisting(file: string): Promise<{ text: string; mode: number | undefined }> {
@@ -31,11 +41,23 @@ async function readExisting(file: string): Promise<{ text: string; mode: number 
   }
 }
 
+/** Follows a symlinked config file so the atomic rename replaces the target, not the link. */
+async function resolveTarget(file: string): Promise<string> {
+  try {
+    return await realpath(file)
+  } catch {
+    return file
+  }
+}
+
 /** Writes the patched keys into the YAML document so comments and unknown keys survive. */
 function mergeIntoYaml(text: string, patch: ConfigPatch): string {
   const doc = parseDocument(text)
   if (doc.errors.length > 0) {
     throw new AppError('Config file is not valid YAML', 409, 'conflict')
+  }
+  if (doc.contents !== null && !isMap(doc.contents)) {
+    throw new AppError(STRUCTURE_ERROR, 409, 'conflict')
   }
   const { experimental, ...rest } = patch
   for (const [key, value] of Object.entries(rest)) {
@@ -43,28 +65,34 @@ function mergeIntoYaml(text: string, patch: ConfigPatch): string {
       doc.setIn([key], value)
     }
   }
-  for (const [key, value] of Object.entries(experimental ?? {})) {
-    if (value !== undefined) {
-      doc.setIn(['experimental', key], value)
-    }
+  const entries = Object.entries(experimental ?? {}).filter(([, value]) => value !== undefined)
+  if (entries.length > 0 && !isMap(doc.get('experimental'))) {
+    doc.set('experimental', doc.createNode({}))
+  }
+  for (const [key, value] of entries) {
+    doc.setIn(['experimental', key], value)
   }
   return doc.toString()
 }
 
 /** Holds the live config; with a `file`, patches are merged into it atomically before being applied. */
-export function createConfigStore(initial: AppConfig, file?: string): ConfigStore {
+export function createConfigStore(initial: AppConfig, { file, getListeningPort, validate }: ConfigStoreOptions = {}): ConfigStore {
+  const listeningPort = getListeningPort ?? (() => initial.port)
   let current = initial
   let queue: Promise<unknown> = Promise.resolve()
   const listeners = new Set<(config: AppConfig) => void>()
 
   async function apply(patch: ConfigPatch): Promise<PatchResult> {
     const next = applyConfigPatch(current, patch)
+    await validate?.(next)
     if (file !== undefined) {
-      const existing = await readExisting(file)
-      await mkdir(dirname(file), { recursive: true })
-      await atomicWrite(file, mergeIntoYaml(existing.text, patch), existing.mode ?? CONFIG_FILE_MODE, async () => {})
+      const target = await resolveTarget(file)
+      const existing = await readExisting(target)
+      const merged = mergeIntoYaml(existing.text, patch)
+      await mkdir(dirname(target), { recursive: true })
+      await atomicWrite(target, merged, existing.mode ?? CONFIG_FILE_MODE, async () => {})
     }
-    const restartRequired = patch.port !== undefined && patch.port !== current.port
+    const restartRequired = next.port !== listeningPort()
     current = next
     listeners.forEach(listener => listener(next))
     return { config: next, restartRequired }

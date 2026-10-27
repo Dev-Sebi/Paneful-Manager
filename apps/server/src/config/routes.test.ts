@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { API_ROUTES, DEFAULT_CONFIG, GetConfigResponseSchema, PatchConfigResponseSchema } from '@agent-hub/shared'
@@ -7,6 +7,7 @@ import { pino } from 'pino'
 import { parse } from 'yaml'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../app.js'
+import { AppError } from '../errors.js'
 import { createConfigStore, type ConfigStore } from './store.js'
 
 const TOKEN = 'test-token'
@@ -32,7 +33,7 @@ beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'ah-config-'))
   await mkdir(dir, { recursive: true })
   file = join(dir, 'config.yaml')
-  store = createConfigStore(DEFAULT_CONFIG, file)
+  store = createConfigStore(DEFAULT_CONFIG, { file })
   app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, dev: false, configStore: store })
 })
 
@@ -79,9 +80,38 @@ describe('config routes', () => {
     await expect(readFile(file, 'utf8')).rejects.toThrow()
   })
 
+  it('keeps a symlinked config file a symlink', async () => {
+    const real = join(dir, 'real.yaml')
+    await writeFile(real, 'foo: bar\n')
+    await symlink(real, file)
+    await patch({ confirmCloseTab: false })
+    expect((await lstat(file)).isSymbolicLink()).toBe(true)
+    expect(parse(await readFile(real, 'utf8'))).toMatchObject({ foo: 'bar', confirmCloseTab: false })
+  })
+
+  it('replaces a non-map experimental value', async () => {
+    await writeFile(file, 'experimental: nope\n')
+    expect((await patch({ experimental: { agentTeams: true } })).statusCode).toBe(200)
+    expect(parse(await readFile(file, 'utf8'))).toMatchObject({ experimental: { agentTeams: true } })
+  })
+
+  it('answers 409 for a non-map root', async () => {
+    await writeFile(file, '- a\n- b\n')
+    const response = await patch({ confirmCloseTab: false })
+    expect(response.statusCode).toBe(409)
+    expect(response.json()).toMatchObject({ message: 'config.yaml has an unexpected structure' })
+    expect(store.get().confirmCloseTab).toBe(true)
+  })
+
+  it('rejects a patch the validator refuses and writes nothing', async () => {
+    const guarded = createConfigStore(DEFAULT_CONFIG, { file, validate: async () => { throw new AppError('overlap', 400, 'bad_request') } })
+    await expect(guarded.patch({ projects: ['/x'] })).rejects.toThrow('overlap')
+    await expect(readFile(file, 'utf8')).rejects.toThrow()
+  })
+
   it('flags a changed port as restartRequired', async () => {
     const response = await patch({ port: DEFAULT_CONFIG.port + 1 })
     expect(PatchConfigResponseSchema.parse(response.json()).restartRequired).toBe(true)
-    expect((PatchConfigResponseSchema.parse((await patch({ port: DEFAULT_CONFIG.port + 1 })).json())).restartRequired).toBe(false)
+    expect(PatchConfigResponseSchema.parse((await patch({ port: DEFAULT_CONFIG.port })).json()).restartRequired).toBe(false)
   })
 })
