@@ -38,6 +38,7 @@ The close (x) button is the last element in the DOM so that DOM order, focus ord
 - Spacing and shape: `space.2`, `space.4`, `radius.lg`, `shadow.3`, `opacity.scrim`.
 - Helper text: `font.size.sm`, `color.fg.muted`.
 - Layers: `z.overlay` (scrim), `z.modal` (panel).
+- Note: `v-dialog` has a single `zIndex` for scrim and panel, so in the Vuetify implementation both share `z.modal`.
 - Font: `font.family.ui`, `font.size.md`, `font.size.lg`, `font.weight.semibold`, `font.line-height.normal`.
 - Motion: enter `motion.duration.slow` + `motion.easing.decelerate` (scrim `fadeIn`, panel `fadeInDown` 8px); leave `motion.duration.fast` + `motion.easing.accelerate` (`fadeOut`). See `Motion.md`.
 

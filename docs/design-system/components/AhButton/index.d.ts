@@ -21,7 +21,7 @@ export interface AhButtonProps {
   prependIcon?: string
   /** Icon name rendered after the label. */
   appendIcon?: string
-  /** Icon-only button; `ariaLabel` becomes required. */
+  /** Icon-only button; `ariaLabel` becomes required (not type-enforced; enforced as a runtime dev warning). */
   icon?: string
   /** Accessible name; required when `icon` is set. */
   ariaLabel?: string

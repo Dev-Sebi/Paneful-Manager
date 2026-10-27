@@ -73,7 +73,7 @@ Palette steps (`color.neutral.*`, `color.accent.100` to `color.accent.900`, `col
 | `fontWeight` / `number` | number | `600`, `1.4` |
 | `shadow` | object `color, offsetX, offsetY, blur, spread` | |
 
-Dimensions and durations use the string form (not the newer `{ value, unit }` object form) for compatibility with common DTCG tooling.
+Dimensions and durations use the pre-2025 DTCG string form (not the stable spec's `{ value, unit }` object form) for compatibility with common DTCG tooling; the token resolver (T13) must handle the string form.
 
 ### CSS variable naming
 
@@ -162,4 +162,4 @@ Text pairs need at least 4.5:1; `color.border.strong` and `color.border.focus` n
 
 Status colors also pass on `color.bg.surface` (higher ratios than on `elevated`).
 `color.fg.disabled` is intentionally below 4.5:1 (disabled controls are exempt).
-ANSI colors are not text-on-surface tokens; all exceed 4.5:1 on `color.terminal.bg` except dark `bright-black` (4.49), light `white` (4.07) and light `bright-white` (2.53), which follow terminal convention.
+ANSI colors are not text-on-surface tokens; all exceed 4.5:1 on `color.terminal.bg` except dark `black` (1.40), dark `bright-black` (4.49), light `white` (4.07) and light `bright-white` (2.53). These follow terminal convention (black/white are meant as background or near-background colors).
