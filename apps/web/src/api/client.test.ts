@@ -109,4 +109,22 @@ describe('api client', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ sessions: [{ id: 'bad' }] }))
     await expect(api.listSessions()).rejects.toMatchObject({ code: 'invalid_response' })
   })
+  it('creates and kills sessions through the session routes', async () => {
+    const { api } = await load()
+    const session = {
+      id: 'abc', hostId: 'local', cwd: '/w', command: 'sh', args: [], tmuxSession: 'ah-abc',
+      createdAt: '2026-01-01T00:00:00.000Z', state: 'idle', lifecycle: 'running', lastEventAt: '2026-01-01T00:00:00.000Z', cols: 80, rows: 24,
+    }
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ token: 't1' }))
+      .mockResolvedValueOnce(jsonResponse({ session }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'abc', killed: true }))
+    await expect(api.sessions.create({ cwd: '~/', command: 'sh' })).resolves.toMatchObject({ session: { id: 'abc' } })
+    await expect(api.sessions.kill('abc')).resolves.toEqual({ id: 'abc', killed: true })
+    expect(fetchMock.mock.calls.map(call => [call[0], call[1]?.method])).toEqual([
+      ['/api/session-token', undefined],
+      ['/api/sessions', 'POST'],
+      ['/api/sessions/abc', 'DELETE'],
+    ])
+  })
 })

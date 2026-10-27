@@ -5,6 +5,7 @@ import {
   CreateSessionResponseSchema,
   GetConfigResponseSchema,
   HealthResponseSchema,
+  KillSessionResponseSchema,
   ListPresetsResponseSchema,
   ListSessionsResponseSchema,
   PatchConfigResponseSchema,
@@ -98,7 +99,11 @@ export const api = {
     fetchJson(API_ROUTES.config, { schema: PatchConfigResponseSchema, method: 'PATCH', body: patch }),
   listScopes: () => fetchJson(API_ROUTES.scopes, { schema: ScopesResponseSchema }),
   listSessions: () => fetchJson(API_ROUTES.sessions, { schema: ListSessionsResponseSchema }),
-  createSession: (request: CreateSessionRequestInput) =>
-    fetchJson(API_ROUTES.sessions, { schema: CreateSessionResponseSchema, method: 'POST', body: request }),
+  sessions: {
+    create: (request: CreateSessionRequestInput) =>
+      fetchJson(API_ROUTES.sessions, { schema: CreateSessionResponseSchema, method: 'POST', body: request }),
+    kill: (id: string) =>
+      fetchJson(API_ROUTES.session.replace(':id', encodeURIComponent(id)), { schema: KillSessionResponseSchema, method: 'DELETE' }),
+  },
   listPresets: () => fetchJson(API_ROUTES.presets, { schema: ListPresetsResponseSchema }),
 }
