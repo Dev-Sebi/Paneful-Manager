@@ -1,0 +1,8 @@
+# Example app config. Copy to ~/.config/agent-hub/config.yaml and adapt.
+port: 7337
+theme: dark
+confirmCloseTab: true
+experimental:
+  agentTeams: false
+projects:
+  - ~/git/project1
