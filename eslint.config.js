@@ -1,11 +1,48 @@
 import vuetify from 'eslint-config-vuetify'
 import tseslint from 'typescript-eslint'
 
-const web = await vuetify({ ts: true })
+// Every option is explicit: the defaults are auto-detected from process.cwd(), which made lint results environment-dependent.
+const web = await vuetify({
+  ts: true,
+  vue: true,
+  stylistic: true,
+  perfectionist: true,
+  imports: true,
+  js: true,
+  regexp: true,
+  unicorn: true,
+  json: true,
+  antfu: true,
+  ignore: true,
+  pnpm: true,
+  test: false,
+  gitignore: false,
+  autoimports: false,
+  isInEditor: false,
+})
+
+// A config with only `ignores` (plus an optional name) is global; adding `files` would turn it into a local ignore.
+const isGlobalIgnore = config => config.ignores !== undefined && Object.keys(config).every(key => key === 'ignores' || key === 'name')
 
 export default [
-  { ignores: ['**/dist/**', '**/node_modules/**', 'docs/**', 'examples/**'] },
-  ...web.map(config => ({ ...config, files: config.files ?? ['apps/web/**/*.{js,ts,vue}'] })),
+  {
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '.claude/**',
+      '**/.claude/**',
+      '**/playwright-report/**',
+      '**/test-results/**',
+      '**/coverage/**',
+      '**/*.tsbuildinfo',
+      '**/.vite/**',
+      'docs/**',
+      'examples/**',
+    ],
+  },
+  ...web.map(config => isGlobalIgnore(config)
+    ? config
+    : { ...config, files: config.files ?? ['apps/web/**/*.{js,ts,vue}'] }),
   ...tseslint.configs.recommended.map(config => ({
     ...config,
     files: ['apps/server/**/*.ts', 'packages/shared/**/*.ts'],
