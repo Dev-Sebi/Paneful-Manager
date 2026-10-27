@@ -1,7 +1,7 @@
 <template>
   <!-- TEMPORARY: editor showcase, remove with HelloWorld.vue -->
   <section class="ah-editor-showcase">
-    <AhCodeEditor v-model="text" v-bind="{ ariaLabel: label }" path="skills/review/SKILL.md" />
+    <AhCodeEditor v-model="text" ariaLabel="SKILL.md sample" path="skills/review/SKILL.md" />
   </section>
 </template>
 
@@ -9,7 +9,6 @@
   import { ref } from 'vue'
   import AhCodeEditor from './AhCodeEditor.vue'
 
-  const label = 'SKILL.md sample'
   const text = ref(`---
 name: review
 description: Review a branch for production readiness
