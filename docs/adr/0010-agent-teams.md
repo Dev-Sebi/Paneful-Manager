@@ -22,17 +22,19 @@ Marks: **docs** = verified in the official docs, **changelog** = verified in the
 | Enablement | Env var `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (shell or `env` in `settings.json`); off by default. `0` turns it off, higher-precedence settings and managed settings can turn it back on | docs |
 | Interactive only | With `-p` (and Agent SDK) no teammates are spawned | docs |
 | Introduced | 2.1.32 ("research preview", needs the env var); `TeammateIdle` and `TaskCompleted` hooks in 2.1.33; `TaskCreated` hook in 2.1.84 | changelog |
-| Team creation | No `TeamCreate`/`TeamDelete` tools any more (removed in 2.1.178). Every session with the flag has one implicit team; the lead spawns a teammate by calling the `Agent` tool with a `name`. No CLI flag creates a team; the user asks in natural language | docs, changelog |
-| Team name | `session-` + first 8 characters of the lead's session id | docs |
-| Roles | Teammates can use subagent definitions (`.claude/agents/*.md`, or `--agents <json-or-file>`). Applied: `tools`, `model`, body (system prompt); `skills` never applied; `disallowedTools`, `effort` in-process only; `mcpServers` split-pane only | docs, `--agents` local |
-| Model per teammate | Order: model named in the spawn prompt, definition `model`, `CLAUDE_CODE_SUBAGENT_MODEL`, lead model; checked against `availableModels` | docs |
-| Display modes | `teammateMode` setting or `--teammate-mode <mode>` flag: `in-process` (default), `auto`, `tmux`, `iterm2`. `auto` uses split panes when already inside tmux. The flag is hidden from `--help` | docs, local |
+| Team creation | No `TeamCreate`/`TeamDelete` tools any more (removed in 2.1.178). Every session with the flag has one implicit team; the lead spawns a teammate by calling the `Agent` tool with a `name`. No CLI flag creates a team (inference: none documented or in `--help`); the user asks in natural language | docs, changelog |
+| Team name | `session-` + first 8 characters of the lead's session id (the lead's only) | docs |
+| Task list id | Env `CLAUDE_CODE_TASK_LIST_ID` exists in the binary; it appears to redirect the task directory | local (name), assumed (meaning) |
+| Roles | Teammates can use subagent definitions from project, user, managed or plugin scope (e.g. `.claude/agents/<role>.md`). Applied: `tools`, `model`; body appended to the system prompt in-process, replaces it in split-pane; `skills` never applied; `disallowedTools`, `effort`, `autoCompactWindow` in-process only; `mcpServers` split-pane only. Project agent files are re-applied to a respawned teammate only if their folder is trusted | docs |
+| `--agents` flag | Exists (`--agents <json-or-file>`); the file form works only with `--print`. Not passed to split-pane teammates, so it is no role source for them | local (flag), assumed (teammate behavior) |
+| Model per teammate | Order: model named in the spawn prompt, definition `model`, `CLAUDE_CODE_SUBAGENT_MODEL`, lead model; checked against `availableModels`. A mod's `agent.spawn` hook can replace the first source; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` skips the first two (2.1.257+) | docs |
+| Display modes | `teammateMode` setting or `--teammate-mode <mode>` flag: `in-process` (default), `auto`, `tmux`, `iterm2`. `auto` uses split panes when already inside tmux or in iTerm2 with the `it2` CLI, else in-process. The flag is hidden from `--help` | docs, local |
 | tmux backend | Teammate panes are tracked by tmux pane id; a tmux session named `claude-swarm` exists for the case "lead not inside tmux". A `claude-swarm-<pid>` name exists too (likely a socket name) | local (strings) |
-| Inside-tmux layout | When the lead runs inside tmux, teammates split the lead's current window | assumed |
+| Inside-tmux layout | When the lead runs inside tmux, teammates split the lead's current window (`split-window` string present, target window not verified) | assumed |
 | Separate processes | Split-pane teammates are separate `claude` processes; in-process teammates are not | docs |
 | Teammate argv | `--agent-id`, `--agent-name`, `--team-name`, `--agent-color`, `--parent-session-id`, optional `--plan-mode-required`, `--agent-type`; env includes `CLAUDECODE=1`, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` | local (strings) |
 | Command override | Env `CLAUDE_CODE_TEAMMATE_COMMAND` exists; meaning (override of the teammate launch command) | assumed |
-| Agent id | Teammate address is `name@team` | changelog (2.1.290) |
+| Teammate address | `name@team`, carried in `teammate_id`; `agent_id` is a separate agent id | changelog (2.1.290) |
 | Team config | `~/.claude/teams/<team>/config.json`, removed at session end, rewritten on every state change, must not be edited | docs |
 | Team config keys | Top level: `name`, `createdAt`, `leadAgentId`, `leadSessionId`, `leadProcess`, `members[]`. Member: `agentId`, `name`, `agentType`, `color`, `planModeRequired`, `joinedAt`, `tmuxPaneId`, `cwd`, `subscriptions`, `backendType` (`in-process`/`tmux`). Lead member: `agentType: "team-lead"` | docs (`members`, `team-lead`), local (other keys) |
 | Mailbox | `~/.claude/teams/<team>/inboxes/<agent>.json`; invalid entries are removed on read | docs |
@@ -57,12 +59,13 @@ sequenceDiagram
     participant M as Teammate claude
     U->>S: launch template (flag on)
     S->>S: check claude --version >= min
-    S->>T: new session, env AGENT_TEAMS=1, ENABLE_TODO_TOOLS=1
-    S->>T: claude --teammate-mode tmux --agents roles.json
+    S->>S: write .claude/agents/role.md per role (file service)
+    S->>T: new session, claude --teammate-mode tmux --settings env JSON
     S->>L: initial prompt "spawn teammates a, b, c as agent types ..."
     L->>T: split-window per teammate
     T->>M: claude --agent-id name@team --agent-name ...
     L-->>S: hooks TaskCreated / TaskCompleted / TeammateIdle
+    M-->>S: hooks with own session_id, same Agent Hub header
     S->>S: read ~/.claude/tasks/session-xxxx/*.json
     S-->>U: task board + pane map
 ```
@@ -70,18 +73,20 @@ sequenceDiagram
 ## Decision
 
 - Feature flag `experimental.agentTeams` in `config.yaml`, default `false`. With it off, nothing in this ADR runs.
-- **Supported versions:** Claude Code `>= 2.1.309` (implicit team, `agent_id` in hooks, split-pane tool inheritance). Checked with `claude --version` before launch. Older or unparsable version: launch is refused with "Agent teams need Claude Code 2.1.309 or later (found `<version>`). Update Claude Code or turn off experimental.agentTeams." Newer versions are allowed, with a warning badge when the major/minor is above the last tested one (2.1.311).
-- **T51 (template + launch) may rely on:** the env var; `--agents` JSON for roles (prompt = body, `model`, `tools`); `--teammate-mode tmux`; a generated first prompt that names each teammate and its agent type; `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` so tasks exist on any model. It must not write `~/.claude/teams/` and must not rely on a team-creation API.
-- **T52 (task board) may rely on:** `~/.claude/tasks/<team>/` with the team name taken from hook input or derived from the lead's session id; the three statuses; `blockedBy`. It reads only, with the tolerant parser below, and uses `TaskCreated`/`TaskCompleted` hooks (via ADR 0007 handlers) only as a "re-read now" trigger plus a slow poll.
+- **Supported versions:** 2.1.309 is the lowest tested version, not a proven boundary. Reasons: implicit team since 2.1.178, `agent_id` in team hooks since 2.1.290, split-pane `--tools`/deny inheritance since 2.1.309; nothing below was run. `claude --version` is compared as full semver (patch releases have broken behavior before). Below 2.1.309 or unparsable: launch is refused with "Agent teams need Claude Code 2.1.309 or later (found `<version>`). Update Claude Code or turn off experimental.agentTeams." Above 2.1.311 (last tested): launch is allowed with an "untested version" badge.
+- **T51 (template + launch) may rely on:** `--teammate-mode tmux`; a generated first prompt that names each teammate and its agent type; env passed as `claude --settings '{"env":{"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS":"1","CLAUDE_CODE_ENABLE_TODO_TOOLS":"1","CLAUDE_CODE_TASK_LIST_ID":"<per-launch id>"}}'` so it reaches split-pane teammates (plain process env does not reliably). Roles are written as `.claude/agents/<role>.md` (prompt = body, `model`, `tools`) into the project through the file service (allowlisted path, backup before overwrite, removed when the team ends). The project folder must be trusted, otherwise respawned teammates lose the definition. Roles from agent files must be verified in a real run before T51 relies on them; `--agents` is not used. T51 must not write `~/.claude/teams/` and must not rely on a team-creation API.
+- **T52 (task board) may rely on:** `~/.claude/tasks/<dir>/`, where `<dir>` is the `CLAUDE_CODE_TASK_LIST_ID` set by T51, else the team name derived from the lead's Claude session id; the three statuses; `blockedBy`. It reads only, with the tolerant parser below, and uses `TaskCreated`/`TaskCompleted` hooks (via ADR 0007 handlers) only as a "re-read now" trigger plus a slow poll.
 - **T53 (pane mapping) may rely on:** split-pane teammates being separate processes in tmux panes. Mapping uses `members[].tmuxPaneId` and `name` from `config.json`, cross-checked with `tmux list-panes -F '#{pane_id} #{pane_pid}'`; members with `backendType: "in-process"` get no pane and show as "in lead".
+- **Teammate hooks (T26 handler, used by T52/T53):** split-pane teammates inherit the `AGENT_HUB_*` env and fire hooks with their own `session_id`. The handler attributes events to the lead's Agent Hub session by `X-Agent-Hub-Session-Id`. Only events whose payload `session_id` equals the lead's known Claude session id drive the session status (ADR 0007); others are routed into a per-teammate status map keyed by `teammate_name` or `agent_id` (T53), or ignored when neither is present.
 
 ## Tolerant parser contract (T52)
 
 - Input: every `*.json` in the task directory; dot files (e.g. `.highwatermark`) and lock files are skipped.
 - Unknown fields are ignored (zod `.passthrough()` or `.strip()`, never `.strict()`).
 - Required: `id` (string), `subject` (string), `status` (string). A file missing one, or with invalid JSON, is skipped and logged once per file; it never fails the board.
+- Filename and `id` disagree: trust `id`, log a warning.
 - `status` outside `pending | in_progress | completed` maps to `unknown` and is shown as such.
-- Optional with defaults: `description` `""`, `owner` none, `activeForm` none, `blocks` `[]`, `blockedBy` `[]` (non-string entries dropped), `metadata` ignored by the UI.
+- Optional with defaults: `description` `""`, `owner` none, `activeForm` none, `blocks` `[]`, `blockedBy` `[]` (non-string entries dropped in both), `metadata` ignored by the UI.
 - Derived: `blocked = status === "pending" && blockedBy has an id whose task is not completed`.
 - Partial writes: a file that fails to parse is retried on the next read; the last good version stays shown.
 
@@ -103,8 +108,10 @@ sequenceDiagram
 
 - Everything marked **local** or **assumed** comes from string search, not from a running team. T51 must run one real team (tmux mode, inside an `ah-` session) and confirm: the task file naming, the config keys, the inside-tmux split behavior, and the teammate argv.
 - The team config is removed at session end, so pane mapping only works while the lead runs; the task directory survives.
-- `team_name` in hooks is deprecated; prefer deriving the name from `session_id` and fall back to `team_name`.
-- Teammate panes created by Claude Code split the lead's tmux window; Agent Hub's own pane layout and resize rule (one size per tmux session) may conflict. Verify before T53.
+- `team_name` in hooks is deprecated; prefer deriving the name from the lead's `session_id` and fall back to `team_name`. Teammate hook payloads carry the teammate's `session_id`, never use it to derive the team name.
+- `CLAUDE_CODE_TASK_LIST_ID` redirects the task directory (assumed). An inherited value from the user's environment would point the board at the wrong list, so T51 always sets it explicitly per launch (or unsets it); verify the redirect in a real run.
+- Split-pane teammates firing Agent Hub hooks: without the `session_id` filter, a teammate going idle would flip the lead's status. Verify the inherited headers and payloads in a real run.
+- Teammate panes created by Claude Code split the lead's tmux window (assumed); Agent Hub's own pane layout and resize rule (one size per tmux session) may conflict. Verify before T53.
 - Model-dependent task tools: if `CLAUDE_CODE_ENABLE_TODO_TOOLS` changes name or default, the board stays empty; show "no task list found" instead of an error.
 - Hidden `--teammate-mode` flag may change without notice; fall back to `teammateMode` in a `--settings` JSON payload.
 - Permission prompts of all teammates surface in the lead pane; the UI must make that pane obvious.
