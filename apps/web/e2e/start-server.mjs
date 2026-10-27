@@ -45,8 +45,8 @@ for (const dir of Object.values(dirs)) {
 }
 writeFileSync(join(root, 'pid'), String(process.pid))
 // Specs run in other processes; this file tells them where the isolated state lives.
-const pathsFile = join(tmpdir(), `${PREFIX}paths.json`)
-writeFileSync(pathsFile, JSON.stringify({ state: join(dirs.state, 'agent-hub'), config: join(dirs.config, 'agent-hub') }))
+const pathsFile = join(tmpdir(), 'ah-e2e-paths.json')
+writeFileSync(pathsFile, JSON.stringify({ state: join(dirs.state, 'agent-hub'), config: join(dirs.config, 'agent-hub') }), { mode: 0o600 })
 
 const env = {
   ...process.env,

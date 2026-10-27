@@ -23,10 +23,25 @@ test.afterAll(async () => {
   await api.dispose()
 })
 
+test('resizes a split with the keyboard', async ({ page }) => {
+  const first = await api.createSession()
+  sessionIds.push(first)
+  const second = await api.createSession()
+  sessionIds.push(second)
+  await seedTabs(page, [{ id: 'tab-keys', title: 'Keys', layout: { kind: 'row' }, panes: [{ sessionId: first }, { sessionId: second }] }])
+  await page.goto('/workspaces/tab-keys')
+  const splitter = page.getByLabel('Resize panes 1 and 2')
+  await expect(splitter).toHaveAttribute('aria-valuenow', '50')
+  await splitter.focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect(splitter).toHaveAttribute('aria-valuenow', '45')
+})
+
 test('resizes a split, keeps the size after reload and resets it', async ({ page }) => {
   const first = await api.createSession()
+  sessionIds.push(first)
   const second = await api.createSession()
-  sessionIds.push(first, second)
+  sessionIds.push(second)
   await seedTabs(page, [{ id: 'tab-split', title: 'Split', layout: { kind: 'row' }, panes: [{ sessionId: first }, { sessionId: second }] }])
   await page.goto('/workspaces/tab-split')
 

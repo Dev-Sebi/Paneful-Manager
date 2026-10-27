@@ -16,12 +16,7 @@ test('persists the close-tab confirmation and the theme across reloads', async (
     await expect(toggle).not.toBeChecked()
     await expect(page.getByRole('button', { name: 'Light theme' })).toHaveAttribute('aria-pressed', 'true')
   } finally {
-    await page.goto('/settings')
-    if (!await toggle.isChecked()) {
-      await toggle.click()
-      await expect(toggle).toBeChecked()
-    }
-    await page.getByRole('button', { name: 'Dark theme' }).click()
+    await api.patchConfig({ confirmCloseTab: true })
     await api.dispose()
   }
 })
