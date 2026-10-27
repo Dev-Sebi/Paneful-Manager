@@ -3,6 +3,11 @@
 
 import type { ThemeDefinition } from 'vuetify'
 
+/** Structural subset of xterm.js ITheme. */
+export interface XtermTheme {
+  [key: string]: string
+}
+
 export const darkTheme: ThemeDefinition = {
   "dark": true,
   "colors": {
@@ -77,7 +82,7 @@ export const lightTheme: ThemeDefinition = {
   }
 }
 
-export const xtermDarkTheme = {
+export const xtermDarkTheme: XtermTheme = {
   "black": "#2b313a",
   "red": "#f47067",
   "green": "#57c26b",
@@ -98,9 +103,9 @@ export const xtermDarkTheme = {
   "background": "#12151a",
   "cursor": "#6496f7",
   "selectionBackground": "#3f7cf066"
-} as const
+}
 
-export const xtermLightTheme = {
+export const xtermLightTheme: XtermTheme = {
   "black": "#1a1e24",
   "red": "#c42b23",
   "green": "#1f7a35",
@@ -121,4 +126,4 @@ export const xtermLightTheme = {
   "background": "#ffffff",
   "cursor": "#2563d9",
   "selectionBackground": "#2563d933"
-} as const
+}

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildCss, collectTokens, findStale, generate, OUT_DIR, readTokens, TOKENS_PATH, VUETIFY_EXTENSION } from './generate-tokens'
-import { findHexColors } from './lint-tokens'
+import { findRawColors, lintTokens } from './lint-tokens'
 
 const fixture = {
   $extensions: { [VUETIFY_EXTENSION]: { colors: { primary: 'color.accent.default' }, variables: { 'disabled-opacity': 'opacity.disabled' } } },
@@ -87,8 +87,20 @@ describe('generator', () => {
 })
 
 describe('lint-tokens', () => {
-  it('flags raw hex colors but not ids or words', () => {
-    expect(findHexColors('a { color: #fff; b: #12AB34; c: #3f7cf066 }')).toHaveLength(3)
-    expect(findHexColors('#app { } const x = "#hello"')).toHaveLength(0)
+  it('flags raw hex and functional colors but not ids or words', () => {
+    expect(findRawColors('a { color: #fff; b: #12AB34; c: #3f7cf066 }')).toHaveLength(3)
+    expect(findRawColors('a { color: rgb(0 0 0); b: hsla(0, 0%, 0%, 1) }')).toHaveLength(2)
+    expect(findRawColors('#app { } const x = "#hello"')).toHaveLength(0)
+    expect(findRawColors('#bad,\n#bed {')).toHaveLength(0)
+    expect(findRawColors('background: linear-gradient(#fff, #000)')).toHaveLength(2)
+  })
+
+  it('finds no raw colors in the web app sources', () => {
+    expect(lintTokens()).toEqual([])
+  })
+
+  it('rejects themed groups with extra children', () => {
+    expect(() => collectTokens({ a: { dark: { $value: '#000000' }, light: { $value: '#ffffff' }, extra: { $value: '#111111' } } })).toThrow(/only dark and light/)
+    expect(() => collectTokens({ a: { dark: { $value: '#000000' } } })).toThrow(/only dark and light/)
   })
 })

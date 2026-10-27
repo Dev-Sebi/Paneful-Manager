@@ -13,7 +13,7 @@
 .animate__fadeOut { animation-name: fadeOut; }
 .animate__fadeInUp { animation-name: fadeInUp; }
 .animate__fadeInDown { animation-name: fadeInDown; }
-.animate__pulse { animation-name: pulse; }
+.animate__pulse { animation-name: pulse; animation-timing-function: var(--ah-motion-easing-emphasized); }
 .animate__headShake { animation-name: headShake; animation-timing-function: var(--ah-motion-easing-emphasized); }
 
 /* Stock translates by 100%; overridden to space.2. */

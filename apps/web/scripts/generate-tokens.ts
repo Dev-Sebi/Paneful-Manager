@@ -30,8 +30,16 @@ function isToken (node: unknown): node is TokenNode {
   return isRecord(node) && '$value' in node
 }
 
-function isThemedGroup (node: TokenNode): boolean {
-  return THEMES.every(theme => isToken(node[theme]))
+function isThemedGroup (node: TokenNode, path: string): boolean {
+  const keys = Object.keys(node).filter(key => !key.startsWith('$'))
+  const hasTheme = THEMES.some(theme => isToken(node[theme]))
+  if (!hasTheme) {
+    return false
+  }
+  if (keys.length !== THEMES.length || !THEMES.every(theme => isToken(node[theme]))) {
+    throw new Error(`Themed group "${path}" must contain only dark and light tokens`)
+  }
+  return true
 }
 
 function lookup (root: TokenNode, path: string): TokenNode {
@@ -83,7 +91,7 @@ export function collectTokens (root: TokenNode): ResolvedToken[] {
       out.push({ path: path.join('.'), type, themed: false, dark: value, light: value })
       return
     }
-    if (isThemedGroup(node)) {
+    if (isThemedGroup(node, path.join('.'))) {
       const [dark, light] = THEMES.map(theme => resolveValue(root, (node[theme] as TokenNode).$value, []))
       out.push({ path: path.join('.'), type, themed: true, dark: dark!, light: light! })
       return
@@ -175,13 +183,13 @@ export function buildTheme (root: TokenNode, tokens: readonly ResolvedToken[]): 
   }))
   const json = (value: unknown) => JSON.stringify(value, null, 2)
 
-  const lines = [GENERATED_HEADER, `import type { ThemeDefinition } from 'vuetify'\n`]
+  const lines = [GENERATED_HEADER, `import type { ThemeDefinition } from 'vuetify'\n`, `/** Structural subset of xterm.js ITheme. */\nexport interface XtermTheme {\n  [key: string]: string\n}\n`]
   for (const theme of THEMES) {
     lines.push(`export const ${theme}Theme: ThemeDefinition = ${json({ dark: theme === 'dark', colors: pick(colors, theme), variables: pick(variables, theme) })}\n`)
   }
   for (const theme of THEMES) {
     const name = `xterm${theme === 'dark' ? 'Dark' : 'Light'}Theme`
-    lines.push(`export const ${name} = ${json(xterm(theme))} as const\n`)
+    lines.push(`export const ${name}: XtermTheme = ${json(xterm(theme))}\n`)
   }
   return lines.join('\n')
 }
