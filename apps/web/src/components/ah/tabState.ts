@@ -17,6 +17,8 @@ export interface AhTabsContext {
   close: (value: string, title: string) => void
   /** Called while the focused tab unmounts so focus moves to a neighbour. */
   removed: (el: HTMLElement) => void
+  /** Called when a tab unmounts; announces it when a close was requested for it. */
+  unmounted: (value: string) => void
 }
 
 export const AH_TABS_KEY: InjectionKey<AhTabsContext> = Symbol('ah-tabs')
