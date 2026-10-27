@@ -42,6 +42,8 @@ export interface BuildAppOptions {
   sessionToken?: string
   /** Allows the Vite dev origins; defaults to `NODE_ENV === 'development'`. */
   dev?: boolean
+  /** Extra dev origins (see `parseDevOrigins`); only used when `dev` is on. */
+  devOrigins?: readonly string[]
   /** Session engine for `/api/sessions` and `/ws`; closed (tmux sessions kept) when the app closes. */
   engine?: SessionEngine
   /** Managed-file service; the file routes are only registered when it is given. */
@@ -103,7 +105,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, engine, files, worktrees, mcp, configStore, teams }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], engine, files, worktrees, mcp, configStore, teams }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -118,7 +120,7 @@ export function buildApp({ config, logger, sessionToken, dev, engine, files, wor
   }
   const token = sessionToken ?? createSessionToken()
   const isDev = dev ?? process.env.NODE_ENV === 'development'
-  registerSecurity(app, { getPort, token, dev: isDev })
+  registerSecurity(app, { getPort, token, dev: isDev, devOrigins })
   registerCore(app, engine)
   const store = configStore ?? createConfigStore(config)
   registerConfig(app, { store })
@@ -131,7 +133,7 @@ export function buildApp({ config, logger, sessionToken, dev, engine, files, wor
   let hub: WsHub | undefined
   if (engine !== undefined) {
     registerSessions(app, { engine })
-    hub = registerWs(app, { engine, authorizeUpgrade: request => authorizeUpgrade(request, { port: getPort(), token, dev: isDev }) })
+    hub = registerWs(app, { engine, authorizeUpgrade: request => authorizeUpgrade(request, { port: getPort(), token, dev: isDev, devOrigins }) })
     app.addHook('onClose', async () => {
       await engine.close()
     })

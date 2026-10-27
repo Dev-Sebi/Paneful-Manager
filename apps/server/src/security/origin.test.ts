@@ -1,6 +1,6 @@
 import { BIND_HOST } from '@agent-hub/shared'
-import { describe, expect, it } from 'vitest'
-import { assertLoopbackAddress, isAllowedHost, isAllowedOrigin } from './origin.js'
+import { describe, expect, it, vi } from 'vitest'
+import { assertLoopbackAddress, isAllowedHost, isAllowedOrigin, parseDevOrigins } from './origin.js'
 import { createSessionToken, tokenMatches } from './token.js'
 
 describe('assertLoopbackAddress', () => {
@@ -47,6 +47,34 @@ describe('isAllowedOrigin', () => {
       expect(isAllowedOrigin(origin, 7337, true)).toBe(true)
     }
     expect(isAllowedOrigin('http://[::1]:3000', 7337, true)).toBe(false)
+  })
+
+  it('allows extra dev origins only in dev mode and never foreign ones', () => {
+    const extra = ['http://localhost:3001']
+    expect(isAllowedOrigin('http://localhost:3001', 7337, false, extra)).toBe(false)
+    expect(isAllowedOrigin('http://localhost:3001', 7337, true, extra)).toBe(true)
+    expect(isAllowedOrigin('http://evil.example', 7337, true, extra)).toBe(false)
+    expect(isAllowedOrigin('http://127.0.0.1:3001', 7337, true, extra)).toBe(false)
+  })
+})
+
+describe('parseDevOrigins', () => {
+  it('keeps exact loopback http origins with a port', () => {
+    const warn = vi.fn()
+    expect(parseDevOrigins(' http://localhost:3001 ,http://127.0.0.1:4000,', warn)).toEqual(['http://localhost:3001', 'http://127.0.0.1:4000'])
+    expect(parseDevOrigins(undefined, warn)).toEqual([])
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('drops and reports everything else', () => {
+    const warn = vi.fn()
+    const rejected = [
+      'http://evil.example:3001', 'https://localhost:3001', 'http://localhost', 'http://localhost:3001/',
+      'http://[::1]:3001', 'http://localhost:0', 'http://localhost:70000', 'http://localhost.evil.example:3001', '*',
+    ]
+    expect(parseDevOrigins(rejected.join(','), warn)).toEqual([])
+    expect(warn).toHaveBeenCalledTimes(rejected.length)
+    expect(warn.mock.calls[0]?.[0]).toMatch(/AGENT_HUB_DEV_ORIGINS/)
   })
 })
 

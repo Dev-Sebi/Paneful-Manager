@@ -11,6 +11,8 @@ export interface SecurityOptions {
   getPort: () => number
   token: string
   dev: boolean
+  /** Extra loopback dev origins, already validated by `parseDevOrigins`. */
+  devOrigins?: readonly string[]
 }
 
 function single(value: string | string[] | undefined): string | undefined {
@@ -21,7 +23,7 @@ function single(value: string | string[] | undefined): string | undefined {
  * Host, Origin and per-boot token checks plus security headers for every request; serves the token bootstrap route.
  * Mutations need an allowed Origin and the token; only `POST /api/hooks` is exempt and must come without Origin.
  */
-export function registerSecurity(app: FastifyInstance, { getPort, token, dev }: SecurityOptions): void {
+export function registerSecurity(app: FastifyInstance, { getPort, token, dev, devOrigins = [] }: SecurityOptions): void {
   app.addHook('onRequest', async (request, reply) => {
     reply.header('x-content-type-options', 'nosniff')
     reply.header('referrer-policy', 'no-referrer')
@@ -42,7 +44,7 @@ export function registerSecurity(app: FastifyInstance, { getPort, token, dev }: 
       }
       return
     }
-    if (hasOrigin && !isAllowedOrigin(origin, port, dev)) {
+    if (hasOrigin && !isAllowedOrigin(origin, port, dev, devOrigins)) {
       throw new AppError('Origin not allowed', 403, 'forbidden')
     }
     if (MUTATING_METHODS.has(request.method) && (!hasOrigin || !tokenMatches(single(request.headers[SESSION_TOKEN_HEADER]), token))) {
