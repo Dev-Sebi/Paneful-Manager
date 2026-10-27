@@ -4,6 +4,7 @@ import { DEFAULT_CONFIG, type TeamChangedMessage } from '@agent-hub/shared'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createConfigStore } from '../config/store.js'
+import type { TmuxPaneInfo } from '../tmux/tmux.js'
 import { makeClaudeDir, task, writeJson } from './fixtures.js'
 import { createTeamsService, type TeamsService } from './service.js'
 
@@ -78,5 +79,61 @@ describe.skipIf(process.platform !== 'linux')('teams service', () => {
     await service.sync()
     writeJson(join(dir, 'tasks', 'alpha', '1.json'), task('1'))
     await until(() => messages.some(message => message.team === 'alpha'))
+  })
+
+  it('links members to sessions and broadcasts team.changed when a link changes', { timeout: 30_000 }, async () => {
+    writeJson(join(dir, 'teams', 'alpha', 'config.json'), { members: [{ name: 'lead', agentType: 'team-lead' }, { name: 'dev', tmuxPaneId: '%2' }] })
+    let panes: TmuxPaneInfo[] = []
+    service = createTeamsService({
+      claudeDir: dir,
+      getConfig: () => ({ experimental: { agentTeams: true } }),
+      logger: pino({ level: 'silent' }),
+      broadcast: message => messages.push(message),
+      links: { listPanes: async () => panes, sessions: () => [{ id: 's1', cwd: '/work' }] },
+      debounceMs: 60_000,
+      pollIntervalMs: 60_000,
+    })
+    await service.sync()
+    const before = await service.list()
+    expect(before.teams[0]?.members.map(member => member.link)).toEqual([
+      { status: 'unlinked', reason: 'no-pane' },
+      { status: 'unlinked', reason: 'pane-not-found' },
+    ])
+    await service.refresh()
+    expect(messages).toEqual([])
+
+    panes = [{ paneId: '%2', sessionName: 'ah-s1', sessionId: 's1' }]
+    await service.refresh()
+    expect(messages).toEqual([{ type: 'team.changed', team: 'alpha' }])
+    const after = await service.list()
+    expect(after.teams[0]?.members.map(member => member.link?.status)).toEqual(['linked', 'linked'])
+  })
+
+  it('reports tmux-unavailable and never lists panes while the flag is off', { timeout: 30_000 }, async () => {
+    writeJson(join(dir, 'teams', 'alpha', 'config.json'), { members: [{ name: 'dev', tmuxPaneId: '%2' }] })
+    let enabled = false
+    let calls = 0
+    service = createTeamsService({
+      claudeDir: dir,
+      getConfig: () => ({ experimental: { agentTeams: enabled } }),
+      logger: pino({ level: 'silent' }),
+      broadcast: message => messages.push(message),
+      links: {
+        listPanes: async () => {
+          calls += 1
+          throw new Error('no server')
+        },
+        sessions: () => [],
+      },
+      pollIntervalMs: 60_000,
+    })
+    await service.sync()
+    await service.refresh()
+    expect(await service.list()).toEqual({ enabled: false, teams: [], warnings: [] })
+    expect(calls).toBe(0)
+    enabled = true
+    await service.sync()
+    const body = await service.list()
+    expect(body.teams[0]?.members[0]?.link).toEqual({ status: 'unlinked', reason: 'tmux-unavailable' })
   })
 })

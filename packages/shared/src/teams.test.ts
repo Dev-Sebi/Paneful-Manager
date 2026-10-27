@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ListTeamsResponseSchema, TeamSchema, deriveBlocked, parseTeamConfig, parseTeamTask } from './teams.js'
+import { ListTeamsResponseSchema, TeamMemberSchema, TeamSchema, deriveBlocked, isTeamLead, parseTeamConfig, parseTeamTask } from './teams.js'
 
 const adrExample = {
   id: '3',
@@ -107,5 +107,21 @@ describe('schemas', () => {
     expect(TeamSchema.safeParse(team).success).toBe(true)
     expect(ListTeamsResponseSchema.safeParse({ enabled: true, teams: [team], warnings: [] }).success).toBe(true)
     expect(ListTeamsResponseSchema.safeParse({ enabled: false, teams: [] }).success).toBe(false)
+  })
+})
+
+describe('member links', () => {
+  it('accepts members without a link (older servers) and both link shapes', () => {
+    expect(TeamMemberSchema.safeParse({ name: 'lead' }).success).toBe(true)
+    expect(TeamMemberSchema.safeParse({ name: 'lead', link: { status: 'linked', sessionId: 's1', via: 'pane' } }).success).toBe(true)
+    expect(TeamMemberSchema.safeParse({ name: 'dev', link: { status: 'unlinked', reason: 'in-process' } }).success).toBe(true)
+    expect(TeamMemberSchema.safeParse({ name: 'dev', link: { status: 'unlinked', reason: 'other' } }).success).toBe(false)
+    expect(TeamMemberSchema.safeParse({ name: 'dev', link: { status: 'linked', via: 'pane' } }).success).toBe(false)
+  })
+
+  it('detects the lead by agent type', () => {
+    expect(isTeamLead({ agentType: 'team-lead' })).toBe(true)
+    expect(isTeamLead({ agentType: 'tester' })).toBe(false)
+    expect(isTeamLead({})).toBe(false)
   })
 })

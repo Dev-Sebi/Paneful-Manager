@@ -1,10 +1,18 @@
 import type { AppConfig, ListTeamsResponse, Team, TeamChangedMessage } from '@agent-hub/shared'
 import type { BaseLogger } from 'pino'
-import { readTeams } from './reader.js'
+import type { TmuxPaneInfo } from '../tmux/tmux.js'
+import { linkTeams } from './links.js'
+import { readTeams, type ReadTeamsResult } from './reader.js'
 import { createTeamsWatcher, type TeamsWatcher } from './watcher.js'
 
 /** Fallback for file systems where change events are missed. */
 export const TEAMS_POLL_INTERVAL_MS = 10_000
+
+/** Live sources for linking members to Agent Hub sessions (T53). */
+export interface TeamLinkSources {
+  listPanes: () => Promise<TmuxPaneInfo[]>
+  sessions: () => Iterable<{ id: string, cwd: string }>
+}
 
 export interface TeamsServiceOptions {
   claudeDir: string
@@ -13,6 +21,8 @@ export interface TeamsServiceOptions {
   onConfigChange?: (listener: () => void) => () => void
   logger: Pick<BaseLogger, 'debug' | 'warn'>
   broadcast: (message: TeamChangedMessage) => void
+  /** Without it members carry no `link`. */
+  links?: TeamLinkSources
   debounceMs?: number
   pollIntervalMs?: number
 }
@@ -22,6 +32,8 @@ export interface TeamsService {
   /** Starts or stops the watcher and the poll to match the flag. */
   sync: () => Promise<void>
   list: () => Promise<ListTeamsResponse>
+  /** Re-checks teams now (e.g. after a session was created or removed); no-op while the flag is off. */
+  refresh: () => Promise<void>
   close: () => Promise<void>
 }
 
@@ -34,14 +46,36 @@ export function createTeamsService(options: TeamsServiceOptions): TeamsService {
   let pollTimer: NodeJS.Timeout | undefined
   let signatures = new Map<string, string>()
   let chain: Promise<void> = Promise.resolve()
+  let pollChain: Promise<void> = Promise.resolve()
   let closed = false
 
+  /** Reads the teams and, when link sources are given and any team has members, links them to sessions. */
+  async function load(): Promise<ReadTeamsResult> {
+    const result = await readTeams({ claudeDir })
+    const { links } = options
+    if (links === undefined || !result.teams.some(team => team.members.length > 0)) {
+      return result
+    }
+    const panes = await links.listPanes().catch((error: unknown) => {
+      logger.debug({ err: error }, 'Listing tmux panes for team links failed')
+      return null
+    })
+    const sessions = new Map([...links.sessions()].map(session => [session.id, { cwd: session.cwd }]))
+    return { ...result, teams: linkTeams(result.teams, { panes, sessions }) }
+  }
+
   async function snapshot(): Promise<Map<string, string>> {
-    const { teams } = await readTeams({ claudeDir })
+    const { teams } = await load()
     return new Map(teams.map(team => [team.name, signatureOf(team)]))
   }
 
-  async function poll(): Promise<void> {
+  /** Serialized, so a refresh and the interval never broadcast the same change twice. */
+  function poll(): Promise<void> {
+    pollChain = pollChain.then(pollOnce)
+    return pollChain
+  }
+
+  async function pollOnce(): Promise<void> {
     try {
       const next = await snapshot()
       for (const name of new Set([...signatures.keys(), ...next.keys()])) {
@@ -103,11 +137,16 @@ export function createTeamsService(options: TeamsServiceOptions): TeamsService {
       if (!enabled()) {
         return { enabled: false, teams: [], warnings: [] }
       }
-      const { teams, warnings } = await readTeams({ claudeDir })
+      const { teams, warnings } = await load()
       for (const warning of warnings) {
         logger.debug({ warning }, 'Teams file skipped')
       }
       return { enabled: true, teams, warnings }
+    },
+    async refresh() {
+      if (pollTimer !== undefined) {
+        await poll()
+      }
     },
     async close() {
       closed = true

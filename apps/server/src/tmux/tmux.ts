@@ -118,6 +118,27 @@ export function parseSessionList(stdout: string): TmuxSessionInfo[] {
     })
 }
 
+export interface TmuxPaneInfo {
+  /** tmux pane id such as `%3`; unique per tmux server only. */
+  paneId: string
+  sessionName: string
+  /** Agent Hub session id of the owning `ah-` session, undefined for other sessions. */
+  sessionId: string | undefined
+}
+
+/** Parses `list-panes -a -F '#{pane_id}\t#{session_name}'` output; malformed lines are dropped. */
+export function parsePaneList(stdout: string): TmuxPaneInfo[] {
+  return stdout
+    .split('\n')
+    .flatMap(line => {
+      const [paneId, sessionName] = line.split('\t')
+      if (paneId === undefined || sessionName === undefined || !/^%\d+$/.test(paneId) || sessionName === '') {
+        return []
+      }
+      return [{ paneId, sessionName, sessionId: idFromTmuxName(sessionName) }]
+    })
+}
+
 function isServerMissing(stderr: string): boolean {
   return /no server running|error connecting to|server exited unexpectedly/i.test(stderr)
 }
@@ -177,6 +198,11 @@ export class Tmux {
 
   async listSessions(): Promise<TmuxSessionInfo[]> {
     return parseSessionList(await this.exec(['list-sessions', '-F', SESSION_FORMAT]))
+  }
+
+  /** Every pane on the Agent Hub server with its owning session. */
+  async listPanes(): Promise<TmuxPaneInfo[]> {
+    return parsePaneList(await this.exec(['list-panes', '-a', '-F', '#{pane_id}\t#{session_name}']))
   }
 
   /** Runs `command args...` directly: `env --` guarantees tmux gets several words and never uses `sh -c`. */

@@ -153,7 +153,19 @@ export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], e
       onConfigChange: listener => store.onChange(listener),
       logger,
       broadcast: message => hub?.broadcast(message),
+      ...(engine === undefined ? {} : { links: { listPanes: () => engine.tmux.listPanes(), sessions: () => engine.list() } }),
     })
+    if (engine !== undefined) {
+      const refresh = (): void => {
+        void service.refresh()
+      }
+      engine.on('session.created', refresh)
+      engine.on('session.removed', refresh)
+      app.addHook('onClose', async () => {
+        engine.off('session.created', refresh)
+        engine.off('session.removed', refresh)
+      })
+    }
     registerTeams(app, { service })
     app.addHook('onClose', async () => service.close())
     app.addHook('onReady', async () => service.sync())
