@@ -1,89 +1,50 @@
-# panefull-manager
+# Agent Hub
 
-Scaffolded with Vuetify CLI.
+![Status: early development](https://img.shields.io/badge/status-early%20development-orange)
 
-## ❗️ Documentation
+Agent Hub is a local web app for running and organizing Claude Code sessions. It runs inside WSL and gives you terminal tabs with split panes, saved workspace presets, an editor for skills and CLAUDE.md files, MCP server configuration, and experimental agent-team views.
 
-- Primary docs: https://vuetifyjs.com/
-- Getting started guide: https://vuetifyjs.com/en/getting-started/installation/
-- Community support: https://community.vuetifyjs.com/
-- Issue tracker: https://issues.vuetifyjs.com/
+## Features
 
-## 🧱 Stack
+- Terminal tabs with split panes
+- Saved workspace presets (YAML)
+- Skills and CLAUDE.md editor for global, project and git-worktree scopes
+- MCP server configuration
+- Experimental agent-team views
 
-- Framework: Vue 3 + Vite
-- UI Library: Vuetify
-- Language: TypeScript
-- Package manager: pnpm
-
-## 🧭 Start Here
-
-- Main entry: `src/main.ts`
-- Main app component: `src/App.vue`
-- Main styles: `src/styles/`
-- Plugin setup: `src/plugins/`
-
-## 📁 Project Structure
-
-- `src/main.ts` — application entry point
-- `src/App.vue` — root component
-- `src/components/` — reusable Vue components
-- `src/plugins/` — plugin registration and setup
-- `src/styles/` — global styles and theme settings
-- `public/` — static public files
-
-## ✨ Enabled Features
-
-- ESLint
-- Vuetify MCP
-
-## 💿 Install
-
-Use your selected package manager (pnpm) to install dependencies:
+## Quick Start
 
 ```bash
-pnpm install
-```
-
-## 🚀 Quick Start
-
-```bash
+git clone <repo-url> agent-hub
+cd agent-hub
 pnpm install
 pnpm dev
 ```
 
-## 🏗️ Build
+Open `http://localhost:3000` in your browser (Vite dev server).
 
-```bash
-pnpm build
-```
+## Requirements
 
-## 🧪 Available Scripts
+- WSL2 with systemd enabled
+- Node.js 22 or later
+- pnpm 11 or later
+- tmux
+- git
+- Claude Code CLI
 
-- `pnpm dev`
-- `pnpm build`
-- `pnpm preview`
-- `pnpm build-only`
-- `pnpm type-check`
-- `pnpm lint`
-- `pnpm lint:fix`
+## Configuration
 
-## 🤖 Vuetify MCP Server
+- App config: `~/.config/agent-hub/config.yaml`
+- Workspace presets: `~/.config/agent-hub/workspaces/*.yaml`
+- Server port: `port` in `config.yaml` (default `7337`); the env var `AGENT_HUB_PORT` overrides it
 
-This project is configured with the Vuetify Model Context Protocol (MCP) server.
-To install and configure the MCP server for your favorite IDE (Cursor, Trae, Windsurf, VS Code, Claude Desktop, etc.) run:
+Example files are in `examples/`.
 
-```bash
-pnpm dlx @vuetify/mcp-cli
-```
+## Documentation
 
-This will open an interactive setup wizard to help you connect your AI assistant to the Vuetify ecosystem.
+- [Architecture](docs/architecture.md) (in progress)
+- [Contributing](CONTRIBUTING.md)
 
-## 💪 Support Vuetify Development
+## License
 
-This project uses Vuetify - an MIT licensed Open Source project. We are glad to welcome contributors and any support for ongoing development:
-
-- Contribute to Vuetify and ecosystem projects: https://github.com/vuetifyjs
-- Request enterprise support: https://support.vuetifyjs.com/
-- Sponsor on GitHub: https://github.com/sponsors/vuetifyjs
-- Support on Open Collective: https://opencollective.com/vuetify
+MIT. See [LICENSE](LICENSE).

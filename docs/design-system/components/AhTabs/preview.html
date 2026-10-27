@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AhTabs preview</title>
+<style>
+/* Fallback values generated from tokens.json (dark theme). */
+:root {
+  --ah-color-bg-canvas: #12151a;
+  --ah-color-bg-surface: #1a1e24;
+  --ah-color-bg-elevated: #22272e;
+  --ah-color-bg-hover: #2b313a;
+  --ah-color-fg-primary: #eef1f4;
+  --ah-color-fg-muted: #9aa4b0;
+  --ah-color-fg-disabled: #59636f;
+  --ah-color-accent-default: #6496f7;
+  --ah-color-border-default: #3f4752;
+  --ah-color-border-focus: #6496f7;
+  --ah-color-status-working: #6496f7;
+  --ah-color-status-waiting: #e3b341;
+  --ah-color-status-error: #f47067;
+  --ah-color-status-idle: #9aa4b0;
+  --ah-space-2: 8px;
+  --ah-space-3: 12px;
+  --ah-space-6: 24px;
+  --ah-radius-sm: 4px;
+  --ah-radius-full: 9999px;
+  --ah-shadow-2: 0px 4px 12px 0px #00000080;
+  --ah-font-family-ui: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ah-font-size-sm: 12px;
+  --ah-font-size-md: 13px;
+  --ah-font-weight-medium: 500;
+  --ah-font-line-height-tight: 1.2;
+}
+body { margin: 0; padding: var(--ah-space-6); background: var(--ah-color-bg-canvas); color: var(--ah-color-fg-primary); font-family: var(--ah-font-family-ui); font-size: var(--ah-font-size-md); }
+h2 { font-size: var(--ah-font-size-sm); color: var(--ah-color-fg-muted); font-weight: var(--ah-font-weight-medium); margin: var(--ah-space-6) 0 var(--ah-space-2); }
+.bar { display: flex; height: 32px; background: var(--ah-color-bg-surface); border-bottom: 1px solid var(--ah-color-border-default); }
+.bar.compact { height: 28px; }
+ul[role="tablist"] { display: flex; margin: 0; padding: 0; list-style: none; min-width: 0; }
+li { position: relative; display: flex; align-items: center; gap: var(--ah-space-2); min-width: 96px; max-width: 240px; padding: 0 var(--ah-space-3); background: var(--ah-color-bg-surface); color: var(--ah-color-fg-muted); line-height: var(--ah-font-line-height-tight); }
+[role="tab"] { flex: 1; display: flex; align-items: center; gap: var(--ah-space-2); min-width: 0; height: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; outline: none; }
+.t { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+li:hover, li.is-hover { background: var(--ah-color-bg-hover); color: var(--ah-color-fg-primary); }
+li.active { background: var(--ah-color-bg-canvas); color: var(--ah-color-fg-primary); font-weight: var(--ah-font-weight-medium); }
+li.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--ah-color-accent-default); }
+li:has([role="tab"]:focus-visible), li.is-focus { outline: 2px solid var(--ah-color-border-focus); outline-offset: -2px; }
+li.disabled { color: var(--ah-color-fg-disabled); }
+li.disabled [role="tab"] { cursor: not-allowed; }
+li.is-moving { background: var(--ah-color-bg-elevated); color: var(--ah-color-fg-primary); box-shadow: var(--ah-shadow-2); }
+.x { width: 16px; height: 16px; display: grid; place-items: center; padding: 0; border: 0; background: none; color: inherit; border-radius: var(--ah-radius-sm); visibility: hidden; font-size: var(--ah-font-size-sm); cursor: pointer; }
+li.active .x, li:hover .x, li.is-hover .x, li.is-focus .x, li.dirty .x { visibility: visible; }
+.x:hover { background: var(--ah-color-bg-hover); }
+li.dirty .x::before { content: ""; width: 8px; height: 8px; border-radius: var(--ah-radius-full); background: var(--ah-color-fg-primary); }
+li.dirty .x span { display: none; }
+li.dirty:hover .x::before { display: none; }
+li.dirty:hover .x span { display: inline; }
+.m { --c: var(--ah-color-status-idle); width: 8px; height: 8px; border-radius: var(--ah-radius-full); background: var(--c); flex: none; box-sizing: border-box; }
+.working { --c: var(--ah-color-status-working); }
+.waiting { --c: var(--ah-color-status-waiting); box-shadow: 0 0 0 2px var(--ah-color-bg-surface), 0 0 0 3px var(--c); }
+.error { --c: var(--ah-color-status-error); border-radius: 1px; }
+.idle { background: transparent; border: 1.5px solid var(--c); }
+.add { padding: 0 var(--ah-space-3); background: none; border: 0; color: var(--ah-color-fg-muted); font: inherit; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1 style="font-size: var(--ah-font-size-md)">AhTabs / AhTab</h1>
+
+<h2>Default density: active, waiting, hover, focus, dirty, disabled, add button</h2>
+<div class="bar">
+  <ul role="tablist" aria-label="Sessions">
+    <li role="none" class="active"><button role="tab" id="ah-tab-s1" aria-controls="ah-tabpanel-s1" aria-selected="true"><span class="m working" role="img" aria-label="Working"></span><span class="t">api-server</span></button><button class="x" tabindex="-1" aria-label="Close api-server"><span>&times;</span></button></li>
+    <li role="none"><button role="tab" id="ah-tab-s2" aria-controls="ah-tabpanel-s2" aria-selected="false" tabindex="-1"><span class="m waiting" role="img" aria-label="Waiting for input"></span><span class="t">frontend</span></button><button class="x" tabindex="-1" aria-label="Close frontend"><span>&times;</span></button></li>
+    <li role="none" class="is-hover"><button role="tab" id="ah-tab-s3" aria-controls="ah-tabpanel-s3" aria-selected="false" tabindex="-1"><span class="m idle" role="img" aria-label="Idle"></span><span class="t">Hover</span></button><button class="x" tabindex="-1" aria-label="Close Hover"><span>&times;</span></button></li>
+    <li role="none" class="is-focus"><button role="tab" id="ah-tab-s4" aria-controls="ah-tabpanel-s4" aria-selected="false" tabindex="-1"><span class="m error" role="img" aria-label="Error"></span><span class="t">Focus</span></button><button class="x" tabindex="-1" aria-label="Close Focus"><span>&times;</span></button></li>
+    <li role="none" class="dirty"><button role="tab" id="ah-tab-e1" aria-controls="ah-tabpanel-e1" aria-selected="false" tabindex="-1"><span class="t">settings.json</span></button><button class="x" tabindex="-1" aria-label="Close settings.json, unsaved changes"><span>&times;</span></button></li>
+    <li role="none" class="disabled"><button role="tab" id="ah-tab-e2" aria-controls="ah-tabpanel-e2" aria-selected="false" aria-disabled="true" tabindex="-1"><span class="t">Disabled</span></button></li>
+  </ul>
+  <button class="add" aria-label="New tab">+</button>
+</div>
+
+<h2>Compact density, long title truncation</h2>
+<div class="bar compact">
+  <ul role="tablist" aria-label="Editors">
+    <li role="none"><button role="tab" id="ah-tab-c1" aria-controls="ah-tabpanel-c1" aria-selected="false" tabindex="-1"><span class="t">skills</span></button><button class="x" tabindex="-1" aria-label="Close skills"><span>&times;</span></button></li>
+    <li role="none" class="active"><button role="tab" id="ah-tab-c2" aria-controls="ah-tabpanel-c2" aria-selected="true"><span class="t">a-very-long-workspace-preset-name-that-truncates</span></button><button class="x" tabindex="-1" aria-label="Close preset"><span>&times;</span></button></li>
+  </ul>
+</div>
+
+<h2>Keyboard reorder in progress (Ctrl+Shift+ArrowRight)</h2>
+<div class="bar">
+  <ul role="tablist" aria-label="Reorder example">
+    <li role="none"><button role="tab" id="ah-tab-r1" aria-controls="ah-tabpanel-r1" aria-selected="false" tabindex="-1"><span class="t">one</span></button></li>
+    <li role="none" class="active is-moving is-focus"><button role="tab" id="ah-tab-r2" aria-controls="ah-tabpanel-r2" aria-selected="true"><span class="t">two</span></button><button class="x" tabindex="-1" aria-label="Close two"><span>&times;</span></button></li>
+    <li role="none"><button role="tab" id="ah-tab-r3" aria-controls="ah-tabpanel-r3" aria-selected="false" tabindex="-1"><span class="t">three</span></button></li>
+  </ul>
+</div>
+</body>
+</html>

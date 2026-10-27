@@ -1,0 +1,15 @@
+# Example workspace preset. Copy to ~/.config/agent-hub/workspaces/ and adapt.
+name: project1
+autostart: true
+tabs:
+  - name: project1
+    layout: row
+    panes:
+      - cwd: ~/git/project1
+        command: claude
+      - cwd: ~/git/project1
+        command: claude
+      - cwd: ~/git/project1
+        command: claude
+      - cwd: ~/git/project1
+        command: claude
