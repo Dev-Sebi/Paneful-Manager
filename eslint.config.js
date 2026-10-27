@@ -21,6 +21,9 @@ const web = await vuetify({
   isInEditor: false,
 })
 
+// A config with only `ignores` (plus an optional name) is global; adding `files` would turn it into a local ignore.
+const isGlobalIgnore = config => config.ignores !== undefined && Object.keys(config).every(key => key === 'ignores' || key === 'name')
+
 export default [
   {
     ignores: [
@@ -30,13 +33,16 @@ export default [
       '**/.claude/**',
       '**/playwright-report/**',
       '**/test-results/**',
+      '**/coverage/**',
       '**/*.tsbuildinfo',
       '**/.vite/**',
       'docs/**',
       'examples/**',
     ],
   },
-  ...web.map(config => ({ ...config, files: config.files ?? ['apps/web/**/*.{js,ts,vue}'] })),
+  ...web.map(config => isGlobalIgnore(config)
+    ? config
+    : { ...config, files: config.files ?? ['apps/web/**/*.{js,ts,vue}'] }),
   ...tseslint.configs.recommended.map(config => ({
     ...config,
     files: ['apps/server/**/*.ts', 'packages/shared/**/*.ts'],
