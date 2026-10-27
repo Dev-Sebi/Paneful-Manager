@@ -47,6 +47,7 @@ const serverMessages = [
   { type: 'file.changed', path: '/home/user/.claude/CLAUDE.md', event: 'change', hash: 'a'.repeat(64) },
   { type: 'file.changed', path: '/home/user/.claude/skills/demo/SKILL.md', event: 'add' },
   { type: 'file.changed', path: '/home/user/.claude/CLAUDE.md', event: 'unlink' },
+  { type: 'team.changed', team: 'session-1a2b3c4d' },
 ]
 
 describe('WS protocol', () => {
@@ -90,6 +91,12 @@ describe('WS protocol', () => {
   it('rejects invalid server messages', () => {
     expect(issuePaths(ServerMessageSchema, { type: 'output', sessionId: 's1', data: 42 })).toEqual(['data'])
     expect(issuePaths(ServerMessageSchema, { type: 'error', code: 'oops', message: 'x' })).toEqual(['code'])
+  })
+
+  it('rejects invalid team.changed messages', () => {
+    expect(issuePaths(ServerMessageSchema, { type: 'team.changed' })).toEqual(['team'])
+    expect(issuePaths(ServerMessageSchema, { type: 'team.changed', team: '' })).toEqual(['team'])
+    expect(ServerMessageSchema.safeParse({ type: 'team.changed', team: 'a', extra: 1 }).success).toBe(false)
   })
 
   it('rejects invalid file.changed messages', () => {

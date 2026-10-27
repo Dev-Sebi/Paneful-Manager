@@ -64,12 +64,13 @@ flowchart TB
   SVC -.->|"execFile: new-session, kill-session, ls, capture-pane"| TS
 ```
 
-- **Server.** Runs as the systemd user service `agent-hub.service` inside WSL (`Restart=on-failure`, `Wants=` and `After=agent-hub-tmux.service`), installed by `install.sh` (T60). It binds `127.0.0.1:<port>` only (`BIND_HOST`, `resolvePort`). In development `pnpm dev` runs it with `tsx watch` instead.
-- **One tmux server** with the dedicated socket name `agent-hub` (`tmux -L agent-hub ...`), so the user's own tmux sessions are never listed, touched or killed. It is owned by its own user unit `agent-hub-tmux.service` (`Type=forking`, `ExecStart=tmux -L agent-hub -f %S/agent-hub/tmux.conf start-server`), so restarting or stopping `agent-hub.service` never kills sessions.
-- **tmux.conf** (`$STATE/tmux.conf`, written by the installer): `exit-empty off` (server stays up without sessions), `remain-on-exit on` (exit codes stay readable), status line off, large `history-limit` for scrollback, `window-size latest`. tmux reads it only when the tmux server starts; changes need a restart of `agent-hub-tmux.service`.
+- **Server.** Runs as the systemd user service `agent-hub.service` inside WSL (`Restart=on-failure`, `Wants=` and `After=agent-hub-tmux.service`), installed by `install.sh` ([install guide](install.md)). `ExecStart` is the absolute `node` found at install time (node-pty is compiled for its ABI) running `<prefix>/current/apps/server/dist/index.js`; the unit sets `AGENT_HUB_PORT`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and the installer's `PATH`. It binds `127.0.0.1:<port>` only (`BIND_HOST`, `resolvePort`) and serves the built web app (`apps/web/dist`, or `AGENT_HUB_WEB_DIST`) with SPA fallback and a strict CSP. In development `pnpm dev` runs it with `tsx watch` instead.
+- **One tmux server** with the dedicated socket name `agent-hub` (`tmux -L agent-hub ...`), so the user's own tmux sessions are never listed, touched or killed. It is owned by its own user unit `agent-hub-tmux.service` (`Type=forking`, `ExecStart=tmux -L agent-hub -f $STATE/tmux.conf start-server` with the absolute state path, `ExecStop=tmux -L agent-hub kill-server`), so restarting or stopping `agent-hub.service` never kills sessions. The unit carries the installer's `PATH`, because sessions inherit the tmux server environment and need to find `claude`; it has no sandboxing options, since sessions are the user's interactive shells (`sudo` must keep working).
+- **tmux.conf** (`$STATE/tmux.conf`, copied by the installer from `packaging/tmux.conf`): `exit-empty off` (server stays up without sessions), `remain-on-exit on` (exit codes stay readable), status line off, `history-limit 50000` for scrollback, `window-size latest`, and the `terminal-overrides` entry below. tmux reads it only when the tmux server starts; changes need a restart of `agent-hub-tmux.service`.
 - **The engine never starts the tmux server.** Every `execFile` call passes `tmux -N` (never start a server). If the socket is missing it reports `tmux_unavailable` (`ApiErrorCodeSchema`, HTTP 503), refuses to create sessions and keeps retrying the listing. In development the developer starts it with the same command.
 - **No alternate screen.** When the tmux server becomes available, the engine appends `xterm-256color:smcup@:rmcup@` to the server option `terminal-overrides` (once), so the attach pty never switches xterm.js to the alternate buffer and scrollback written before the redraw stays visible.
-- **Requirements:** tmux 3.2 or later (`new-session -e`); the installer checks `tmux -V`. The installer runs `loginctl enable-linger` so user units run without a login session, and documents that WSL shuts the VM down when idle, which ends all sessions (assumed, verify in T60).
+- **Requirements:** tmux 3.2 or later (`new-session -e`); the installer checks `tmux -V`. The installer runs `loginctl enable-linger` so user units start at boot and run without a login session.
+- **WSL lifetime.** systemd services do not keep a WSL instance alive: WSL stops an idle distro (`instanceIdleTimeout` in `.wslconfig`, default 15 s) and the VM (`vmIdleTimeout`), which ends all sessions. The [install guide](install.md#keeping-wsl-running) covers the optional Windows logon task that boots the distro and how to keep it running.
 - **One tmux session per Agent Hub session**, running exactly one command (default `claude`) in one window and pane. Agent Hub layouts (splits, tabs) are drawn in the browser, never with tmux panes.
 - **One pty per attached session.** When the first client attaches, the engine spawns `tmux -L agent-hub attach-session -t =ah-<id>` with node-pty and fans its output out to every attached WS client. When the last client detaches, the pty is closed; the tmux session keeps running. tmux therefore only ever sees one client per session, and the pty size is the session size.
 - **All other tmux calls** (`new-session`, `kill-session`, `list-sessions`, `list-clients`, `display-message`, `capture-pane`, `refresh-client`, `show-options`, `set-option`) use `execFile` with argument arrays. Targets use the exact-match form because tmux otherwise prefix-matches names: `=ah-<id>` for session targets (`kill-session`, `attach-session`), `=ah-<id>:` for window and pane targets (`display-message`, `capture-pane`, `list-clients`).
@@ -209,8 +210,8 @@ The policy is coalesce, then close with `4008`; output is never dropped, because
 | Own state: `$STATE/**` | Atomic | No conflict check (server is the only writer). |
 | Claude settings: `$CLAUDE_DIR/settings.json` | Merge `hooks` key only, atomic, conflict-checked | Adds Agent Hub hook entries if missing; never changes or removes other entries or keys. Agent Hub's entries are identified by their exact URL `http://127.0.0.1:<any port>/api/hooks`, never by an extra key. Uninstall removes only those entries (and groups, event keys or the `hooks` key it emptied), so install then uninstall restores the file byte for byte when it uses one consistent indentation. The port is baked into that URL, so a port change re-merges the entries; running Claude Code sessions pick up hook edits live. Invalid JSON (including comments) is `409 conflict` and never rewritten. Symlinks are followed. |
 | `CLAUDE.md` and skills | File service, atomic, conflict-checked | Only inside allowlisted scopes: global `$CLAUDE_DIR/CLAUDE.md` and `$CLAUDE_DIR/skills/**`; for each configured project and its git worktrees `<root>/CLAUDE.md`, `<root>/CLAUDE.local.md`, `<root>/.claude/skills/**`. |
-| MCP servers | `claude mcp add-json` / `claude mcp remove` via `execFile` (verified subcommands) | Never edit `~/.claude.json` or `.mcp.json` directly; the CLI owns their format. There is no update command: an edit is remove + add, which is not atomic (a failed add leaves the server removed; the UI reports it and offers to retry). Removing a remote (`http`/`sse`) server also drops its stored OAuth tokens, so the user must re-authenticate; the UI warns before editing one. |
-| Worktree helper | Copy gitignored files into a new worktree | Only after explicit confirmation, target must be inside the worktree (T34). |
+| MCP servers | `claude mcp add-json` / `claude mcp remove` via `run()`, file edit as fallback | See [MCP configuration](#mcp-configuration) and [ADR 0009](adr/0009-mcp-config-via-cli.md). |
+| Worktree helper | Copy gitignored files into a new worktree | Only after explicit confirmation, target must be inside the worktree (T34). Apply is all-or-nothing in validation, best-effort in writing. |
 
 ### Rules
 
@@ -220,6 +221,33 @@ The policy is coalesce, then close with `4008`; output is never dropped, because
 - **Symlinks:** the requested path must match a managed pattern. It is resolved with `realpath`, and the resolved path must stay inside the same scope root, contain no hidden segment (apart from the `.claude/skills` prefix) and be a managed file or a `.md` file, so `CLAUDE.md -> AGENTS.md` works while links to `package.json`, `.git/**` or `.claude/settings.json` are `403`. Writes go to the resolved target, so the link itself is kept; deleting a link removes only the link. New files are never created through a dangling link. Every component below the root is re-checked with `lstat` before writing, and anything but a regular file (FIFO, device) is `403`; files are opened with `O_NOFOLLOW | O_NONBLOCK`.
 - **Hard links (accepted):** a managed file that is a hard link to a file elsewhere cannot be detected by path checks; writes replace the managed name via rename, so the other name keeps the old content. Creating such a link needs local access, which is out of scope.
 - **Backups:** before the server overwrites or deletes a file it does not exclusively own (Claude settings, CLAUDE.md, skills, presets, `config.yaml`), the previous content is copied to `$STATE/backups/<encoded-path>/<timestamp>` with mode `0600` (default `~/.local/state/agent-hub/backups`; startup fails if it lies inside a scope). A deleted skill directory is backed up file by file; it is only removed when it holds nothing but managed files, otherwise `409 conflict` lists the blocking entries. Retention: the last 20 backups per file and at most 50 MB in total; the oldest backups are pruned first.
+
+### MCP configuration
+
+Claude Code keeps MCP servers in three scopes; Agent Hub maps its own scopes onto them (`toMcpScope`) and never invents a storage location.
+
+| Agent Hub scope | Claude Code scope | Stored in |
+| --- | --- | --- |
+| `global` | `user` | `mcpServers` in `~/.claude.json` (`$CLAUDE_CONFIG_DIR/.claude.json` when set) |
+| `project` / `worktree`, shared | `project` | `mcpServers` in `<root>/.mcp.json` (committed) |
+| `project` / `worktree`, private | `local` | `projects["<root>"].mcpServers` in `~/.claude.json` |
+
+```mermaid
+flowchart LR
+  REQ[PUT / DELETE /api/mcp] --> V{zod + known project?}
+  V -- no --> E[400 / 404]
+  V -- yes --> D{claude --version ok? cached 60 s}
+  D -- yes --> CLI["claude mcp add-json -s scope name json<br/>claude mcp remove -s scope name"]
+  D -- no --> F[jsonc edit of mcpServers.name<br/>atomic write + backup]
+  LIST[GET /api/mcp] --> R[read ~/.claude.json + .mcp.json] --> M[mask env / headers]
+```
+
+- **Listing** always reads the files: `claude mcp list`/`get` have no machine-readable output and health-check every server. A scope whose file cannot be read is skipped with a warning.
+- **CLI mode** (default when `claude --version` works): `run('claude', ['mcp', 'add-json', '-s', <scope>, <name>, <json>])` and `['mcp', 'remove', '-s', <scope>, <name>]`, `cwd` = project or worktree root (home for `user`), `CLAUDE_CONFIG_DIR` passed on. An update is remove + add; a failed add puts the previous entry back (CLI, then file edit; `500 internal` if both fail). CLI errors are `409 conflict` with the first output line, scrubbed of secret values.
+- **File mode** (no CLI): `jsonc-parser` edits only `mcpServers.<name>`, so unknown keys, key order and indentation survive. A file that is not strict JSON, or a non-object section on the path, is `409 conflict` (error code, line and column only, no file content) and is never overwritten. Atomic write and backups as above (hash re-checked before `rename`); `~/.claude.json` gets mode `0600`. Max file size 16 MiB.
+- **Allowlist:** only `~/.claude.json` and `<root>/.mcp.json` of configured projects and worktrees; the resolved path must keep that file name and stay inside its directory, otherwise `403`.
+- **Entries:** names match `^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$` and are not one of `RESERVED_MCP_NAMES`; transports `stdio` (`command`, `args`, `env`), `http`/`sse` (`url` = `http(s)://` or a `${VAR}` reference, `headers`). Unknown keys of an entry (`oauth`, `timeout`, ...) are kept on update while the transport family stays the same. `ws` entries and invalid names are not listed and cannot be overwritten.
+- **Secrets:** every response masks env and header values as `{ masked: true, set }`, except `PATH`, `HOME`, `NODE_ENV`, `LOG_LEVEL`. On update, `{ keep: true }` for a key keeps the stored value; keys left out are removed. Logs contain only name, scope kind and mode. `args` and URL query strings are not masked. CLI argv carries secrets for the CLI's lifetime (`/proc/<pid>/cmdline`).
 
 ## Security model
 
@@ -257,7 +285,7 @@ flowchart LR
 | Process spawning | `run(file, args, { cwd, timeoutMs, maxBuffer, env })` in `src/process/exec.ts`: `spawn` with an argument array, `shell: false` and `detached: true` (own process group); on timeout or output overflow the whole group gets `SIGKILL`. Rejects with `RunError` (`exit`/`signal`/`timeout`/`max-buffer`/`spawn`) unless exit code 0. The child env is `PATH`, `HOME`, `LANG`, `LC_ALL`, `USER`, `TMPDIR`, `SHELL` from the server env, overridden by the caller's `env`. node-pty also takes argument arrays only; commands after `--` in `new-session`. ESLint bans in `apps/server`: `exec`/`execSync` imports, default/namespace/dynamic `child_process` imports, a `shell` option other than `false` in `spawn`/`execFile`/`fork` calls, and options passed as a variable or spread there. |
 | Path allowlist | `createAllowlist(roots).resolveInside(candidate)` in `src/fs/allowlist.ts`: rejects empty, relative and NUL-byte paths, `~`-expands, `path.resolve`s, then `realpath`s the candidate (or its nearest existing parent for new files) and checks it against the `realpath` of each root (`path.relative`, no `..` segment). `..` and symlink escapes, and paths through dangling links, fail with `403 forbidden`. Callers must use the returned path; writers use temp file + rename in the resolved directory (TOCTOU). |
 | Security headers | Every response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`; `/api/*` also `Cache-Control: no-store`. A strict CSP for the SPA is not set yet; it comes with serving the built web client. |
-| No secrets to the browser | MCP `env` values and `headers` are masked (`***`) in API responses; an unchanged mask on save keeps the stored value. |
+| No secrets to the browser | MCP `env` and `headers` values are masked as `{ masked: true, set }` in API responses (except `PATH`, `HOME`, `NODE_ENV`, `LOG_LEVEL`); `{ keep: true }` on save keeps the stored value. |
 | Logging | pino `redact` removes the `authorization`, `x-agent-hub-token`, `x-agent-hub-hook-token` and `sec-websocket-protocol` request headers. Query strings carry no secrets. |
 | Validation | Every REST body and WS frame is parsed with strict zod schemas; unknown keys fail. |
 
@@ -358,6 +386,16 @@ Assumed, verify in T50 or with a live session:
 - Agent-team events (`TeammateIdle`, `TaskCreated`, `TaskCompleted`) need their own mapping behind `experimental.agentTeams` (T50).
 - The minimum Claude Code version that supports `http` hooks and `StopFailure`; the reference states none.
 
+## Agent teams (experimental)
+
+Behind `experimental.agentTeams` (default off) and Claude Code `>= 2.1.309` (lowest tested), see [ADR 0010](adr/0010-agent-teams.md).
+
+- Launch: a YAML template becomes `.claude/agents/<role>.md` files (file service, removed on team end) plus a first prompt to the lead; the lead runs with `--teammate-mode tmux` and `--settings` env `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, `CLAUDE_CODE_ENABLE_TODO_TOOLS=1`, `CLAUDE_CODE_TASK_LIST_ID=<per-launch id>` so teammates inherit it.
+- Task board: read-only, tolerant parse of `~/.claude/tasks/<task-list-id>/*.json`, refreshed by a chokidar watcher (`team.changed` WS frame, 200 ms debounce) plus a 10 s poll fallback, both active only while the flag is on. `GET /api/teams` returns `enabled: false` without file access when the flag is off.
+- Pane map: `members[].tmuxPaneId` from `~/.claude/teams/<team>/config.json`, only while the lead runs.
+- Teammate hook events carry their own `session_id`; only the lead's drive session status, others feed a per-teammate status map.
+- Agent Hub never writes team or task files.
+
 ## Repo layout and build
 
 ```text
@@ -442,7 +480,7 @@ Paths may start with `~`; the server expands them.
 | | `validateLayoutPanes` | `single` = 1 pane, `grid-2x2` = 4, `custom` must reference each pane exactly once. |
 | `preset.ts` | `WorkspacePresetSchema` | Preset file: `name` (also the file name), `description?`, `autostart` (false), `tabs[]`. |
 | | `PresetTabSchema`, `PresetPaneSchema` | Tab: `title?`, `layout` (default `row`; string shorthand `single \| row \| column \| grid-2x2` or the object form, `custom` needs the object), 1-6 panes. Pane: `cwd`, `command` (`claude`), `args` (`[]`), `title?`, `size?`. |
-| `mcp.ts` | `McpServerSchema` | Discriminated by `transport`: `stdio` (`command`, `args`, `env?`) or `http`/`sse` (`url`, `headers?`); `scope` is `global \| project \| worktree`. |
+| `mcp.ts` | `McpServerConfigSchema`, `McpServerEntrySchema` | Config discriminated by `transport`: `stdio` (`command`, `args`, `env`) or `http`/`sse` (`url`, `headers`); entry = `name`, `scope` (`user` \| `project` \| `local`, with `projectPath` for the last two), `config`, `source` (`cli` \| `file`). `toMcpScope` maps Agent Hub scopes, `maskMcpEntry` masks secrets. |
 | `api.ts` | `ApiErrorSchema` | Every non-2xx body: `{ code, message, details? }`; `validation_failed` requires `details: { path, message }[]` (`toValidationError`). |
 | | REST schemas | See table below. |
 | `hooks.ts` | `HookPayloadSchema`, `mapHookEvent` | Claude Code hook input (loose: only `hook_event_name`, `session_id?`, `notification_type?` are validated) and the event-to-state mapping, see [Hook mapping](#hook-mapping). |
@@ -484,6 +522,9 @@ All routes live under `/api` (`API_ROUTES`).
 | `GET /api/hooks/status` | - | `HookStatusSchema` |
 | `POST /api/hooks/install` | `HookChangeRequestSchema` (empty) | `HookChangeResponseSchema` (`changed`, `status`) |
 | `POST /api/hooks/uninstall` | `HookChangeRequestSchema` (empty) | `HookChangeResponseSchema` |
+| `GET /api/mcp` | `ListMcpServersQuerySchema` (`projectPath?`) | `ListMcpServersResponseSchema` (`servers` masked, `mode`, `cliVersion?`) |
+| `PUT /api/mcp` | `UpsertMcpServerRequestSchema` (`name`, `scope`, `config` with `{ keep: true }` values) | `UpsertMcpServerResponseSchema` (`server`, `created`) |
+| `DELETE /api/mcp` | `RemoveMcpServerRequestSchema` (body `name`, `scope`) | `RemoveMcpServerResponseSchema` |
 
 ### WebSocket protocol
 

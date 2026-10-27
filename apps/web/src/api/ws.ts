@@ -32,6 +32,8 @@ export interface WsClient extends WsEvents {
   connect: () => void
   close: () => void
   send: (message: ClientMessageInput) => boolean
+  /** Fires after every successful (re)connect; consumers re-attach their sessions here. */
+  onOpen: (handler: () => void) => () => void
   /** Fires when reconnecting is pointless (protocol mismatch). */
   onFatal: (handler: (reason: 'protocol_mismatch') => void) => () => void
 }
@@ -60,6 +62,7 @@ export function createWsClient (options: WsClientOptions = {}): WsClient {
   const random = options.random ?? Math.random
   const handlers = new Map<ServerMessageType, Set<(message: never) => void>>()
   const fatalHandlers = new Set<(reason: 'protocol_mismatch') => void>()
+  const openHandlers = new Set<() => void>()
 
   let socket: WebSocket | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -126,6 +129,9 @@ export function createWsClient (options: WsClientOptions = {}): WsClient {
       attempt = 0
       connection.value = 'connected'
       startHeartbeat(ws, gen)
+      for (const handler of openHandlers) {
+        handler()
+      }
     })
     ws.addEventListener('message', event => {
       if (gen === generation && socket === ws && typeof event.data === 'string') {
@@ -209,6 +215,12 @@ export function createWsClient (options: WsClientOptions = {}): WsClient {
       handlers.set(type, set)
       return () => {
         set.delete(handler as (message: never) => void)
+      }
+    },
+    onOpen (handler) {
+      openHandlers.add(handler)
+      return () => {
+        openHandlers.delete(handler)
       }
     },
     onFatal (handler) {

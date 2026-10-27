@@ -11,7 +11,8 @@ describe('index', () => {
       'WorkspacePresetSchema',
       'SessionSchema',
       'LayoutSchema',
-      'McpServerSchema',
+      'McpServerEntrySchema',
+      'UpsertMcpServerRequestSchema',
       'ScopeSchema',
       'ApiErrorSchema',
       'ClientMessageSchema',
@@ -21,6 +22,8 @@ describe('index', () => {
       'HookPayloadSchema',
       'HookStatusSchema',
       'mapHookEvent',
+      'TeamChangedMessageSchema',
+      'ListTeamsResponseSchema',
     ]) {
       expect(shared).toHaveProperty(name)
     }

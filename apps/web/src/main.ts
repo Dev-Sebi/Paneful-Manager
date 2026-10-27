@@ -1,29 +1,11 @@
 /**
  * main.ts
  *
- * Bootstraps Vuetify and other plugins then mounts the App`
+ * Turns off zod's `new Function` probe, which the server's CSP (no 'unsafe-eval') reports as a violation,
+ * then loads the app. zod builds schemas while its chunk loads, so `z.config()` would run too late and the
+ * app is imported dynamically after the global zod reads is set.
  */
+const holder = globalThis as { __zod_globalConfig?: Record<string, unknown> }
+holder.__zod_globalConfig = { ...holder.__zod_globalConfig, jitless: true }
 
-// Composables
-import { createApp } from 'vue'
-
-// Plugins
-import { registerPlugins } from '@/plugins'
-
-// Components
-import App from './App.vue'
-
-// Styles
-import '@fontsource/jetbrains-mono/latin-400.css'
-import '@fontsource/jetbrains-mono/latin-700.css'
-import '@fontsource/jetbrains-mono/latin-ext-400.css'
-import '@fontsource/jetbrains-mono/latin-ext-700.css'
-import '@/styles/generated/tokens.css'
-import '@/styles/base.css'
-import '@/styles/motion.css'
-
-const app = createApp(App)
-
-registerPlugins(app)
-
-app.mount('#app')
+void import('./bootstrap')

@@ -7,7 +7,7 @@
         :model-value="tabs.activeId ?? undefined"
         reorderable
         @add="ui.notify('New tab is not available yet')"
-        @close="requestClose"
+        @close="closing.closeTab"
         @reorder="({ from, to }) => tabs.move(from, to)"
         @update:model-value="select"
       >
@@ -19,12 +19,31 @@
           :title="tab.title"
           :value="tab.id"
         />
+
+        <template #append>
+          <AhButton prepend-icon="mdi-plus" size="sm" variant="ghost" @click="openCreate">New session</AhButton>
+        </template>
       </AhTabs>
 
       <AhTabPanel v-for="tab in tabs.tabs" :key="tab.id" class="workspaces__panel" :value="tab.id">
-        <p v-for="pane in tab.panes" :key="pane.sessionId" class="workspaces__pane">
-          Session {{ sessions.byId.get(pane.sessionId)?.title ?? pane.sessionId }}
-        </p>
+        <!-- One pane per session until the split layout lands. -->
+        <AhTerminalPane
+          v-for="pane in tab.panes"
+          :key="pane.sessionId"
+          class="workspaces__pane"
+          :connection="sessions.byId.get(pane.sessionId)?.lifecycle === 'exited' ? 'exited' : 'connecting'"
+          :cwd="sessions.byId.get(pane.sessionId)?.cwd"
+          :exit-code="sessions.byId.get(pane.sessionId)?.exitCode"
+          :focused="tab.id === tabs.activeId"
+          :maximized="maximized === pane.sessionId"
+          :session-id="pane.sessionId"
+          :status="sessions.byId.get(pane.sessionId)?.state"
+          :title="paneTitle(pane.sessionId)"
+          @close="ui.notify('Closing panes is not available yet')"
+          @restart="ui.notify('Restarting sessions is not available yet')"
+          @split="ui.notify('Split panes are not available yet')"
+          @toggle-maximize="toggleMaximize(pane.sessionId)"
+        />
       </AhTabPanel>
     </template>
 
@@ -34,17 +53,72 @@
       icon="mdi-console"
       message="No sessions yet"
       @action="ui.notify('Presets are not available yet')"
-    />
+    >
+      <template #actions>
+        <AhButton prepend-icon="mdi-plus" @click="openCreate">New session</AhButton>
+      </template>
+    </EmptyState>
 
     <AhDialog
-      confirm-text="Close tab"
-      :model-value="pendingClose !== undefined"
-      title="Close tab"
-      tone="danger"
-      @confirm="confirmClose"
-      @update:model-value="pendingClose = undefined"
+      v-model="createOpen"
+      :loading="creating"
+      title="New session"
+      @confirm="createSession"
     >
-      This tab has unacknowledged activity. Close it anyway?
+      <div class="workspaces__form">
+        <v-text-field
+          v-model="createCwd"
+          autocomplete="off"
+          density="compact"
+          hide-details="auto"
+          label="Working directory"
+          :rules="[required]"
+          spellcheck="false"
+          variant="outlined"
+        />
+
+        <v-text-field
+          v-model="createCommand"
+          autocomplete="off"
+          density="compact"
+          hide-details="auto"
+          label="Command"
+          :rules="[required]"
+          spellcheck="false"
+          variant="outlined"
+        />
+      </div>
+
+      <template #actions="{ cancel, confirm }">
+        <AhButton data-ah-cancel @click="cancel">Cancel</AhButton>
+
+        <AhButton
+          data-ah-confirm
+          :disabled="!canCreate"
+          :loading="creating"
+          variant="primary"
+          @click="confirm"
+        >Create</AhButton>
+      </template>
+    </AhDialog>
+
+    <AhDialog
+      confirm-text="Close and kill sessions"
+      initial-focus="[data-ah-cancel]"
+      :loading="closing.busy.value"
+      :model-value="closing.pendingTabId.value !== undefined"
+      title="Close tab?"
+      tone="danger"
+      @confirm="closing.confirm"
+      @update:model-value="closing.cancel"
+    >
+      <p>Closing this tab kills its running sessions:</p>
+
+      <ul class="workspaces__sessions">
+        <li v-for="session in closing.pendingSessions.value" :key="session.id">{{ session.title }}</li>
+      </ul>
+
+      <v-checkbox v-model="closing.dontAskAgain.value" density="compact" hide-details label="Don't ask again" />
     </AhDialog>
   </div>
 </template>
@@ -52,11 +126,15 @@
 <script lang="ts" setup>
   import type { AhStatusBadgeState } from '@/components/ah'
   import type { AppTab } from '@agent-hub/shared'
-  import { ref, watch } from 'vue'
+  import { DEFAULT_COMMAND } from '@agent-hub/shared'
+  import { computed, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import { AhDialog, AhTab, AhTabPanel, AhTabs } from '@/components/ah'
+  import { api } from '@/api/client'
+  import { AhButton, AhDialog, AhTab, AhTabPanel, AhTabs } from '@/components/ah'
+  // Imported directly, not through the barrel, so xterm stays in the lazy Workspaces chunk.
+  import AhTerminalPane from '@/components/ah/AhTerminalPane.vue'
   import EmptyState from '@/components/EmptyState.vue'
-  import { useConfigStore } from '@/stores/config'
+  import { useCloseTab } from '@/composables/useCloseTab'
   import { useSessionsStore } from '@/stores/sessions'
   import { useTabsStore } from '@/stores/tabs'
   import { useUiStore } from '@/stores/ui'
@@ -65,10 +143,54 @@
   const router = useRouter()
   const tabs = useTabsStore()
   const sessions = useSessionsStore()
-  const config = useConfigStore()
   const ui = useUiStore()
 
-  const pendingClose = ref<string>()
+  const closing = useCloseTab()
+  const maximized = ref<string>()
+  const createOpen = ref(false)
+  const creating = ref(false)
+  const createCwd = ref('~/')
+  const createCommand = ref(DEFAULT_COMMAND)
+
+  const canCreate = computed(() => createCwd.value.trim() !== '' && createCommand.value.trim() !== '')
+
+  function required (value: string): true | string {
+    return value.trim() !== '' || 'Required'
+  }
+
+  function paneTitle (sessionId: string): string {
+    const session = sessions.byId.get(sessionId)
+    return session?.title ?? session?.command ?? sessionId
+  }
+
+  function toggleMaximize (sessionId: string) {
+    maximized.value = maximized.value === sessionId ? undefined : sessionId
+  }
+
+  function openCreate () {
+    createCwd.value = '~/'
+    createCommand.value = DEFAULT_COMMAND
+    createOpen.value = true
+  }
+
+  async function createSession () {
+    if (!canCreate.value || creating.value) {
+      return
+    }
+    creating.value = true
+    try {
+      const { session } = await api.createSession({ cwd: createCwd.value.trim(), command: createCommand.value.trim() })
+      sessions.upsert(session)
+      const tab: AppTab = { id: `tab-${session.id}`, title: session.title ?? session.command, layout: { kind: 'single' }, panes: [{ sessionId: session.id }] }
+      tabs.add(tab)
+      createOpen.value = false
+      void router.push(`/workspaces/${tab.id}`)
+    } catch (error) {
+      ui.notify(error instanceof Error ? error.message : 'Could not create the session', 'error')
+    } finally {
+      creating.value = false
+    }
+  }
 
   function tabState (tab: AppTab): AhStatusBadgeState | undefined {
     const first = tab.panes[0]
@@ -77,21 +199,6 @@
 
   function select (id: string) {
     void router.push(`/workspaces/${id}`)
-  }
-
-  function requestClose (id: string) {
-    if (config.confirmCloseTab && tabs.dirty[id]) {
-      pendingClose.value = id
-    } else {
-      tabs.close(id)
-    }
-  }
-
-  function confirmClose () {
-    if (pendingClose.value) {
-      tabs.close(pendingClose.value)
-    }
-    pendingClose.value = undefined
   }
 
   // Keeps the URL and the store in agreement: the URL wins when it names a tab, otherwise the active tab is shown.
@@ -124,8 +231,29 @@
 
 .workspaces__panel {
   flex: 1;
-  padding: var(--ah-space-4);
+  min-height: 0;
+  padding: var(--ah-space-1);
+  background: var(--ah-color-bg-canvas);
 }
 
-.workspaces__pane { color: var(--ah-color-fg-muted); }
+/* `hidden` must keep winning over the flex layout of the active panel. */
+.workspaces__panel:not([hidden]) {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspaces__pane { flex: 1; }
+
+.workspaces__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ah-space-4);
+  padding-top: var(--ah-space-2);
+}
+
+.workspaces__sessions {
+  margin: var(--ah-space-2) 0;
+  padding-left: var(--ah-space-6);
+}
 </style>

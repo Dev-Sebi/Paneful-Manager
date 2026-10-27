@@ -158,8 +158,13 @@ class Connection implements EngineClient {
   }
 }
 
+export interface WsHub {
+  /** Sends a server message to every connected client. */
+  broadcast: (message: ServerMessage) => void
+}
+
 /** WebSocket endpoint `/ws` (protocol v1): terminal I/O plus broadcast of session events. */
-export function registerWs(app: FastifyInstance, options: WsPluginOptions): void {
+export function registerWs(app: FastifyInstance, options: WsPluginOptions): WsHub {
   const { engine } = options
   const authorize = options.authorizeUpgrade
   const connections = new Set<Connection>()
@@ -262,4 +267,5 @@ export function registerWs(app: FastifyInstance, options: WsPluginOptions): void
     connections.clear()
     wss.close(() => done())
   })
+  return { broadcast: message => broadcast(c => c.queue.send(message)) }
 }

@@ -2,15 +2,21 @@ import { join } from 'node:path'
 import { BIND_HOST, HOOK_ENV, resolveStateDir, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
+import { resolveConfigFile } from './config/load-config.js'
+import { createConfigStore } from './config/store.js'
 import { createBackupStore } from './files/backups.js'
 import { createFileService } from './files/service.js'
+import { AppError } from './errors.js'
 import { assertBackupDirOutsideScopes } from './files/state-dir.js'
 import { createHookSettings, resolveClaudeSettingsPath } from './hooks/install.js'
 import { loadHookToken } from './hooks/token.js'
+import { createMcpService } from './mcp/service.js'
 import { expandHome } from './paths.js'
 import { discoverScopes } from './scopes/discover.js'
-import { assertLoopbackAddress } from './security/origin.js'
+import { assertLoopbackAddress, DEV_ORIGINS_ENV_VAR, parseDevOrigins } from './security/origin.js'
 import { SessionEngine } from './sessions/engine.js'
+import { resolveWebDist } from './static.js'
+import { resolveClaudeDir } from './teams/reader.js'
 import type { Tmux } from './tmux/tmux.js'
 
 /** Backups live in `<stateDir>/backups` (see the file-write policy). */
@@ -29,12 +35,26 @@ export interface StartOptions {
   env?: Record<string, string | undefined>
   /** tmux wrapper for the session engine; tests pass one with a private socket. */
   tmux?: Tmux
+  /** Config directory holding `config.yaml`; defaults to the XDG location. */
+  configDir?: string
 }
 
-export async function startServer(config: AppConfig, logger: FastifyBaseLogger, { env = process.env, tmux }: StartOptions = {}): Promise<RunningServer> {
-  const getScopes = () => discoverScopes({ config, env, logger })
+export async function startServer(config: AppConfig, logger: FastifyBaseLogger, { env = process.env, tmux, configDir }: StartOptions = {}): Promise<RunningServer> {
   const stateDir = expandHome(resolveStateDir(env))
   const backupDir = join(stateDir, BACKUPS_DIR_NAME)
+  let listeningPort = config.port
+  const store = createConfigStore(config, {
+    file: resolveConfigFile(env, configDir),
+    getListeningPort: () => listeningPort,
+    validate: async next => {
+      try {
+        assertBackupDirOutsideScopes(backupDir, await discoverScopes({ config: next, env, logger }))
+      } catch (error) {
+        throw new AppError((error as Error).message, 400, 'bad_request')
+      }
+    },
+  })
+  const getScopes = () => discoverScopes({ config: store.get(), env, logger })
   assertBackupDirOutsideScopes(backupDir, await getScopes())
   const hookToken = await loadHookToken(stateDir)
   // The URL is only known after listen; sessions are created through the server, so never before that.
@@ -44,7 +64,23 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
   const hookSettings = createHookSettings({ settingsPath: resolveClaudeSettingsPath(env), backups: createBackupStore({ dir: backupDir }) })
-  const app = buildApp({ config, logger, files, engine, hookToken, hookSettings })
+  const webDist = resolveWebDist(env)
+  const mcp = createMcpService({ getScopes, env, backupDir, logger })
+  const devOrigins = parseDevOrigins(env[DEV_ORIGINS_ENV_VAR], message => logger.warn(message))
+  const app = buildApp({
+    config,
+    logger,
+    devOrigins,
+    files,
+    engine,
+    worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) },
+    mcp,
+    configStore: store,
+    teams: { claudeDir: resolveClaudeDir(env) },
+    ...(webDist === undefined ? {} : { webDist }),
+    hookToken,
+    hookSettings,
+  })
   try {
     await app.listen({ host: BIND_HOST, port: config.port })
   } catch (error) {
@@ -59,6 +95,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     throw error
   }
   const port = typeof address === 'object' && address !== null ? address.port : config.port
+  listeningPort = port
   serverUrl = `http://${BIND_HOST}:${port}`
   const shutdown = async (): Promise<boolean> => {
     let timer: NodeJS.Timeout | undefined

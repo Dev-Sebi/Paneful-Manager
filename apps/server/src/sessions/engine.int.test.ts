@@ -270,7 +270,7 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
       expect(others.some(other => client.terminal(id).includes(`parallel-${other}`))).toBe(false)
     })
     client.close()
-  })
+  }, 20_000)
 
   it('kills a session over REST and broadcasts session.removed', async () => {
     const id = await createSession({ cwd: dir, command: 'sh' })

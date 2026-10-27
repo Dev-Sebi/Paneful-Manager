@@ -125,6 +125,13 @@ export const FileChangedMessageSchema = z
   })
 export type FileChangedMessage = z.infer<typeof FileChangedMessageSchema>
 
+/** A team's config or task files changed; clients re-fetch `GET /api/teams`. */
+export const TeamChangedMessageSchema = z.strictObject({
+  type: z.literal('team.changed'),
+  team: z.string().min(1),
+})
+export type TeamChangedMessage = z.infer<typeof TeamChangedMessageSchema>
+
 export const ServerMessageSchema = z.discriminatedUnion('type', [
   OutputMessageSchema,
   ScrollbackMessageSchema,
@@ -134,6 +141,7 @@ export const ServerMessageSchema = z.discriminatedUnion('type', [
   ErrorMessageSchema,
   PongMessageSchema,
   FileChangedMessageSchema,
+  TeamChangedMessageSchema,
 ])
 export type ServerMessage = z.infer<typeof ServerMessageSchema>
 export type ServerMessageType = ServerMessage['type']

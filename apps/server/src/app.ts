@@ -12,18 +12,27 @@ import {
   type HealthResponse,
 } from '@agent-hub/shared'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
+import { registerConfig } from './config/routes.js'
+import { createConfigStore, type ConfigStore } from './config/store.js'
 import { AppError } from './errors.js'
 import { registerFiles } from './files/routes.js'
 import type { FileService } from './files/service.js'
 import type { HookSettings } from './hooks/install.js'
 import { registerHooks } from './hooks/routes.js'
+import { registerMcp } from './mcp/routes.js'
+import type { McpService } from './mcp/service.js'
 import { registerScopes } from './scopes/routes.js'
+import { runFile } from './scopes/run-git.js'
 import { registerSecurity } from './security/register-security.js'
 import { createSessionToken } from './security/token.js'
 import { authorizeUpgrade } from './security/upgrade.js'
 import type { SessionEngine } from './sessions/engine.js'
 import { registerSessions } from './sessions/routes.js'
-import { registerWs } from './ws/plugin.js'
+import { registerStatic } from './static.js'
+import { registerTeams } from './teams/routes.js'
+import { createTeamsService } from './teams/service.js'
+import { registerWorktrees, type WorktreeDeps } from './worktrees/routes.js'
+import { registerWs, type WsHub } from './ws/plugin.js'
 
 export const BODY_LIMIT_BYTES = 1024 * 1024
 
@@ -36,6 +45,8 @@ export interface BuildAppOptions {
   sessionToken?: string
   /** Allows the Vite dev origins; defaults to `NODE_ENV === 'development'`. */
   dev?: boolean
+  /** Extra dev origins (see `parseDevOrigins`); only used when `dev` is on. */
+  devOrigins?: readonly string[]
   /** Session engine for `/api/sessions` and `/ws`; closed (tmux sessions kept) when the app closes. */
   engine?: SessionEngine
   /** Managed-file service; the file routes are only registered when it is given. */
@@ -44,6 +55,16 @@ export interface BuildAppOptions {
   hookToken?: string
   /** Claude settings installer for the hook install, uninstall and status routes. */
   hookSettings?: HookSettings
+  /** Live config store; defaults to an in-memory store seeded from `config`. */
+  configStore?: ConfigStore
+  /** Worktree helper; its routes are only registered when this is given. */
+  worktrees?: Omit<WorktreeDeps, 'run'> & Partial<Pick<WorktreeDeps, 'run'>>
+  /** MCP config service; the MCP routes are only registered when it is given. */
+  mcp?: McpService
+  /** Agent teams board; its route is only registered when `claudeDir` is given and reads nothing while the flag is off. */
+  teams?: { claudeDir: string }
+  /** Built web app to serve with SPA fallback; API only when omitted. */
+  webDist?: string
 }
 
 function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): void {
@@ -93,7 +114,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, engine, files, hookToken, hookSettings }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], engine, files, worktrees, mcp, configStore, teams, webDist, hookToken, hookSettings }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -108,9 +129,11 @@ export function buildApp({ config, logger, sessionToken, dev, engine, files, hoo
   }
   const token = sessionToken ?? createSessionToken()
   const isDev = dev ?? process.env.NODE_ENV === 'development'
-  registerSecurity(app, { getPort, token, dev: isDev })
+  registerSecurity(app, { getPort, token, dev: isDev, devOrigins })
   registerCore(app, engine)
-  registerScopes(app, { getConfig: () => config })
+  const store = configStore ?? createConfigStore(config)
+  registerConfig(app, { store })
+  registerScopes(app, { getConfig: store.get })
   if (files) {
     registerFiles(app, { service: files })
     app.addHook('onClose', async () => files.close())
@@ -119,13 +142,35 @@ export function buildApp({ config, logger, sessionToken, dev, engine, files, hoo
     registerHooks(app, { getPort, settings: hookSettings })
   }
   // Registered after registerSecurity: its onRequest hook guards these routes, and /ws uses the same checks.
+  let hub: WsHub | undefined
   if (engine !== undefined) {
     registerSessions(app, { engine })
     registerHooks(app, { getPort, engine, ...(hookToken === undefined ? {} : { token: hookToken }) })
-    registerWs(app, { engine, authorizeUpgrade: request => authorizeUpgrade(request, { port: getPort(), token, dev: isDev }) })
+    hub = registerWs(app, { engine, authorizeUpgrade: request => authorizeUpgrade(request, { port: getPort(), token, dev: isDev, devOrigins }) })
     app.addHook('onClose', async () => {
       await engine.close()
     })
+  }
+  if (worktrees) {
+    registerWorktrees(app, { ...worktrees, run: worktrees.run ?? runFile })
+  }
+  if (mcp) {
+    registerMcp(app, { service: mcp })
+  }
+  if (teams) {
+    const service = createTeamsService({
+      claudeDir: teams.claudeDir,
+      getConfig: store.get,
+      onConfigChange: listener => store.onChange(listener),
+      logger,
+      broadcast: message => hub?.broadcast(message),
+    })
+    registerTeams(app, { service })
+    app.addHook('onClose', async () => service.close())
+    app.addHook('onReady', async () => service.sync())
+  }
+  if (webDist !== undefined) {
+    registerStatic(app, webDist)
   }
   return app
 }
