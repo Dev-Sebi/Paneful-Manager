@@ -201,7 +201,8 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
       this.options.logger.warn({ err: error, sessionId: id }, 'tmux new-session failed')
       throw new AppError('tmux could not start the session', 500, 'session_spawn_failed')
     }
-    const running: Session = { ...starting, lifecycle: 'running' }
+    // A hook may already have changed the state while tmux was starting the command.
+    const running: Session = { ...(this.sessions.get(id) ?? starting), lifecycle: 'running' }
     this.sessions.set(id, running)
     await this.store.save(running)
     this.emit('session.created', running)
@@ -294,14 +295,14 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
 
   /**
    * Applies a state derived from a Claude Code hook; false for unknown sessions.
-   * Only a changed state is persisted and broadcast; events for sessions that are not running are ignored.
+   * Only a changed state is persisted and broadcast; events for exited sessions are ignored.
    */
   applyHookState(id: string, state: SessionState): boolean {
     const session = this.sessions.get(id)
     if (session === undefined) {
       return false
     }
-    if (session.lifecycle !== 'running') {
+    if (session.lifecycle === 'exited') {
       return true
     }
     const now = new Date().toISOString()

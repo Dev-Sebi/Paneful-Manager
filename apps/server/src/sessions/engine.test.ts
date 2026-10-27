@@ -381,6 +381,28 @@ describe('SessionEngine', () => {
     expect(stored).toMatchObject({ state: 'working', stateSince: working?.stateSince })
   })
 
+  it('keeps a hook state that arrives while tmux is still starting the command', async () => {
+    let id = ''
+    const early: SessionEngine = new SessionEngine({
+      stateDir: join(dir, 'state'),
+      logger,
+      spawnPty,
+      pollIdleMs: 60_000,
+      tmux: new Tmux({ run: async (file, args, options) => {
+        if (args.includes('new-session')) {
+          id = args[args.indexOf('-s') + 1]?.replace(/^ah-/, '') ?? ''
+          expect(early.applyHookState(id, 'working')).toBe(true)
+        }
+        return server.run(file, args, options)
+      } }),
+    })
+    await early.start()
+    const session = await early.create({ cwd: dir, command: 'claude', args: [], cols: 80, rows: 24 })
+    expect(session.id).toBe(id)
+    expect(session).toMatchObject({ state: 'working', lifecycle: 'running' })
+    await early.close()
+  })
+
   it('ignores hook states for exited sessions', async () => {
     await engine.start()
     const session = await engine.create({ cwd: dir, command: 'claude', args: [], cols: 80, rows: 24 })

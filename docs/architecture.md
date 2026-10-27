@@ -338,7 +338,7 @@ New sessions get `AGENT_HUB_SESSION_ID`, `AGENT_HUB_HOOK_TOKEN` and `AGENT_HUB_U
 | `SessionEnd` | `idle`, plus an early exit poll (`engine.poll()`) | event yes |
 | all others | no change | - |
 
-`mapHookEvent` in `packages/shared/src/hooks.ts` is the single source of this table. Each accepted hook for a `running` session sets `lastEventAt`; only a changed `state` also sets `stateSince`, persists the record and broadcasts a `state` frame (so `lastEventAt` on disk may lag). Events for `exited` sessions are ignored.
+`mapHookEvent` in `packages/shared/src/hooks.ts` is the single source of this table. Each accepted hook for a `starting` or `running` session sets `lastEventAt` (a hook can arrive before `tmux new-session` returns); only a changed `state` also sets `stateSince`, persists the record and broadcasts a `state` frame (so `lastEventAt` on disk may lag). Events for `exited` sessions are ignored.
 
 These Claude Code settings can disable status reporting; `GET /api/hooks/status` checks the user settings file plus `/etc/claude-code/managed-settings.json` and `managed-settings.d/*.json` and lists every hit: `disableAllHooks: true`, `allowManagedHooksOnly: true` (managed only), `allowedHttpHookUrls` without a pattern matching the hook URL (`*` wildcard, lists merged), `httpHookAllowedEnvVars` without both variables. Project settings depend on the session directory and are not checked.
 
