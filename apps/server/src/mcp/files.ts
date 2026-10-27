@@ -3,7 +3,7 @@ import { mkdir, open } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { McpServerNameSchema, type McpScope, type McpServerConfig } from '@agent-hub/shared'
-import { applyEdits, modify, type FormattingOptions } from 'jsonc-parser'
+import { applyEdits, modify, parse as parseJsonc, printParseErrorCode, type FormattingOptions, type ParseError } from 'jsonc-parser'
 import { AppError } from '../errors.js'
 import { createBackupStore, type BackupStore } from '../files/backups.js'
 import { errnoCode, sha256 } from '../files/read.js'
@@ -73,12 +73,26 @@ export function resolveClaudeJsonPath(env: Record<string, string | undefined>, h
 const invalidJson = (path: string, reason: string): AppError =>
   new AppError(`${path} is not valid JSON (${reason}); fix it by hand, Agent Hub does not overwrite it`, 409, 'conflict', { path })
 
+/** Position and error code only: `JSON.parse` messages quote file content, which may hold tokens. */
+function describeSyntaxError(text: string): string {
+  const errors: ParseError[] = []
+  parseJsonc(text, errors, { disallowComments: true, allowTrailingComma: false, allowEmptyContent: false })
+  const first = errors[0]
+  if (!first) {
+    return 'syntax error'
+  }
+  const before = text.slice(0, first.offset)
+  const line = before.split('\n').length
+  const column = first.offset - before.lastIndexOf('\n')
+  return `${printParseErrorCode(first.error)} at line ${line}, column ${column}`
+}
+
 function parseObject(path: string, text: string): Record<string, unknown> {
   let data: unknown
   try {
     data = JSON.parse(text)
-  } catch (error) {
-    throw invalidJson(path, (error as Error).message)
+  } catch {
+    throw invalidJson(path, describeSyntaxError(text))
   }
   if (!isRecord(data)) {
     throw invalidJson(path, 'top level is not an object')

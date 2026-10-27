@@ -5,6 +5,7 @@ import {
   McpServerConfigSchema,
   McpServerEntrySchema,
   McpServerNameSchema,
+  RESERVED_MCP_NAMES,
   RemoveMcpServerRequestSchema,
   UpsertMcpServerRequestSchema,
   maskMcpEntry,
@@ -48,6 +49,13 @@ describe('McpServerNameSchema', () => {
     for (const name of ['', '-s', 'a b', 'a/b', 'a'.repeat(65), 'x;rm', '../x']) {
       expect(McpServerNameSchema.safeParse(name).success).toBe(false)
     }
+  })
+
+  it('rejects the reserved built-in names in any case', () => {
+    for (const name of [...RESERVED_MCP_NAMES, 'Workspace', 'COMPUTER-USE']) {
+      expect(McpServerNameSchema.safeParse(name).success).toBe(false)
+    }
+    expect(McpServerNameSchema.safeParse('workspace-tools').success).toBe(true)
   })
 })
 

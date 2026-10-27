@@ -50,10 +50,25 @@ describe('createClaudeCli', () => {
     expect(error).toMatchObject({ statusCode: 409, code: 'conflict', details: { command: 'add-json', exitCode: 1 } })
     expect(error.message).toBe('claude mcp add-json failed: Invalid config {"API_KEY":"***"}')
   })
+
+  it('wraps other rejections into a scrubbed 500', async () => {
+    const fake = createFakeRun('2.1.311', () => {
+      throw new TypeError('bad argument "top-secret-value"')
+    })
+    const cli = createClaudeCli({ env: {}, run: fake.run })
+    const error = await appError(cli.addJson('x', { command: 'x' }, 'user', '/h', ['top-secret-value']))
+    expect(error).toMatchObject({ statusCode: 500, code: 'internal' })
+    expect(error.message).toBe('claude mcp add-json failed: bad argument "***"')
+  })
 })
 
 describe('scrub', () => {
   it('replaces longer secrets first and ignores empty ones', () => {
     expect(scrub('abc abcdef', ['abc', 'abcdef', ''])).toBe('*** ***')
+  })
+
+  it('also replaces the JSON-escaped form', () => {
+    const secret = 'pa"ss\\word'
+    expect(scrub(JSON.stringify({ k: secret }), [secret])).toBe('{"k":"***"}')
   })
 })

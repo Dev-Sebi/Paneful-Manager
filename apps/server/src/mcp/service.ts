@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
@@ -43,6 +44,15 @@ export interface McpService {
 
 function expandHome(path: string, home: string): string {
   return path === '~' || path.startsWith('~/') ? join(home, path.slice(1)) : path
+}
+
+/** Claude Code keys the `local` scope by the real path of its working directory. */
+function canonical(path: string): string {
+  try {
+    return realpathSync.native(path)
+  } catch {
+    return resolve(path)
+  }
 }
 
 function secretsOf(config: McpServerConfig): string[] {
@@ -100,7 +110,7 @@ export function createMcpService(options: McpServiceOptions): McpService {
 
   async function projectPaths(): Promise<string[]> {
     const scopes = await getScopes()
-    return scopes.filter(scope => scope.kind !== 'global').map(scope => resolve(scope.path))
+    return scopes.filter(scope => scope.kind !== 'global').map(scope => canonical(scope.path))
   }
 
   /** Normalizes `projectPath` and requires it to be a configured project or one of its worktrees. */
@@ -108,7 +118,7 @@ export function createMcpService(options: McpServiceOptions): McpService {
     if (scope.kind === 'user') {
       return scope
     }
-    const wanted = resolve(expandHome(scope.projectPath.trim(), home))
+    const wanted = canonical(expandHome(scope.projectPath.trim(), home))
     if (!(await projectPaths()).includes(wanted)) {
       throw new AppError('Unknown project', 404, 'not_found')
     }
@@ -127,12 +137,28 @@ export function createMcpService(options: McpServiceOptions): McpService {
     }
   }
 
+  /** Puts the old entry back after a failed update: CLI first, then the file; 500 if both fail. */
+  async function restore(scope: McpScope, name: string, previous: NativeServer, secrets: string[]): Promise<void> {
+    try {
+      await cli.addJson(name, previous, scope.kind, cwdOf(scope), secrets)
+      return
+    } catch {
+      logger.warn({ name, scope: scope.kind }, 'CLI restore of MCP server failed, writing the file')
+    }
+    try {
+      await files.write(scope, name, previous)
+    } catch {
+      logger.warn({ name, scope: scope.kind }, 'Could not restore MCP server after a failed update')
+      throw new AppError(`MCP server "${name}" update failed and the entry was removed; re-add it manually`, 500, 'internal')
+    }
+  }
+
   return {
     async list(query = {}) {
       const all = await projectPaths()
       let paths = all
       if (query.projectPath !== undefined) {
-        const wanted = resolve(expandHome(query.projectPath.trim(), home))
+        const wanted = canonical(expandHome(query.projectPath.trim(), home))
         if (!all.includes(wanted)) {
           throw new AppError('Unknown project', 404, 'not_found')
         }
@@ -175,8 +201,7 @@ export function createMcpService(options: McpServiceOptions): McpService {
           try {
             await add(mode, scope, name, native, secrets)
           } catch (error) {
-            await cli.addJson(name, existingRaw, scope.kind, cwdOf(scope), [...secrets, ...(existing ? secretsOf(existing) : [])])
-              .catch(() => logger.warn({ name, scope: scope.kind }, 'Could not restore MCP server after a failed update'))
+            await restore(scope, name, existingRaw, [...secrets, ...(existing ? secretsOf(existing) : [])])
             throw error
           }
         } else {

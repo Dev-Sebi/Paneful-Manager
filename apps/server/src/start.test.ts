@@ -1,4 +1,4 @@
-import { DEFAULT_CONFIG, HealthResponseSchema, API_ROUTES } from '@agent-hub/shared'
+import { DEFAULT_CONFIG, HealthResponseSchema, API_ROUTES, ListMcpServersResponseSchema } from '@agent-hub/shared'
 import { pino } from 'pino'
 import { EventEmitter } from 'node:events'
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
@@ -105,12 +105,15 @@ describe('shutdown timeout', () => {
 })
 
 describe('file service wiring', () => {
-  it('serves the file routes and refuses a backup dir inside a scope', async () => {
+  it('serves the file and MCP routes and refuses a backup dir inside a scope', async () => {
     const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
     const env = { CLAUDE_CONFIG_DIR: '/nonexistent/claude', XDG_STATE_HOME: stateHome }
     const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env, tmux: missingTmux() })
     const response = await fetch(`${server.url}${API_ROUTES.files}`)
     expect(response.status).toBe(200)
+    const mcp = await fetch(`${server.url}${API_ROUTES.mcp}`)
+    expect(mcp.status).toBe(200)
+    expect(ListMcpServersResponseSchema.parse(await mcp.json()).servers).toEqual([])
     await server.shutdown()
     await rm(stateHome, { recursive: true, force: true })
     await expect(startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), {

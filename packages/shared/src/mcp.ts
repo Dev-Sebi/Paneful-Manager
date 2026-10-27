@@ -4,8 +4,16 @@ import { PathSchema, type Scope } from './scope.js'
 export const McpTransportSchema = z.enum(['stdio', 'http', 'sse'])
 export type McpTransport = z.infer<typeof McpTransportSchema>
 
+/** Names of Claude Code's built-in servers; Claude Code skips them in config files and `claude mcp add` rejects them. */
+export const RESERVED_MCP_NAMES = ['workspace', 'claude-in-chrome', 'computer-use', 'Claude Preview', 'Claude Browser'] as const
+
+const reserved = new Set<string>(RESERVED_MCP_NAMES.map(name => name.toLowerCase()))
+
 /** Server name as accepted by `claude mcp add-json`; never starts with `-`, so it cannot be read as a flag. */
-export const McpServerNameSchema = z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/, 'invalid MCP server name')
+export const McpServerNameSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/, 'invalid MCP server name')
+  .refine(name => !reserved.has(name.toLowerCase()), 'reserved MCP server name')
 export type McpServerName = z.infer<typeof McpServerNameSchema>
 
 /** Env and header keys whose values are shown in full; every other value is masked. */

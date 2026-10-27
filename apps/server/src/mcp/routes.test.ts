@@ -152,6 +152,20 @@ describe('MCP routes in file mode', () => {
     expect((await send(target, { method: 'GET', url: API_ROUTES.mcp })).statusCode).toBe(200)
   })
 
+  it('reports a broken file by position only, without quoting its content', async () => {
+    const token = 'sk-live-ABCDEF0123456789'
+    writeFileSync(claudeJson(), `{\n  "oauthAccount": { "token": "${token}" oops },\n  "a": 1\n}\n`)
+    const { logger, output } = captureLogger()
+    const target = start(createFakeRun(null), { logger })
+    const response = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'x', scope: { kind: 'user' }, config: { transport: 'stdio', command: 'x' } } })
+    expect(response.statusCode).toBe(409)
+    expect(ApiErrorSchema.parse(response.json()).message).toMatch(/\(InvalidSymbol at line 2, column 57\)/)
+    expect((await send(target, { method: 'GET', url: API_ROUTES.mcp })).statusCode).toBe(200)
+    expect(output()).toContain('Skipping MCP scope')
+    expect(response.body).not.toContain(token)
+    expect(output()).not.toContain(token)
+  })
+
   it('never logs env or header values', async () => {
     const { logger, output } = captureLogger()
     const target = start(createFakeRun(null), { logger })
@@ -162,7 +176,33 @@ describe('MCP routes in file mode', () => {
   })
 })
 
+const failingAdd = (onRemove?: () => void) => createFakeRun('2.1.311', call => {
+  if (call.args[1] === 'remove') {
+    onRemove?.()
+    return { code: 0, stdout: '', stderr: '' }
+  }
+  throw new RunError('claude exited with code 1', 'exit', 1, '', 'boom')
+})
+
 describe('MCP routes in CLI mode', () => {
+  it('restores through the file when the CLI restore fails too', async () => {
+    const old = { type: 'stdio', command: 'old', args: [], env: { K: SECRET } }
+    const fake = failingAdd(() => writeFileSync(claudeJson(), JSON.stringify({ a: 1, mcpServers: {} })))
+    writeFileSync(claudeJson(), JSON.stringify({ a: 1, mcpServers: { srv: old } }))
+    const response = await send(start(fake), { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'srv', scope: { kind: 'user' }, config: { transport: 'stdio', command: 'new' } } })
+    expect(response.statusCode).toBe(409)
+    expect(readJson(claudeJson())).toEqual({ a: 1, mcpServers: { srv: old } })
+  })
+
+  it('answers 500 without secrets when no restore works', async () => {
+    writeFileSync(claudeJson(), JSON.stringify({ mcpServers: { srv: { type: 'stdio', command: 'old', args: [], env: { K: SECRET } } } }))
+    const fake = failingAdd(() => writeFileSync(claudeJson(), '{ broken'))
+    const response = await send(start(fake), { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'srv', scope: { kind: 'user' }, config: { transport: 'stdio', command: 'new', env: { K: { keep: true } } } } })
+    expect(response.statusCode).toBe(500)
+    expect(ApiErrorSchema.parse(response.json())).toEqual({ code: 'internal', message: 'MCP server "srv" update failed and the entry was removed; re-add it manually' })
+    expect(response.body).not.toContain(SECRET)
+  })
+
   it('adds, updates and removes through claude mcp with exact argv', async () => {
     writeFileSync(join(box.project, '.mcp.json'), JSON.stringify({ mcpServers: { srv: { type: 'http', url: 'https://old.example', oauth: { clientId: 'id' }, headers: { Authorization: SECRET } } } }))
     const fake = createFakeRun('2.1.311')
