@@ -57,7 +57,7 @@ describe('tabs store', () => {
     expect(store.activeId).toBe('a')
   })
 
-    it('falls back to the first tab when the persisted active id is unknown', () => {
+  it('falls back to the first tab when the persisted active id is unknown', () => {
     localStorage.setItem(TABS_STORAGE_KEY, JSON.stringify({ tabs: [makeTab('a')], activeId: 'gone' }))
     expect(freshStore().activeId).toBe('a')
   })

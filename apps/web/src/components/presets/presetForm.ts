@@ -107,13 +107,13 @@ export function validateForm (form: PresetForm): { preset: WorkspacePreset } | {
   return { issues: result.error.issues.map(issue => ({ path: issue.path.join('.'), message: issue.message })) }
 }
 
-/** Turns open tabs into preset tabs; a tab with a pane whose session is unknown is left out. */
+/** Turns open tabs into preset tabs; a tab with a placeholder pane or an unknown session is left out. */
 export function tabsToForm (tabs: readonly AppTab[], sessions: ReadonlyMap<string, Session>): PresetForm {
   const form = emptyForm()
   form.tabs = tabs.flatMap((tab): TabForm[] => {
     const panes: PaneForm[] = []
     for (const pane of tab.panes) {
-      const session = sessions.get(pane.sessionId)
+      const session = pane.sessionId === undefined ? undefined : sessions.get(pane.sessionId)
       if (!session) {
         return []
       }
