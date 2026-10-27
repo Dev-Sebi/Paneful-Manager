@@ -200,6 +200,12 @@ The policy is coalesce, then close with `4008`; output is never dropped, because
 - REST calls that fail with `401` or `403` refetch the token once and retry once; a second failure is shown to the user.
 - Graceful shutdown closes all sockets with `1001` and all ptys; tmux sessions are left running.
 
+### Split layouts (web)
+
+`AhSplitLayout` renders a tab's `Layout` with `splitpanes`: `single`, `row`, `column`, `grid-2x2` and `custom` are all expanded into one node tree (`layoutTree.ts`) and drawn recursively by `AhSplitNode`; leaves are filled through the `pane` slot (`AhTerminalPane` in the workspace view). Default sizes come from the optional `size` weights of panes and nodes, otherwise equal shares.
+
+Dragged sizes are kept per tab and per split node path in `localStorage` (`agent-hub.layout-sizes.v1`, `stores/layoutSizes.ts`, validated with zod on load; entries that no longer fit the node's pane count are ignored). "Reset layout" drops a tab's entries; entries of closed tabs are pruned. Splitters are focusable separators with `aria-label`; arrow keys move them in 5% steps. After a splitter move (debounced) and when a tab is activated, the workspace view calls `fit()` on the tab's terminal panes.
+
 ## File-write policy
 
 `$CLAUDE_DIR` is `$CLAUDE_CONFIG_DIR` when set, otherwise `~/.claude`; the server honors it everywhere it reads or writes Claude Code files. The server writes only these files; everything else is read-only:

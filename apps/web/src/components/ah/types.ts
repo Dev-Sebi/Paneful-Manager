@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/unified-signatures -- overloads mirror the spec contract one to one */
+import type { Layout } from '@agent-hub/shared'
 /** Contract types mirroring docs/design-system/components/<Name>/index.d.ts. */
 
 /** Visual emphasis of the button. */
@@ -311,4 +312,25 @@ export interface AhTerminalPaneExpose {
   fit: () => void
   /** Selected text, empty string when nothing is selected. */
   getSelection: () => string
+}
+
+/* ---------- AhSplitLayout ---------- */
+
+export interface AhSplitLayoutProps {
+  /** Arrangement to render; `custom` trees point at `panes[i]`. */
+  layout: Layout
+  /** Panes of the tab; `size` is the default weight for row and column layouts. */
+  panes: ReadonlyArray<{ size?: number }>
+  /** Key under which dragged sizes are persisted. */
+  tabId: string
+}
+
+export interface AhSplitLayoutSlots {
+  /** Content of one pane; `index` points into `panes`. */
+  pane?: (props: { index: number }) => unknown
+}
+
+export interface AhSplitLayoutExpose {
+  /** Drops the saved sizes of this tab and returns to the layout defaults. */
+  resetSizes: () => void
 }
