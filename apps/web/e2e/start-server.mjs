@@ -44,6 +44,9 @@ for (const dir of Object.values(dirs)) {
   mkdirSync(dir, { recursive: true })
 }
 writeFileSync(join(root, 'pid'), String(process.pid))
+// Specs run in other processes; this file tells them where the isolated state lives.
+const pathsFile = join(tmpdir(), `${PREFIX}paths.json`)
+writeFileSync(pathsFile, JSON.stringify({ state: join(dirs.state, 'agent-hub'), config: join(dirs.config, 'agent-hub') }))
 
 const env = {
   ...process.env,
@@ -78,6 +81,7 @@ function cleanup () {
   server.kill('SIGTERM')
   killTmux(dirs.tmux)
   rmSync(root, { recursive: true, force: true })
+  rmSync(pathsFile, { force: true })
 }
 
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {

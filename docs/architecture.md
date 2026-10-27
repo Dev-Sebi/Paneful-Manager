@@ -434,7 +434,7 @@ examples/          config.yaml and preset examples, validated by tests
 | `pnpm dev` | Builds `@agent-hub/shared`, then runs in parallel: shared `tsc --watch`, server `tsx watch`, web Vite dev server. Vite proxies `/api` and `/ws` to the server port (set up with the server skeleton). |
 | `pnpm build` | `tsc` for shared and server, `vite build` for web. In production the server serves `apps/web/dist` and the SPA uses relative URLs, so one origin serves everything. |
 | `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint (flat config, `eslint-config-vuetify` + `typescript-eslint`), `tsc`/`vue-tsc --noEmit`, vitest per package. |
-| `pnpm e2e` | Playwright end-to-end tests in `apps/web`. |
+| `pnpm e2e` | Playwright end-to-end tests in `apps/web`; see [Running the e2e suite](#running-the-e2e-suite). |
 
 TypeScript is strict everywhere (`tsconfig.base.json`: `strict`, `noUncheckedIndexedAccess`). Node 22 and pnpm 11 are the minimum (`engines`).
 
@@ -445,7 +445,11 @@ Design tokens flow from `docs/design-system/tokens.json` through a build script 
 | Job | Steps |
 | --- | --- |
 | `check` | install tmux, `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` |
-| `e2e` (after `check`) | install, cached Playwright Chromium, build `@agent-hub/shared`, `pnpm e2e`; uploads the Playwright report on failure |
+| `e2e` (after `check`) | install tmux, install, cached Playwright Chromium, build `@agent-hub/shared`, `pnpm e2e`; uploads the Playwright report on failure |
+
+### Running the e2e suite
+
+Install the browser once with `pnpm --dir apps/web exec playwright install chromium`, then run `pnpm e2e`. Playwright builds the server and starts it on port 7340 together with Vite on 3001, using a private tmux socket and temporary state and config directories, so a running Agent Hub is never touched. Specs that need sessions require `tmux` on the `PATH` and skip without it. Specs reach the server through `apps/web/e2e/support.ts`, which also reads the hook token from the isolated state directory.
 
 Dependabot (`.github/dependabot.yml`) opens dependency update pull requests. Required status checks for merging are a repository setting, not part of the repo.
 
