@@ -104,12 +104,10 @@ export const api = {
     fetchJson(API_ROUTES.config, { schema: PatchConfigResponseSchema, method: 'PATCH', body: patch }),
   listScopes: () => fetchJson(API_ROUTES.scopes, { schema: ScopesResponseSchema }),
   listSessions: () => fetchJson(API_ROUTES.sessions, { schema: ListSessionsResponseSchema }),
-  sessions: {
-    create: (request: CreateSessionRequestInput) =>
-      fetchJson(API_ROUTES.sessions, { schema: CreateSessionResponseSchema, method: 'POST', body: request }),
-    kill: (id: string) =>
-      fetchJson(API_ROUTES.session.replace(':id', encodeURIComponent(id)), { schema: KillSessionResponseSchema, method: 'DELETE' }),
-  },
+  createSession: (request: CreateSessionRequestInput) =>
+    fetchJson(API_ROUTES.sessions, { schema: CreateSessionResponseSchema, method: 'POST', body: request }),
+  killSession: (id: string) =>
+    fetchJson(API_ROUTES.session.replace(':id', encodeURIComponent(id)), { schema: KillSessionResponseSchema, method: 'DELETE' }),
   listPresets: () => fetchJson(API_ROUTES.presets, { schema: ListPresetsResponseSchema }),
   listFiles: () => fetchJson(API_ROUTES.files, { schema: ListFilesResponseSchema }),
   readFile: (path: string) =>

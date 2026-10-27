@@ -119,8 +119,8 @@ describe('api client', () => {
       .mockResolvedValueOnce(jsonResponse({ token: 't1' }))
       .mockResolvedValueOnce(jsonResponse({ session }))
       .mockResolvedValueOnce(jsonResponse({ id: 'abc', killed: true }))
-    await expect(api.sessions.create({ cwd: '~/', command: 'sh' })).resolves.toMatchObject({ session: { id: 'abc' } })
-    await expect(api.sessions.kill('abc')).resolves.toEqual({ id: 'abc', killed: true })
+    await expect(api.createSession({ cwd: '~/', command: 'sh' })).resolves.toMatchObject({ session: { id: 'abc' } })
+    await expect(api.killSession('abc')).resolves.toEqual({ id: 'abc', killed: true })
     expect(fetchMock.mock.calls.map(call => [call[0], call[1]?.method])).toEqual([
       ['/api/session-token', undefined],
       ['/api/sessions', 'POST'],

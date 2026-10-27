@@ -7,7 +7,7 @@
         :model-value="tabs.activeId ?? undefined"
         reorderable
         @add="ui.notify('New tab is not available yet')"
-        @close="requestClose"
+        @close="closing.closeTab"
         @reorder="({ from, to }) => tabs.move(from, to)"
         @update:model-value="select"
       >
@@ -90,14 +90,22 @@
     </AhDialog>
 
     <AhDialog
-      confirm-text="Close tab"
-      :model-value="pendingClose !== undefined"
-      title="Close tab"
+      confirm-text="Close and kill sessions"
+      initial-focus="[data-ah-cancel]"
+      :loading="closing.busy.value"
+      :model-value="closing.pendingTabId.value !== undefined"
+      title="Close tab?"
       tone="danger"
-      @confirm="confirmClose"
-      @update:model-value="pendingClose = undefined"
+      @confirm="closing.confirm"
+      @update:model-value="closing.cancel"
     >
-      This tab has unacknowledged activity. Close it anyway?
+      <p>Closing this tab kills its running sessions:</p>
+
+      <ul class="workspaces__sessions">
+        <li v-for="session in closing.pendingSessions.value" :key="session.id">{{ session.title }}</li>
+      </ul>
+
+      <v-checkbox v-model="closing.dontAskAgain.value" density="compact" hide-details label="Don't ask again" />
     </AhDialog>
   </div>
 </template>
@@ -113,7 +121,7 @@
   // Imported directly, not through the barrel, so xterm stays in the lazy Workspaces chunk.
   import AhTerminalPane from '@/components/ah/AhTerminalPane.vue'
   import EmptyState from '@/components/EmptyState.vue'
-  import { useConfigStore } from '@/stores/config'
+  import { useCloseTab } from '@/composables/useCloseTab'
   import { useSessionsStore } from '@/stores/sessions'
   import { useTabsStore } from '@/stores/tabs'
   import { useUiStore } from '@/stores/ui'
@@ -122,10 +130,9 @@
   const router = useRouter()
   const tabs = useTabsStore()
   const sessions = useSessionsStore()
-  const config = useConfigStore()
   const ui = useUiStore()
 
-  const pendingClose = ref<string>()
+  const closing = useCloseTab()
   const maximized = ref<string>()
   const createOpen = ref(false)
   const creating = ref(false)
@@ -150,7 +157,7 @@
   async function createSession () {
     creating.value = true
     try {
-      const { session } = await api.sessions.create({ cwd: createCwd.value.trim(), command: createCommand.value.trim() })
+      const { session } = await api.createSession({ cwd: createCwd.value.trim(), command: createCommand.value.trim() })
       sessions.upsert(session)
       const tab: AppTab = { id: `tab-${session.id}`, title: session.title ?? session.command, layout: { kind: 'single' }, panes: [{ sessionId: session.id }] }
       tabs.add(tab)
@@ -170,21 +177,6 @@
 
   function select (id: string) {
     void router.push(`/workspaces/${id}`)
-  }
-
-  function requestClose (id: string) {
-    if (config.confirmCloseTab && tabs.dirty[id]) {
-      pendingClose.value = id
-    } else {
-      tabs.close(id)
-    }
-  }
-
-  function confirmClose () {
-    if (pendingClose.value) {
-      tabs.close(pendingClose.value)
-    }
-    pendingClose.value = undefined
   }
 
   // Keeps the URL and the store in agreement: the URL wins when it names a tab, otherwise the active tab is shown.
@@ -236,5 +228,10 @@
   flex-direction: column;
   gap: var(--ah-space-4);
   padding-top: var(--ah-space-2);
+}
+
+.workspaces__sessions {
+  margin: var(--ah-space-2) 0;
+  padding-left: var(--ah-space-6);
 }
 </style>
