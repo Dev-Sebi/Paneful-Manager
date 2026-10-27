@@ -24,6 +24,8 @@ describe('index', () => {
       'mapHookEvent',
       'TeamChangedMessageSchema',
       'ListTeamsResponseSchema',
+      'TeamTemplateSchema',
+      'LaunchTeamTemplateResponseSchema',
     ]) {
       expect(shared).toHaveProperty(name)
     }

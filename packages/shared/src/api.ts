@@ -5,6 +5,7 @@ import { AppPaneSchema, LayoutSchema, paneListSchema } from './layout.js'
 import { PresetNameSchema, WorkspacePresetSchema } from './preset.js'
 import { PathSchema, ScopeSchema } from './scope.js'
 import { SessionIdSchema, SessionSchema, TerminalSizeSchema } from './session.js'
+import { TeamLaunchSchema, TeamTemplateNameSchema, TeamTemplateSchema } from './team-templates.js'
 
 export const API_PREFIX = '/api'
 
@@ -32,6 +33,9 @@ export const API_ROUTES = {
   mcpHealth: `${API_PREFIX}/mcp/health`,
   mcpHealthAll: `${API_PREFIX}/mcp/health/all`,
   teams: `${API_PREFIX}/teams`,
+  teamTemplates: `${API_PREFIX}/team-templates`,
+  teamTemplate: `${API_PREFIX}/team-templates/:name`,
+  teamTemplateLaunch: `${API_PREFIX}/team-templates/:name/launch`,
 } as const
 
 // Security
@@ -166,6 +170,37 @@ export const LaunchPresetResponseSchema = z.strictObject({
   tabs: z.array(LaunchedTabSchema).min(1),
 })
 export type LaunchPresetResponse = z.infer<typeof LaunchPresetResponseSchema>
+
+// Team templates (experimental; every route answers 404 while `experimental.agentTeams` is off)
+
+export const TeamTemplateParamsSchema = z.strictObject({ name: TeamTemplateNameSchema })
+export type TeamTemplateParams = z.infer<typeof TeamTemplateParamsSchema>
+
+/** GET /api/team-templates; `launches` lists recorded launches whose lead session is still live. */
+export const ListTeamTemplatesResponseSchema = z.strictObject({
+  templates: z.array(TeamTemplateSchema),
+  launches: z.array(TeamLaunchSchema),
+})
+export type ListTeamTemplatesResponse = z.infer<typeof ListTeamTemplatesResponseSchema>
+
+/** POST /api/team-templates and PUT /api/team-templates/:name (full replace). */
+export const UpsertTeamTemplateRequestSchema = z.strictObject({ template: TeamTemplateSchema })
+export type UpsertTeamTemplateRequest = z.infer<typeof UpsertTeamTemplateRequestSchema>
+
+export const TeamTemplateResponseSchema = z.strictObject({ template: TeamTemplateSchema })
+export type TeamTemplateResponse = z.infer<typeof TeamTemplateResponseSchema>
+
+/** DELETE /api/team-templates/:name */
+export const DeleteTeamTemplateResponseSchema = z.strictObject({ name: TeamTemplateNameSchema, deleted: z.literal(true) })
+export type DeleteTeamTemplateResponse = z.infer<typeof DeleteTeamTemplateResponseSchema>
+
+/** POST /api/team-templates/:name/launch; `untestedVersion` is set above the last tested Claude Code version. */
+export const LaunchTeamTemplateResponseSchema = z.strictObject({
+  launch: TeamLaunchSchema,
+  claudeVersion: z.string(),
+  untestedVersion: z.boolean(),
+})
+export type LaunchTeamTemplateResponse = z.infer<typeof LaunchTeamTemplateResponseSchema>
 
 // Scopes
 

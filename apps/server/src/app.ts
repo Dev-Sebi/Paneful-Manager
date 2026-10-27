@@ -33,6 +33,9 @@ import { registerSessions } from './sessions/routes.js'
 import { registerStatic } from './static.js'
 import { registerTeams } from './teams/routes.js'
 import { createTeamsService } from './teams/service.js'
+import type { TeamTemplateLauncher } from './team-templates/launch.js'
+import { registerTeamTemplates } from './team-templates/routes.js'
+import type { TeamTemplateStore } from './team-templates/store.js'
 import { registerWorktrees, type WorktreeDeps } from './worktrees/routes.js'
 import { registerWs, type WsHub } from './ws/plugin.js'
 
@@ -67,6 +70,8 @@ export interface BuildAppOptions {
   mcp?: McpDeps
   /** Agent teams board; its route is only registered when `claudeDir` is given and reads nothing while the flag is off. */
   teams?: { claudeDir: string }
+  /** Team templates (experimental); every route answers 404 while `experimental.agentTeams` is off. */
+  teamTemplates?: { store: TeamTemplateStore; launcher?: TeamTemplateLauncher }
   /** Built web app to serve with SPA fallback; API only when omitted. */
   webDist?: string
 }
@@ -118,7 +123,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], engine, files, presets, worktrees, mcp, configStore, teams, webDist, hookToken, hookSettings }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], engine, files, presets, worktrees, mcp, configStore, teams, teamTemplates, webDist, hookToken, hookSettings }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -175,6 +180,9 @@ export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], e
     registerTeams(app, { service })
     app.addHook('onClose', async () => service.close())
     app.addHook('onReady', async () => service.sync())
+  }
+  if (teamTemplates) {
+    registerTeamTemplates(app, { ...teamTemplates, enabled: () => store.get().experimental.agentTeams })
   }
   if (webDist !== undefined) {
     registerStatic(app, webDist)
