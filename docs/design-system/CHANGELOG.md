@@ -2,6 +2,12 @@
 
 All notable changes to the Agent Hub design system. Format: newest first, one section per version.
 
+## Unreleased
+
+### Added
+
+- Generator added: `apps/web/scripts/generate-tokens.ts` emits `tokens.css`, `theme.ts` (Vuetify + xterm themes) and `tokens.ts` from `tokens.json`; `tokens:check` fails on stale output.
+
 ## 0.2.0 - 2026-10-27
 
 ### Added

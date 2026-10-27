@@ -1,0 +1,53 @@
+/* Allowed animate.css set, see docs/design-system/Motion.md. */
+@import "animate.css/source/fading_entrances/fadeIn.css";
+@import "animate.css/source/fading_exits/fadeOut.css";
+@import "animate.css/source/attention_seekers/pulse.css";
+
+/* Source files expose unprefixed classes only, so the animate__ classes are defined here. */
+.animate__animated {
+  animation-duration: var(--animate-duration, var(--ah-motion-duration-normal));
+  animation-fill-mode: both;
+}
+
+.animate__fadeIn { animation-name: fadeIn; }
+.animate__fadeOut { animation-name: fadeOut; }
+.animate__fadeInUp { animation-name: fadeInUp; }
+.animate__fadeInDown { animation-name: fadeInDown; }
+.animate__pulse { animation-name: pulse; animation-timing-function: var(--ah-motion-easing-emphasized); }
+.animate__headShake { animation-name: headShake; animation-timing-function: var(--ah-motion-easing-emphasized); }
+
+/* Stock translates by 100%; overridden to space.2. */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translate3d(0, var(--ah-space-2), 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translate3d(0, calc(-1 * var(--ah-space-2)), 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* Stock combines translateX with rotateY; translateX only, max space.1. */
+@keyframes headShake {
+  0%, 50% { transform: translateX(0); }
+  6.5% { transform: translateX(calc(-1 * var(--ah-space-1))); }
+  18.5% { transform: translateX(var(--ah-space-1)); }
+  31.5% { transform: translateX(calc(-0.5 * var(--ah-space-1))); }
+  43.5% { transform: translateX(calc(0.25 * var(--ah-space-1))); }
+}
+
+@keyframes ah-spin {
+  to { transform: rotate(360deg); }
+}
+
+.ah-spinner {
+  animation: ah-spin var(--ah-motion-duration-spinner) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *:not(.ah-spinner), *::before, *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+  }
+}
