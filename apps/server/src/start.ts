@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { BIND_HOST, HOOK_ENV, resolveStateDir, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
-import { resolveConfigFile } from './config/load-config.js'
+import { resolveConfigFile, resolveWorkspacesDir } from './config/load-config.js'
 import { createConfigStore } from './config/store.js'
 import { createBackupStore } from './files/backups.js'
 import { createFileService } from './files/service.js'
@@ -13,6 +13,9 @@ import { loadHookToken } from './hooks/token.js'
 import { createHealthRunner } from './mcp/health.js'
 import { createMcpService } from './mcp/service.js'
 import { expandHome } from './paths.js'
+import { createPresetLauncher } from './presets/launch.js'
+import { LaunchLedger } from './presets/ledger.js'
+import { createPresetStore } from './presets/store.js'
 import { discoverScopes } from './scopes/discover.js'
 import { assertLoopbackAddress, DEV_ORIGINS_ENV_VAR, parseDevOrigins } from './security/origin.js'
 import { SessionEngine } from './sessions/engine.js'
@@ -68,13 +71,19 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const webDist = resolveWebDist(env)
   const mcp = createMcpService({ getScopes, env, backupDir, logger })
   const devOrigins = parseDevOrigins(env[DEV_ORIGINS_ENV_VAR], message => logger.warn(message))
+  const backups = createBackupStore({ dir: backupDir })
+  const presetStore = createPresetStore({ dir: resolveWorkspacesDir(env, configDir), logger, backups })
+  const ledger = new LaunchLedger(stateDir, logger)
+  await ledger.load()
+  const launcher = createPresetLauncher({ store: presetStore, engine, ledger, logger })
   const app = buildApp({
     config,
     logger,
     devOrigins,
     files,
     engine,
-    worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) },
+    presets: { store: presetStore, launcher },
+    worktrees: { getScopes, backups },
     mcp: { service: mcp, health: createHealthRunner({ logger }) },
     configStore: store,
     teams: { claudeDir: resolveClaudeDir(env) },
@@ -98,12 +107,14 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const port = typeof address === 'object' && address !== null ? address.port : config.port
   listeningPort = port
   serverUrl = `http://${BIND_HOST}:${port}`
+  // Detached so startup is not delayed; shutdown waits for it so no session starts after close.
+  const autostart = launcher.autostart()
   const shutdown = async (): Promise<boolean> => {
     let timer: NodeJS.Timeout | undefined
     const timeout = new Promise<false>(resolve => {
       timer = setTimeout(() => resolve(false), SHUTDOWN_TIMEOUT_MS)
     })
-    const closed = app.close().then(() => true as const)
+    const closed = autostart.then(() => app.close()).then(() => true as const)
     const clean = await Promise.race([closed, timeout])
     clearTimeout(timer)
     if (!clean) {

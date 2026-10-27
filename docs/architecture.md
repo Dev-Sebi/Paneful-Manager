@@ -118,6 +118,7 @@ Re-adopted sessions keep the environment they were created with, which is why th
 | `.../agent-hub/workspaces/<name>.yaml` | `WorkspacePresetSchema`, file name = `name` | user + server (preset API) |
 | `$XDG_STATE_HOME/agent-hub/` (default `~/.local/state/agent-hub/`, called `$STATE`) | runtime state, mode `0700` | server only |
 | `$STATE/sessions/<id>.json` | one `Session` record, rewritten on every lifecycle or state change | server |
+| `$STATE/preset-launches.json` | preset name to the ids of the sessions it launched (autostart guard, see [Workspace presets](#workspace-presets)) | server |
 | `$STATE/tabs.json` | runtime tabs (`AppTabSchema[]`) incl. pane sizes, so tabs survive browser close | server |
 | `$STATE/hook-token` | hook token, mode `0600`, created once | server |
 | `$STATE/tmux.conf` | tmux config, read by `agent-hub-tmux.service` at tmux start | installer |
@@ -394,6 +395,15 @@ Assumed, verify in T50 or with a live session:
 - Agent-team events (`TeammateIdle`, `TaskCreated`, `TaskCompleted`) need their own mapping behind `experimental.agentTeams` (T50).
 - The minimum Claude Code version that supports `http` hooks and `StopFailure`; the reference states none.
 
+## Workspace presets
+
+See [ADR 0011](adr/0011-preset-launch-ledger.md). Presets are `~/.config/agent-hub/workspaces/<name>.yaml` (`WorkspacePresetSchema`); the file name is the preset name.
+
+- Store (`presets/store.ts`): list, get, create, update, delete. Names must match `PresetNameSchema`; a symlinked file must resolve inside the real workspaces directory. Create answers `409` for an existing name, get, update and delete answer `404` for a missing one, update cannot rename (`400`). A file that is invalid YAML, fails the schema or declares another name is skipped in the listing and answers `409` on direct access. Writes are atomic (mode `0600`), serialized, and back up the previous content (see the file-write policy). Updates are merged into the existing YAML document, so top-level comments survive; keys missing from the replacement are removed, unknown keys sent back by the client are kept. Defaults the schema fills in (`args: []`, object-form layouts without options) are not written.
+- Launch (`POST /api/presets/:name/launch`): every pane is validated as a `CreateSessionRequest` first, then sessions are created one after another through the engine. A failure kills the sessions created so far and rethrows the original error. The response lists the tabs (title, layout, panes with session ids); the web adds the ids and opens them through the tabs store. An untitled tab is named after the preset (with its position when the preset has several tabs).
+- Autostart: after the server listens, every preset with `autostart: true` is launched once. A preset is skipped when any session id recorded for it in `$STATE/preset-launches.json` still exists, which covers sessions re-adopted from tmux after a restart. Every launch (manual or autostart) is recorded. One info line per preset; errors are logged and never stop the server.
+- Web: `stores/presets.ts`, the presets panel in the Workspaces view (empty state, and a dialog from the tab bar), `PresetDialog` with YAML-shaped fields (arguments one per line; `custom` layouts and unknown keys are kept untouched) and "Save current tabs". The form is validated with the shared schema before sending.
+
 ## Agent teams (experimental)
 
 Behind `experimental.agentTeams` (default off) and Claude Code `>= 2.1.309` (lowest tested), see [ADR 0010](adr/0010-agent-teams.md).
@@ -524,6 +534,7 @@ All routes live under `/api` (`API_ROUTES`).
 | `POST /api/presets` | `UpsertPresetRequestSchema` | `PresetResponseSchema` |
 | `PUT /api/presets/:name` | `UpsertPresetRequestSchema` (full replace) | `PresetResponseSchema` |
 | `DELETE /api/presets/:name` | `PresetParamsSchema` | `DeletePresetResponseSchema` |
+| `POST /api/presets/:name/launch` | `PresetParamsSchema` | `LaunchPresetResponseSchema` (`name`, `tabs`: title, layout, panes with session ids) |
 | `GET /api/config` | - | `GetConfigResponseSchema` |
 | `PATCH /api/config` | `PatchConfigRequestSchema` | `PatchConfigResponseSchema` (`config`, `restartRequired`) |
 | `POST /api/hooks` | Claude Code hook input (`HookPayloadSchema`), headers `X-Agent-Hub-Hook-Token`, `X-Agent-Hub-Session-Id` | `204` without body, or `401` |

@@ -6,6 +6,7 @@ import { expandHome } from '../paths.js'
 import type { BaseLogger } from 'pino'
 
 export const CONFIG_FILE_NAME = 'config.yaml'
+export const WORKSPACES_DIR_NAME = 'workspaces'
 
 export class ConfigError extends Error {
   override readonly name = 'ConfigError'
@@ -31,6 +32,11 @@ async function readConfigFile(file: string): Promise<string | undefined> {
 /** Absolute path of `config.yaml` for the given environment or explicit config directory. */
 export function resolveConfigFile(env: Record<string, string | undefined>, configDir?: string): string {
   return join(expandHome(configDir ?? resolveConfigDir(env)), CONFIG_FILE_NAME)
+}
+
+/** Directory holding the workspace preset files, next to `config.yaml`. */
+export function resolveWorkspacesDir(env: Record<string, string | undefined>, configDir?: string): string {
+  return join(expandHome(configDir ?? resolveConfigDir(env)), WORKSPACES_DIR_NAME)
 }
 
 /** Loads and validates `<configDir>/config.yaml`; a missing file yields the defaults. */

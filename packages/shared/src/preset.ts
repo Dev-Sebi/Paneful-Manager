@@ -3,9 +3,13 @@ import { DEFAULT_COMMAND } from './defaults.js'
 import { LayoutSchema, PaneSizeSchema, paneListSchema, validateLayoutPanes } from './layout.js'
 import { PathSchema } from './scope.js'
 
+/** Longest preset name; keeps `<name>.yaml` below common file name limits. */
+export const MAX_PRESET_NAME_LENGTH = 64
+
 /** Preset names double as file names (`<name>.yaml`). */
 export const PresetNameSchema = z
   .string()
+  .max(MAX_PRESET_NAME_LENGTH, `name must be at most ${MAX_PRESET_NAME_LENGTH} characters`)
   .regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'name may only contain letters, digits, _ and - and must not start with _ or -')
 
 export const PresetPaneSchema = z.looseObject({
