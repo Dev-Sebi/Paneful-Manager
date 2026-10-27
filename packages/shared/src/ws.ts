@@ -120,6 +120,7 @@ export const FileChangedMessageSchema = z
     message: 'hash is not allowed for unlink',
     path: ['hash'],
   })
+export type FileChangedMessage = z.infer<typeof FileChangedMessageSchema>
 
 export const ServerMessageSchema = z.discriminatedUnion('type', [
   OutputMessageSchema,
