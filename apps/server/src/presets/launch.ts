@@ -20,6 +20,8 @@ export interface PresetLauncherOptions {
 export interface PresetLauncher {
   /** Starts one session per pane; a failure kills the sessions already started and rethrows. */
   launch: (name: string) => Promise<LaunchPresetResponse>
+  /** Drops the launch record of a deleted preset; failures are logged, never thrown. */
+  forget: (name: string) => Promise<void>
   /** Launches every `autostart` preset that has no live session from an earlier launch; never throws. */
   autostart: () => Promise<void>
 }
@@ -47,6 +49,12 @@ function toRequests(preset: WorkspacePreset): CreateSessionRequest[][] {
 }
 
 export function createPresetLauncher({ store, engine, ledger, logger }: PresetLauncherOptions): PresetLauncher {
+  /** An exited session stays in the engine (`remain-on-exit`) but no longer counts as running. */
+  function isLive(id: string): boolean {
+    const session = engine.get(id)
+    return session !== undefined && session.lifecycle !== 'exited'
+  }
+
   async function launchPreset(preset: WorkspacePreset): Promise<LaunchPresetResponse> {
     const requests = toRequests(preset)
     const created: string[] = []
@@ -65,7 +73,9 @@ export function createPresetLauncher({ store, engine, ledger, logger }: PresetLa
         }
         tabs.push({ title: tabTitle(preset, tabIndex), layout: tab.layout, panes })
       }
-      await ledger.record(preset.name, created, id => engine.get(id) !== undefined)
+      await ledger.record(preset.name, created, isLive).catch((error: unknown) => {
+        logger.warn({ err: error, preset: preset.name }, 'Could not record the preset launch')
+      })
       return { name: preset.name, tabs }
     } catch (error) {
       const results = await Promise.allSettled(created.map(id => engine.kill(id)))
@@ -79,7 +89,7 @@ export function createPresetLauncher({ store, engine, ledger, logger }: PresetLa
   }
 
   async function autostartOne(preset: WorkspacePreset): Promise<void> {
-    if (ledger.sessionIds(preset.name).some(id => engine.get(id) !== undefined)) {
+    if (ledger.sessionIds(preset.name).some(isLive)) {
       logger.info(`Preset ${preset.name} already has sessions, autostart skipped`)
       return
     }
@@ -93,6 +103,11 @@ export function createPresetLauncher({ store, engine, ledger, logger }: PresetLa
   }
 
   return {
+    async forget(name) {
+      await ledger.forget(name).catch((error: unknown) => {
+        logger.warn({ err: error, preset: name }, 'Could not drop the preset launch record')
+      })
+    },
     async launch(name) {
       return launchPreset(await store.get(name))
     },

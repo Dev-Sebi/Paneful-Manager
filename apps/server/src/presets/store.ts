@@ -1,5 +1,5 @@
 import { lstat, mkdir, readdir, readFile, realpath, rm } from 'node:fs/promises'
-import { dirname, join, sep } from 'node:path'
+import { basename, dirname, join, sep } from 'node:path'
 import { PresetNameSchema, WorkspacePresetSchema, type WorkspacePreset } from '@agent-hub/shared'
 import { Document, isMap, isScalar, parseDocument } from 'yaml'
 import type { BaseLogger } from 'pino'
@@ -79,25 +79,38 @@ export function createPresetStore({ dir, logger, backups }: PresetStoreOptions):
   }
 
   /** Path of `<name>.yaml`; a symlinked file must resolve to a path inside the real workspaces dir. */
-  async function resolveFile(name: string): Promise<string> {
+  async function locate(name: string): Promise<{ link: string, real: string }> {
     const file = join(dir, `${PresetNameSchema.parse(name)}${PRESET_EXTENSION}`)
     let info
     try {
       info = await lstat(file)
     } catch (error) {
       if (isErrno(error, 'ENOENT')) {
-        return file
+        return { link: file, real: file }
       }
       throw error
     }
     if (!info.isSymbolicLink()) {
-      return file
+      return { link: file, real: file }
     }
     const [root, target] = await Promise.all([realpath(dir), realpath(file).catch(() => undefined)])
     if (target === undefined || !target.startsWith(`${root}${sep}`)) {
       throw new AppError(`Preset ${name} resolves outside the workspaces directory`, 400, 'bad_request')
     }
-    return target
+    return { link: file, real: target }
+  }
+
+  async function resolveFile(name: string): Promise<string> {
+    return (await locate(name)).real
+  }
+
+  /** Write target of a preset; a link to another preset's file is refused so two names never share one file. */
+  async function resolveWritable(name: string): Promise<string> {
+    const { real } = await locate(name)
+    if (basename(real) !== `${name}${PRESET_EXTENSION}`) {
+      throw new AppError(`Preset ${name} is a link to another preset file`, 409, 'conflict')
+    }
+    return real
   }
 
   async function readText(file: string): Promise<string | undefined> {
@@ -128,7 +141,7 @@ export function createPresetStore({ dir, logger, backups }: PresetStoreOptions):
   }
 
   async function write(file: string, preset: WorkspacePreset, existing: string | undefined): Promise<void> {
-    await mkdir(dirname(file), { recursive: true })
+    await mkdir(dirname(file), { recursive: true, mode: 0o700 })
     await atomicWrite(file, mergeIntoDocument(existing, toFileShape(preset)), PRESET_FILE_MODE, async () => {})
   }
 
@@ -172,7 +185,7 @@ export function createPresetStore({ dir, logger, backups }: PresetStoreOptions):
     get,
     create: preset =>
       serialized(async () => {
-        const file = await resolveFile(preset.name)
+        const file = await resolveWritable(preset.name)
         if ((await readText(file)) !== undefined) {
           throw new AppError(`Preset ${preset.name} already exists`, 409, 'conflict')
         }
@@ -184,7 +197,7 @@ export function createPresetStore({ dir, logger, backups }: PresetStoreOptions):
         if (preset.name !== name) {
           throw new AppError('The preset name cannot be changed', 400, 'bad_request')
         }
-        const file = await resolveFile(name)
+        const file = await resolveWritable(name)
         const text = await readText(file)
         if (text === undefined) {
           throw notFound(name)
@@ -195,13 +208,13 @@ export function createPresetStore({ dir, logger, backups }: PresetStoreOptions):
       }),
     remove: name =>
       serialized(async () => {
-        const file = await resolveFile(name)
-        const text = await readText(file)
+        const { link, real } = await locate(name)
+        const text = await readText(real)
         if (text === undefined) {
           throw notFound(name)
         }
-        await backup(file, text)
-        await rm(file)
+        await backup(real, text)
+        await rm(link)
       }),
   }
 }

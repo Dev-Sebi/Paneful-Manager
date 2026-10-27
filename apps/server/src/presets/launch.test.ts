@@ -12,6 +12,7 @@ let stateDir: string
 let alive: Set<string>
 let requests: CreateSessionRequest[]
 let killed: string[]
+let exited: Set<string>
 let failAt: number | undefined
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
 
@@ -29,7 +30,7 @@ const engine = {
     killed.push(id)
     alive.delete(id)
   },
-  get: (id: string): Session | undefined => (alive.has(id) ? ({ id } as Session) : undefined),
+  get: (id: string): Session | undefined => (alive.has(id) ? ({ id, lifecycle: exited.has(id) ? 'exited' : 'running' } as Session) : undefined),
 }
 
 function preset(name: string, autostart = false) {
@@ -61,6 +62,7 @@ function setup(presets: ReturnType<typeof preset>[]) {
 beforeEach(async () => {
   stateDir = await mkdtemp(join(tmpdir(), 'ah-launch-'))
   alive = new Set()
+  exited = new Set()
   requests = []
   killed = []
   failAt = undefined
@@ -150,6 +152,27 @@ describe('preset autostart', () => {
     await restarted.ledger.load()
     await restarted.launcher.autostart()
     expect(requests).toHaveLength(6)
+  })
+
+  it('launches again when the recorded sessions have all exited', async () => {
+    const first = setup([preset('auto', true)])
+    await first.launcher.autostart()
+    for (const id of alive) {
+      exited.add(id)
+    }
+    await first.launcher.autostart()
+    expect(requests).toHaveLength(6)
+  })
+
+  it('keeps healthy sessions when recording the launch fails', async () => {
+    const { launcher, ledger } = setup([preset('alpha')])
+    ledger.record = async () => {
+      throw new Error('disk full')
+    }
+    const result = await launcher.launch('alpha')
+    expect(result.tabs).toHaveLength(2)
+    expect(killed).toEqual([])
+    expect(logger.warn).toHaveBeenCalledTimes(1)
   })
 
   it('treats a manual launch like an autostart launch', async () => {

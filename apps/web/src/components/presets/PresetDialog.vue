@@ -164,10 +164,7 @@
     initial?: PresetForm
   }>()
 
-  const emit = defineEmits<{
-    'update:modelValue': [value: boolean]
-    'saved': [preset: WorkspacePreset]
-  }>()
+  const emit = defineEmits<{ saved: [preset: WorkspacePreset] }>()
 
   const presets = usePresetsStore()
   const ui = useUiStore()
@@ -258,5 +255,10 @@
   padding-left: var(--ah-space-6);
   color: var(--ah-color-status-error);
   font-size: var(--ah-font-size-sm);
+}
+
+@media (max-width: 640px) {
+  .preset-form__row,
+  .preset-form__pane { grid-template-columns: 1fr; }
 }
 </style>

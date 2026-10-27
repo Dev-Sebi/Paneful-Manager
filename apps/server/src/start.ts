@@ -97,13 +97,14 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   }
   const port = typeof address === 'object' && address !== null ? address.port : config.port
   listeningPort = port
-  await launcher.autostart()
+  // Detached so startup is not delayed; shutdown waits for it so no session starts after close.
+  const autostart = launcher.autostart()
   const shutdown = async (): Promise<boolean> => {
     let timer: NodeJS.Timeout | undefined
     const timeout = new Promise<false>(resolve => {
       timer = setTimeout(() => resolve(false), SHUTDOWN_TIMEOUT_MS)
     })
-    const closed = app.close().then(() => true as const)
+    const closed = autostart.then(() => app.close()).then(() => true as const)
     const clean = await Promise.race([closed, timeout])
     clearTimeout(timer)
     if (!clean) {

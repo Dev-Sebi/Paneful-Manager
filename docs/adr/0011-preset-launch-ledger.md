@@ -10,7 +10,7 @@ Presets with `autostart: true` are launched when the server starts. tmux session
 ## Decision
 
 - The server keeps `$STATE/preset-launches.json`, a map from preset name to the ids of the sessions it launched. Every launch, manual or autostart, appends its ids.
-- Autostart skips a preset when at least one recorded id still exists in the engine; otherwise it launches the preset. Ids of sessions that no longer exist are dropped when the next launch is recorded.
+- Autostart skips a preset when at least one recorded id is live: the session exists in the engine and its lifecycle is not `exited` (tmux `remain-on-exit` keeps dead panes listed); otherwise it launches the preset. Ids of sessions that are no longer live are dropped when the next launch is recorded.
 - The ledger is written atomically like all state files. A missing or invalid file is treated as empty, which at worst launches an autostart preset once more.
 - Launching rolls back: if any pane fails, the sessions created so far are killed and the original error is returned. Nothing is recorded for a failed launch.
 
@@ -19,7 +19,8 @@ Presets with `autostart: true` are launched when the server starts. tmux session
 - No change to the `Session` schema or the create request; session records stay free of preset knowledge.
 - A preset whose sessions the user all closed starts again on the next server start, which is the intended meaning of autostart.
 - A manually launched preset also blocks autostart while its sessions run.
-- Autostarted sessions are not part of any browser tab. They show up in the sessions list and can be adopted into tabs by the "Recovered" tab mechanism or a later server-side tab restore; this is not solved here.
+- Autostarted sessions are not part of any browser tab. They appear only in the sessions list until server-side tab restore exists.
+- A failure to write the ledger is logged and does not undo a launch; deleting a preset drops its record.
 
 ## Alternatives considered
 

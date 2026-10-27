@@ -122,6 +122,19 @@ describe('preset store', () => {
     expect(parse(await readFile(join(dir, 'real.yaml'), 'utf8'))).toMatchObject({ description: 'via link' })
   })
 
+  it('refuses create and update through a link to another preset and removes only the link', async () => {
+    await store.create(preset('beta'))
+    await symlink(join(dir, 'beta.yaml'), join(dir, 'alpha.yaml'))
+    await expect(store.create(preset('alpha'))).rejects.toMatchObject({ statusCode: 409 })
+    await expect(store.update('alpha', preset('alpha'))).rejects.toMatchObject({ statusCode: 409 })
+    await store.remove('alpha')
+    expect(await readdir(dir)).toEqual(['beta.yaml'])
+  })
+
+  it('rejects names that are too long', async () => {
+    await expect(store.get('a'.repeat(65))).rejects.toThrow()
+  })
+
   it('skips invalid and mismatched files when listing but reports them on get', async () => {
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, 'broken.yaml'), 'name: [oops')

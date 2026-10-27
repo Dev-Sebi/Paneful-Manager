@@ -46,6 +46,7 @@ export function registerPresets(app: FastifyInstance, { store, launcher }: Regis
   app.delete(API_ROUTES.preset, async (request): Promise<DeletePresetResponse> => {
     const { name } = PresetParamsSchema.parse(request.params)
     await store.remove(name)
+    await launcher?.forget(name)
     return DeletePresetResponseSchema.parse({ name, deleted: true })
   })
 

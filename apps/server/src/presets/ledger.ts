@@ -44,6 +44,13 @@ export class LaunchLedger {
     return this.save()
   }
 
+  /** Drops a preset's record, e.g. after the preset was deleted. */
+  forget(name: string): Promise<void> {
+    const { [name]: _removed, ...rest } = this.launches
+    this.launches = rest
+    return this.save()
+  }
+
   private save(): Promise<void> {
     const data = `${JSON.stringify(this.launches, null, 2)}\n`
     const run = this.queue.then(async () => {
