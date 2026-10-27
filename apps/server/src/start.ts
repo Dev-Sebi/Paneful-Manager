@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { BIND_HOST, resolveStateDir, type AppConfig } from '@agent-hub/shared'
+import { BIND_HOST, HOOK_ENV, resolveStateDir, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
 import { resolveConfigFile } from './config/load-config.js'
@@ -8,6 +8,8 @@ import { createBackupStore } from './files/backups.js'
 import { createFileService } from './files/service.js'
 import { AppError } from './errors.js'
 import { assertBackupDirOutsideScopes } from './files/state-dir.js'
+import { createHookSettings, resolveClaudeSettingsPath } from './hooks/install.js'
+import { loadHookToken } from './hooks/token.js'
 import { createHealthRunner } from './mcp/health.js'
 import { createMcpService } from './mcp/service.js'
 import { expandHome } from './paths.js'
@@ -55,9 +57,14 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   })
   const getScopes = () => discoverScopes({ config: store.get(), env, logger })
   assertBackupDirOutsideScopes(backupDir, await getScopes())
-  const engine = new SessionEngine({ stateDir, logger, ...(tmux === undefined ? {} : { tmux }) })
+  const hookToken = await loadHookToken(stateDir)
+  // The URL is only known after listen; sessions are created through the server, so never before that.
+  let serverUrl = `http://${BIND_HOST}:${config.port}`
+  const sessionEnv = (): Record<string, string> => ({ [HOOK_ENV.token]: hookToken, [HOOK_ENV.url]: serverUrl })
+  const engine = new SessionEngine({ stateDir, logger, sessionEnv, ...(tmux === undefined ? {} : { tmux }) })
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
+  const hookSettings = createHookSettings({ settingsPath: resolveClaudeSettingsPath(env), backups: createBackupStore({ dir: backupDir }) })
   const webDist = resolveWebDist(env)
   const mcp = createMcpService({ getScopes, env, backupDir, logger })
   const devOrigins = parseDevOrigins(env[DEV_ORIGINS_ENV_VAR], message => logger.warn(message))
@@ -72,6 +79,8 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     configStore: store,
     teams: { claudeDir: resolveClaudeDir(env) },
     ...(webDist === undefined ? {} : { webDist }),
+    hookToken,
+    hookSettings,
   })
   try {
     await app.listen({ host: BIND_HOST, port: config.port })
@@ -88,6 +97,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   }
   const port = typeof address === 'object' && address !== null ? address.port : config.port
   listeningPort = port
+  serverUrl = `http://${BIND_HOST}:${port}`
   const shutdown = async (): Promise<boolean> => {
     let timer: NodeJS.Timeout | undefined
     const timeout = new Promise<false>(resolve => {

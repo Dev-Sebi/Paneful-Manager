@@ -19,6 +19,9 @@ describe('index', () => {
       'ServerMessageSchema',
       'FileEntrySchema',
       'FileChangedMessageSchema',
+      'HookPayloadSchema',
+      'HookStatusSchema',
+      'mapHookEvent',
       'TeamChangedMessageSchema',
       'ListTeamsResponseSchema',
     ]) {
