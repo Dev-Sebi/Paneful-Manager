@@ -28,9 +28,14 @@ async function readConfigFile(file: string): Promise<string | undefined> {
   }
 }
 
+/** Absolute path of `config.yaml` for the given environment or explicit config directory. */
+export function resolveConfigFile(env: Record<string, string | undefined>, configDir?: string): string {
+  return join(expandHome(configDir ?? resolveConfigDir(env)), CONFIG_FILE_NAME)
+}
+
 /** Loads and validates `<configDir>/config.yaml`; a missing file yields the defaults. */
 export async function loadConfig({ env, configDir, logger }: LoadConfigOptions): Promise<AppConfig> {
-  const file = join(expandHome(configDir ?? resolveConfigDir(env)), CONFIG_FILE_NAME)
+  const file = resolveConfigFile(env, configDir)
   const text = await readConfigFile(file)
   let raw: unknown = {}
   if (text === undefined) {

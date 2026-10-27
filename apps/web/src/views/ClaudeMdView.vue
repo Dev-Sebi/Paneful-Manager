@@ -1,7 +1,7 @@
 <template>
-  <ScopeList icon="mdi-file-document-outline" message="No scopes found to edit CLAUDE.md in" />
+  <FilesWorkbench mode="claude-md" />
 </template>
 
 <script lang="ts" setup>
-  import ScopeList from '@/components/ScopeList.vue'
+  import FilesWorkbench from '@/components/files/FilesWorkbench.vue'
 </script>
