@@ -144,8 +144,8 @@
           density="compact"
           hide-details="auto"
           label="Role and instructions"
-          :rules="[required]"
           rows="2"
+          :rules="[required]"
           variant="outlined"
         />
       </fieldset>
