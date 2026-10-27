@@ -8,6 +8,7 @@ import { expandHome } from './paths.js'
 import { discoverScopes } from './scopes/discover.js'
 import { assertLoopbackAddress } from './security/origin.js'
 import { SessionEngine } from './sessions/engine.js'
+import { resolveWebDist } from './static.js'
 import type { Tmux } from './tmux/tmux.js'
 
 /** Backups live in `<stateDir>/backups` (see the file-write policy). */
@@ -36,7 +37,8 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const engine = new SessionEngine({ stateDir, logger, ...(tmux === undefined ? {} : { tmux }) })
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
-  const app = buildApp({ config, logger, files, engine })
+  const webDist = resolveWebDist(env)
+  const app = buildApp({ config, logger, files, engine, ...(webDist === undefined ? {} : { webDist }) })
   try {
     await app.listen({ host: BIND_HOST, port: config.port })
   } catch (error) {
