@@ -4,8 +4,8 @@ import { join } from 'node:path'
 import type { Session } from '@agent-hub/shared'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ExecError, type RunFn } from '../process/exec.js'
-import { Tmux } from '../tmux/tmux.js'
+import { RunError } from '../process/exec.js'
+import { Tmux, type RunFn } from '../tmux/tmux.js'
 import { SessionEngine, type EngineClient } from './engine.js'
 import type { PtyProcess, SpawnPty } from './pty.js'
 import { SessionStore } from './store.js'
@@ -59,7 +59,7 @@ class FakeTmuxServer {
     const args = rawArgs.slice(3)
     this.calls.push(args)
     if (!this.running) {
-      throw new ExecError('failed', 1, 'no server running on /tmp/tmux-1000/agent-hub\n')
+      throw new RunError('failed', 'exit', 1, '', 'no server running on /tmp/tmux-1000/agent-hub\n')
     }
     const target = args[args.indexOf('-t') + 1]?.replace(/^=/, '').replace(/:$/, '')
     switch (args[0]) {
@@ -72,7 +72,7 @@ class FakeTmuxServer {
       }
       case 'kill-session': {
         if (target === undefined || !this.sessions.delete(target)) {
-          throw new ExecError('failed', 1, `can't find session: ${target}\n`)
+          throw new RunError('failed', 'exit', 1, '', `can't find session: ${target}\n`)
         }
         return { stdout: '', stderr: '' }
       }

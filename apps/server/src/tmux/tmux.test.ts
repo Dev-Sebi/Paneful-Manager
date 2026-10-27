@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { ExecError, type RunFn } from '../process/exec.js'
+import { RunError } from '../process/exec.js'
 import {
   idFromTmuxName,
+  type RunFn,
   paneTarget,
   parsePaneList,
   parseSessionList,
@@ -12,12 +13,12 @@ import {
   TmuxUnavailableError,
 } from './tmux.js'
 
-function fakeRun(respond: (args: readonly string[]) => string | ExecError): { run: RunFn, calls: string[][] } {
+function fakeRun(respond: (args: readonly string[]) => string | RunError): { run: RunFn, calls: string[][] } {
   const calls: string[][] = []
   const run: RunFn = async (_file, args) => {
     calls.push([...args])
     const result = respond(args)
-    if (result instanceof ExecError) {
+    if (result instanceof RunError) {
       throw result
     }
     return { stdout: result, stderr: '' }
@@ -104,7 +105,7 @@ describe('Tmux', () => {
   })
 
   it('maps a missing server to TmuxUnavailableError', async () => {
-    const { run } = fakeRun(() => new ExecError('failed', 1, 'error connecting to /tmp/tmux-1000/agent-hub (No such file or directory)\n'))
+    const { run } = fakeRun(() => new RunError('failed', 'exit', 1, '', 'error connecting to /tmp/tmux-1000/agent-hub (No such file or directory)\n'))
     const tmux = new Tmux({ run })
     await expect(tmux.listSessions()).rejects.toBeInstanceOf(TmuxUnavailableError)
     await expect(tmux.hasServer()).resolves.toBe(false)
@@ -112,12 +113,12 @@ describe('Tmux', () => {
   })
 
   it('maps a missing binary to TmuxUnavailableError', async () => {
-    const { run } = fakeRun(() => new ExecError('spawn tmux ENOENT', 'ENOENT', ''))
+    const { run } = fakeRun(() => new RunError('tmux could not be started', 'spawn', null, '', ''))
     await expect(new Tmux({ run }).listSessions()).rejects.toBeInstanceOf(TmuxUnavailableError)
   })
 
   it('maps a missing session to TmuxSessionNotFoundError', async () => {
-    const { run } = fakeRun(() => new ExecError('failed', 1, "can't find session: ah-zz\n"))
+    const { run } = fakeRun(() => new RunError('failed', 'exit', 1, '', "can't find session: ah-zz\n"))
     await expect(new Tmux({ run }).killSession('zz')).rejects.toBeInstanceOf(TmuxSessionNotFoundError)
   })
 

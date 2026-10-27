@@ -73,8 +73,9 @@ function registerErrorHandlers(app: FastifyInstance): void {
     if (status >= 500) {
       request.log.error({ err: error }, 'Unhandled error')
     }
-    const code = error instanceof AppError && status < 500 ? error.code : codeForStatus(status)
-    const message = status < 500 && isClientSafe(error) ? (error as Error).message : status < 500 ? 'Bad request' : 'Internal server error'
+    const code = error instanceof AppError ? error.code : codeForStatus(status)
+    const safe = error instanceof AppError || (status < 500 && isClientSafe(error))
+    const message = safe ? (error as Error).message : status < 500 ? 'Bad request' : 'Internal server error'
     const details = error instanceof AppError ? error.details : undefined
     const body = { code, message, ...(details === undefined ? {} : { details }) } as ApiError
     return reply.code(status).send(body)

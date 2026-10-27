@@ -501,7 +501,7 @@ sequenceDiagram
 
 ### Known risks
 
-- **No WebSocket flow control in v1.** The server watches `bufferedAmount` per connection and drops or coalesces output for slow clients; `pause`/`resume` messages are reserved for protocol v2.
+- **No WebSocket flow control in v1.** The server watches `bufferedAmount` per connection, coalesces output for slow clients and closes them with `4008` above 8 MiB pending (output is never dropped); `pause`/`resume` messages are reserved for protocol v2.
 - **Frame size.** The server must set the ws `maxPayload` option so a single oversized client frame cannot exhaust memory.
 - **Scrollback race.** While capturing scrollback after `attach`, the server buffers live output and sends it after the `scrollback` frame; the visible screen comes from a tmux redraw and is never duplicated (details in [Attach and scrollback ordering](#attach-and-scrollback-ordering)).
 - **Multiple clients at different sizes.** A tmux session has one size; the last `attach` or `resize` wins and other attached clients render at that size.

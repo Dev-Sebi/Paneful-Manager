@@ -3,6 +3,7 @@ import type { Duplex } from 'node:stream'
 import {
   WS_PATH,
   WS_PROTOCOL_VERSION,
+  WS_SUBPROTOCOL,
   parseClientMessage,
   type ClientMessage,
   type ServerMessage,
@@ -14,23 +15,22 @@ import { WebSocketServer, type RawData, type WebSocket } from 'ws'
 import type { EngineClient, SessionEngine, StateChange } from '../sessions/engine.js'
 import { OutputQueue, type OutputQueueOptions } from './backpressure.js'
 
-export const WS_SUBPROTOCOL = `agent-hub.v${WS_PROTOCOL_VERSION}`
 export const MAX_PAYLOAD_BYTES = 1024 * 1024
 export const HEARTBEAT_MS = 30_000
 export const CLOSE_GOING_AWAY = 1001
 export const CLOSE_PROTOCOL_MISMATCH = 4001
 
-/** Decides whether an upgrade may proceed (Host, Origin, token; real check from the security plugin). */
-export type AuthorizeUpgrade = (request: IncomingMessage) => boolean | Promise<boolean>
+export type UpgradeAuthorization = { ok: true } | { ok: false, status: 401 | 403 }
+
+/** Decides whether an upgrade may proceed (Host, Origin, token); there is no default, so the endpoint fails closed. */
+export type AuthorizeUpgrade = (request: IncomingMessage) => UpgradeAuthorization | Promise<UpgradeAuthorization>
 
 export interface WsPluginOptions {
   engine: SessionEngine
-  authorizeUpgrade?: AuthorizeUpgrade
+  authorizeUpgrade: AuthorizeUpgrade
   heartbeatMs?: number
   output?: OutputQueueOptions
 }
-
-const allowAll: AuthorizeUpgrade = () => true
 
 function rejectUpgrade(socket: Duplex, status: number, text: string): void {
   socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`)
@@ -148,7 +148,7 @@ class Connection implements EngineClient {
 /** WebSocket endpoint `/ws` (protocol v1): terminal I/O plus broadcast of session events. */
 export function registerWs(app: FastifyInstance, options: WsPluginOptions): void {
   const { engine } = options
-  const authorize = options.authorizeUpgrade ?? allowAll
+  const authorize = options.authorizeUpgrade
   const connections = new Set<Connection>()
   const wss = new WebSocketServer({
     noServer: true,
@@ -221,9 +221,9 @@ export function registerWs(app: FastifyInstance, options: WsPluginOptions): void
       return
     }
     Promise.resolve(authorize(request)).then(
-      allowed => {
-        if (!allowed) {
-          rejectUpgrade(socket, 403, 'Forbidden')
+      decision => {
+        if (!decision.ok) {
+          rejectUpgrade(socket, decision.status, decision.status === 401 ? 'Unauthorized' : 'Forbidden')
           return
         }
         wss.handleUpgrade(request, socket, head, ws => wss.emit('connection', ws, request))

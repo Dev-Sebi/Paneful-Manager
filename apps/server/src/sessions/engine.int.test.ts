@@ -9,6 +9,9 @@ import {
   DEFAULT_CONFIG,
   KillSessionResponseSchema,
   ListSessionsResponseSchema,
+  SESSION_TOKEN_HEADER,
+  WS_SUBPROTOCOL,
+  WS_TOKEN_PROTOCOL_PREFIX,
   parseServerMessage,
   type ClientMessageInput,
   type ServerMessage,
@@ -19,7 +22,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { WebSocket } from 'ws'
 import { buildApp } from '../app.js'
 import { Tmux } from '../tmux/tmux.js'
-import { WS_SUBPROTOCOL } from '../ws/plugin.js'
 import { SessionEngine } from './engine.js'
 
 function hasTmux(): boolean {
@@ -32,6 +34,7 @@ function hasTmux(): boolean {
 }
 
 const WAIT_MS = 5000
+const TOKEN = randomBytes(32).toString('hex')
 const socketName = `agent-hub-test-${randomBytes(4).toString('hex')}`
 const logger = pino({ level: 'silent' })
 let dir: string
@@ -78,7 +81,7 @@ class Client {
   }
 
   static async connect(query = '?v=1'): Promise<Client> {
-    const ws = new WebSocket(`${baseUrl.replace('http', 'ws')}/ws${query}`, [WS_SUBPROTOCOL])
+    const ws = new WebSocket(`${baseUrl.replace('http', 'ws')}/ws${query}`, [WS_SUBPROTOCOL, `${WS_TOKEN_PROTOCOL_PREFIX}${TOKEN}`], { origin: baseUrl })
     const client = new Client(ws)
     await new Promise((resolve, reject) => {
       ws.once('open', resolve)
@@ -113,10 +116,14 @@ class Client {
   }
 }
 
+function mutationHeaders(json = false): Record<string, string> {
+  return { ...(json ? { 'content-type': 'application/json' } : {}), 'origin': baseUrl, [SESSION_TOKEN_HEADER]: TOKEN }
+}
+
 async function createSession(body: Record<string, unknown>): Promise<string> {
   const response = await fetch(`${baseUrl}${API_ROUTES.sessions}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: mutationHeaders(true),
     body: JSON.stringify(body),
   })
   expect(response.status).toBe(201)
@@ -132,7 +139,7 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     tmux('-f', conf, 'start-server')
     engine = newEngine()
     await engine.start()
-    app = buildApp({ config: DEFAULT_CONFIG, logger, engine })
+    app = buildApp({ config: DEFAULT_CONFIG, logger, engine, sessionToken: TOKEN, dev: false })
     await app.listen({ host: '127.0.0.1', port: 0 })
     const address = app.server.address()
     baseUrl = `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`
@@ -209,6 +216,26 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     fresh.close()
   })
 
+  it('refuses upgrades without the token subprotocol or with a foreign origin', async () => {
+    const attempt = (protocols: string[], origin: string): Promise<number | undefined> => new Promise(resolve => {
+      const ws = new WebSocket(`${baseUrl.replace('http', 'ws')}/ws?v=1`, protocols, { origin })
+      ws.once('open', () => {
+        ws.close()
+        resolve(undefined)
+      })
+      ws.once('unexpected-response', (_request, response) => resolve(response.statusCode))
+    })
+    expect(await attempt([WS_SUBPROTOCOL], baseUrl)).toBe(401)
+    expect(await attempt([WS_SUBPROTOCOL, `${WS_TOKEN_PROTOCOL_PREFIX}wrong`], baseUrl)).toBe(401)
+    expect(await attempt([WS_SUBPROTOCOL, `${WS_TOKEN_PROTOCOL_PREFIX}${TOKEN}`], 'http://evil.example')).toBe(403)
+    const unauthenticated = await fetch(`${baseUrl}${API_ROUTES.sessions}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'origin': baseUrl },
+      body: JSON.stringify({ cwd: dir, command: 'sh' }),
+    })
+    expect(unauthenticated.status).toBe(401)
+  })
+
   it('rejects a protocol mismatch with 4001', async () => {
     const client = await Client.connect('?v=99')
     await client.waitForMessage('error', m => m.code === 'protocol_mismatch')
@@ -242,12 +269,12 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
   it('kills a session over REST and broadcasts session.removed', async () => {
     const id = await createSession({ cwd: dir, command: 'sh' })
     const watcher = await Client.connect()
-    const response = await fetch(`${baseUrl}${API_ROUTES.sessions}/${id}`, { method: 'DELETE' })
+    const response = await fetch(`${baseUrl}${API_ROUTES.sessions}/${id}`, { method: 'DELETE', headers: mutationHeaders() })
     expect(KillSessionResponseSchema.parse(await response.json())).toEqual({ id, killed: true })
     await watcher.waitForMessage('session.removed', m => m.sessionId === id)
     expect(tmux('list-sessions', '-F', '#{session_name}')).not.toContain(`ah-${id}`)
     expect(await readdir(join(stateDir, 'sessions'))).not.toContain(`${id}.json`)
-    const again = await fetch(`${baseUrl}${API_ROUTES.sessions}/${id}`, { method: 'DELETE' })
+    const again = await fetch(`${baseUrl}${API_ROUTES.sessions}/${id}`, { method: 'DELETE', headers: mutationHeaders() })
     expect(again.status).toBe(404)
     watcher.close()
   })
@@ -255,7 +282,7 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
   it('rejects a cwd that is not a directory', async () => {
     const response = await fetch(`${baseUrl}${API_ROUTES.sessions}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: mutationHeaders(true),
       body: JSON.stringify({ cwd: join(dir, 'missing'), command: 'sh' }),
     })
     expect(response.status).toBe(400)

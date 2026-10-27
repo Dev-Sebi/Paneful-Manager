@@ -1,29 +1,31 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DEFAULT_CONFIG } from '@agent-hub/shared'
-import type { FastifyInstance } from 'fastify'
+import { WS_SUBPROTOCOL } from '@agent-hub/shared'
+import Fastify, { type FastifyInstance } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { WebSocket } from 'ws'
-import { buildApp } from '../app.js'
-import { ExecError } from '../process/exec.js'
+import { RunError } from '../process/exec.js'
 import { SessionEngine } from '../sessions/engine.js'
 import { Tmux } from '../tmux/tmux.js'
-import { MAX_PAYLOAD_BYTES, WS_SUBPROTOCOL, type AuthorizeUpgrade } from './plugin.js'
+import { MAX_PAYLOAD_BYTES, registerWs, type AuthorizeUpgrade } from './plugin.js'
 
 const logger = pino({ level: 'silent' })
+const allowTestClients: AuthorizeUpgrade = () => ({ ok: true })
 let dir: string
 let app: FastifyInstance
 let url: string
 
-async function start(authorizeUpgrade?: AuthorizeUpgrade): Promise<void> {
+async function start(authorizeUpgrade: AuthorizeUpgrade = allowTestClients): Promise<void> {
   const tmux = new Tmux({ run: async () => {
-    throw new ExecError('failed', 1, 'no server running on /tmp/tmux-1000/agent-hub\n')
+    throw new RunError('failed', 'exit', 1, '', 'no server running on /tmp/tmux-1000/agent-hub\n')
   } })
   const engine = new SessionEngine({ stateDir: join(dir, 'state'), logger, tmux })
   await engine.start()
-  app = buildApp({ config: DEFAULT_CONFIG, logger, engine, ...(authorizeUpgrade === undefined ? {} : { authorizeUpgrade }) })
+  app = Fastify()
+  registerWs(app, { engine, authorizeUpgrade })
+  app.addHook('onClose', async () => engine.close())
   await app.listen({ host: '127.0.0.1', port: 0 })
   const address = app.server.address()
   url = `ws://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`
@@ -59,9 +61,20 @@ describe('registerWs', () => {
     ws.close()
   })
 
-  it('rejects unauthorized upgrades with 403 and other paths with 404', async () => {
-    await start(request => request.headers.origin === 'http://127.0.0.1')
+  it('refuses rejected upgrades with the authorizer status and opens no socket', async () => {
+    await start(request => (request.headers.origin === 'http://127.0.0.1' ? { ok: true } : { ok: false, status: 401 }))
+    const refused = await connect('/ws?v=1')
+    expect(refused.status).toBe(401)
+    expect(refused.ws.readyState).not.toBe(WebSocket.OPEN)
+  })
+
+  it('passes a 403 decision through', async () => {
+    await start(() => ({ ok: false, status: 403 }))
     expect((await connect('/ws?v=1')).status).toBe(403)
+  })
+
+  it('answers other upgrade paths with 404', async () => {
+    await start()
     expect((await connect('/other?v=1')).status).toBe(404)
   })
 

@@ -1,6 +1,6 @@
 import { SessionIdSchema } from '@agent-hub/shared'
 import { AppError } from '../errors.js'
-import { ExecError, run as defaultRun, type RunFn } from '../process/exec.js'
+import { run as defaultRun, RunError, type RunOptions } from '../process/exec.js'
 
 export const TMUX_SOCKET_NAME = 'agent-hub'
 export const TMUX_SESSION_PREFIX = 'ah-'
@@ -20,6 +20,9 @@ const SESSION_FORMAT = [
   '#{pane_start_command}',
 ].join('\t')
 const PANE_FORMAT = '#{pane_dead}\t#{pane_dead_status}'
+
+/** Subset of `run()` the wrapper needs; swappable in tests. */
+export type RunFn = (file: string, args: readonly string[], options: RunOptions) => Promise<{ stdout: string }>
 
 export interface TmuxSessionInfo {
   name: string
@@ -136,7 +139,13 @@ function isSessionMissing(stderr: string): boolean {
   return /can't find (session|window|pane)|session not found/i.test(stderr)
 }
 
-/** Environment for tmux calls; an inherited `$TMUX` would make tmux refuse nested attaches. */
+/** Socket location override; `run()` adds only its base env, so it is passed on explicitly. */
+function socketEnv(): NodeJS.ProcessEnv {
+  const dir = process.env.TMUX_TMPDIR
+  return dir === undefined ? {} : { TMUX_TMPDIR: dir }
+}
+
+/** Environment for the attach pty; an inherited `$TMUX` would make tmux refuse nested attaches. */
 export function tmuxEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const { TMUX: _tmux, TMUX_PANE: _pane, ...rest } = base
   return rest
@@ -228,12 +237,12 @@ export class Tmux {
       const { stdout } = await this.runFn(this.binary, ['-N', '-L', this.socketName, ...args], {
         timeoutMs: TMUX_TIMEOUT_MS,
         maxBuffer: TMUX_MAX_BUFFER_BYTES,
-        env: tmuxEnv(process.env),
+        env: socketEnv(),
       })
       return stdout
     } catch (error) {
-      if (error instanceof ExecError) {
-        if (error.exitCode === 'ENOENT') {
+      if (error instanceof RunError) {
+        if (error.reason === 'spawn') {
           throw new TmuxUnavailableError(`${this.binary} is not installed`)
         }
         if (isServerMissing(error.stderr)) {
