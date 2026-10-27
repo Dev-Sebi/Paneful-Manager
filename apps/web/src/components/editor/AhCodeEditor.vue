@@ -1,12 +1,7 @@
 <template>
-  <div
-    :aria-describedby="hintId"
-    :aria-label="ariaLabel"
-    class="ah-editor"
-    role="group"
-  >
+  <div class="ah-editor">
     <span :id="hintId" class="ah-editor__hint">
-      Press Ctrl+M to toggle whether Tab moves focus out of the editor.
+      Press Ctrl+M (Ctrl+Shift+M on macOS) to toggle whether Tab moves focus out of the editor.
     </span>
 
     <div v-if="loading" class="ah-editor__loading" role="status">
@@ -54,11 +49,56 @@
 
   let instance: MonacoEditor.IStandaloneCodeEditor | undefined
   let monacoApi: typeof MonacoApi | undefined
+  let frontmatterLanguage = 'markdown'
+  let ownsModel = false
   let disposed = false
+  let motionQuery: MediaQueryList | undefined
 
-  const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
   const wrapMode = () => (props.wordWrap ?? props.language === 'markdown') ? 'on' : 'off'
-  const languageId = (language: EditorLanguage, frontmatter: string) => language === 'markdown' ? frontmatter : language
+  const languageId = () => props.language === 'markdown' ? frontmatterLanguage : props.language
+
+  function motionOptions (reduced: boolean): MonacoEditor.IEditorOptions {
+    return {
+      cursorSmoothCaretAnimation: reduced ? 'off' : 'on',
+      cursorBlinking: reduced ? 'solid' : 'blink',
+      smoothScrolling: !reduced,
+    }
+  }
+
+  /** Replaces the whole text as undoable edits so undo history and cursor survive. */
+  function applyExternalValue (model: MonacoEditor.ITextModel, value: string): void {
+    model.pushStackElement()
+    model.pushEditOperations(instance?.getSelections() ?? null, [{ range: model.getFullModelRange(), text: value }], () => null)
+    model.pushStackElement()
+  }
+
+  /** Reuses a model registered for `path`; otherwise creates (and later disposes) its own. */
+  function acquireModel (monaco: typeof MonacoApi): { model: MonacoEditor.ITextModel, owned: boolean } {
+    const uri = props.path ? monaco.Uri.file(props.path) : undefined
+    const existing = uri ? monaco.editor.getModel(uri) : null
+    if (existing) {
+      monaco.editor.setModelLanguage(existing, languageId())
+      return { model: existing, owned: false }
+    }
+    return { model: monaco.editor.createModel(props.modelValue, languageId(), uri), owned: true }
+  }
+
+  function swapModel (): void {
+    if (!instance || !monacoApi) {
+      return
+    }
+    const previous = instance.getModel()
+    const wasOwned = ownsModel
+    const { model, owned } = acquireModel(monacoApi)
+    ownsModel = owned
+    instance.setModel(model)
+    if (wasOwned) {
+      previous?.dispose()
+    }
+    if (model.getValue() !== props.modelValue) {
+      applyExternalValue(model, props.modelValue)
+    }
+  }
 
   onMounted(async () => {
     const loader = await import('./monacoLoader')
@@ -67,13 +107,10 @@
     }
     const monaco = loader.loadMonaco()
     monacoApi = monaco
-    const language = languageId(props.language, loader.FRONTMATTER_LANGUAGE)
-    const uri = props.path ? monaco.Uri.file(props.path) : undefined
-    const model = (uri && monaco.editor.getModel(uri)) || monaco.editor.createModel(props.modelValue, language, uri)
-    if (model.getValue() !== props.modelValue) {
-      model.setValue(props.modelValue)
-    }
-    const motion = reducedMotion()
+    frontmatterLanguage = loader.FRONTMATTER_LANGUAGE
+    const { model, owned } = acquireModel(monaco)
+    ownsModel = owned
+    motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : undefined
     instance = monaco.editor.create(host.value, {
       model,
       theme: themeName(theme.global.current.value.dark),
@@ -85,9 +122,13 @@
       automaticLayout: true,
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
-      cursorSmoothCaretAnimation: motion ? 'off' : 'on',
-      smoothScrolling: !motion,
+      ...motionOptions(motionQuery?.matches ?? false),
     })
+    if (model.getValue() !== props.modelValue) {
+      applyExternalValue(model, props.modelValue)
+    }
+    host.value.querySelector('textarea, .native-edit-context')?.setAttribute('aria-describedby', hintId)
+    motionQuery?.addEventListener('change', onMotionChange)
     instance.onDidChangeModelContent(() => {
       const value = instance?.getValue() ?? ''
       if (value !== props.modelValue) {
@@ -100,21 +141,37 @@
     emit('ready')
   })
 
+  function onMotionChange (event: MediaQueryListEvent): void {
+    instance?.updateOptions(motionOptions(event.matches))
+  }
+
   watch(() => props.modelValue, value => {
-    if (instance && instance.getValue() !== value) {
-      instance.setValue(value)
+    const model = instance?.getModel()
+    if (model && model.getValue() !== value) {
+      applyExternalValue(model, value)
     }
   })
+  watch(() => props.path, swapModel)
+  watch(() => props.language, () => {
+    const model = instance?.getModel()
+    if (model) {
+      monacoApi?.editor.setModelLanguage(model, languageId())
+    }
+    instance?.updateOptions({ wordWrap: wrapMode() })
+  })
+  watch(() => props.wordWrap, () => instance?.updateOptions({ wordWrap: wrapMode() }))
   watch(() => props.readonly, readOnly => instance?.updateOptions({ readOnly }))
   watch(() => props.ariaLabel, label => instance?.updateOptions({ ariaLabel: label }))
-  watch(() => [props.wordWrap, props.language], () => instance?.updateOptions({ wordWrap: wrapMode() }))
   watch(() => theme.global.current.value.dark, dark => monacoApi?.editor.setTheme(themeName(dark)))
 
   onBeforeUnmount(() => {
     disposed = true
+    motionQuery?.removeEventListener('change', onMotionChange)
     const model = instance?.getModel()
     instance?.dispose()
-    model?.dispose()
+    if (ownsModel) {
+      model?.dispose()
+    }
   })
 
   defineExpose({

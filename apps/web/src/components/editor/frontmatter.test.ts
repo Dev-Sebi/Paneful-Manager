@@ -25,6 +25,10 @@ describe('parseFrontmatter', () => {
     expect(result.body).toBe('body')
   })
 
+  it('requires the closing fence on its own line', () => {
+    expect(parseFrontmatter('---\nname: x---\nbody')).toEqual({ data: null, body: '---\nname: x---\nbody' })
+  })
+
   it('rejects non-mapping frontmatter', () => {
     expect(parseFrontmatter('---\n- a\n---\nbody').error).toMatch(/mapping/)
   })

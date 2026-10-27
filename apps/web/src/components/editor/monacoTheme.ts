@@ -36,7 +36,7 @@ function build (
       rule('string.key.json', c('blue')),
       rule('string.value.json', c('green')),
       rule('keyword.json', c('magenta')),
-      rule('strong', c('brightWhite'), 'bold'),
+      rule('strong', c('foreground'), 'bold'),
       rule('emphasis', c('foreground'), 'italic'),
       rule('keyword.md', c('blue'), 'bold'),
       rule('string.link.md', c('cyan'), 'underline'),
@@ -45,7 +45,7 @@ function build (
     ],
     colors: {
       'editor.background': u('background'),
-      'editor.foreground': u('on-background'),
+      'editor.foreground': `#${c('foreground')}`,
       'editorCursor.foreground': `#${c('cursor')}`,
       'editor.selectionBackground': `#${c('selectionBackground')}`,
       'editor.lineHighlightBackground': u('surface'),
@@ -57,6 +57,13 @@ function build (
       'editorIndentGuide.background1': u('secondary'),
       'input.background': u('surface'),
       'focusBorder': u('primary'),
+      'editorBracketHighlight.foreground1': u('primary'),
+      'editorBracketHighlight.foreground2': u('warning'),
+      'editorBracketHighlight.foreground3': u('success'),
+      'editorBracketHighlight.foreground4': u('info'),
+      'editorBracketHighlight.foreground5': u('secondary-darken-1'),
+      'editorBracketHighlight.foreground6': u('error'),
+      'editorBracketHighlight.unexpectedBracket.foreground': u('error'),
     },
   }
 }

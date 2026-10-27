@@ -6,9 +6,13 @@ export interface Frontmatter {
   error?: string
 }
 
-const FRONTMATTER = /^---[ \t]*\r?\n([\s\S]*?)\r?\n?---[ \t]*(?:\r?\n|$)/
+const FRONTMATTER = /^---[ \t]*\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/
 
-/** Splits a leading `---` YAML block from the markdown body. */
+/**
+ * Splits a leading `---` YAML block from the markdown body.
+ * Both fences must sit on their own line. CRLF is accepted; a leading BOM is not
+ * stripped, so a BOM-prefixed file has no frontmatter. An empty block or `{}` gives `data: {}`.
+ */
 export function parseFrontmatter (text: string): Frontmatter {
   const match = FRONTMATTER.exec(text)
   if (!match) {

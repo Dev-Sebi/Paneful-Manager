@@ -28,7 +28,10 @@ import 'monaco-editor/editor/browser/coreCommands'
 
 export const FRONTMATTER_LANGUAGE = 'markdown-frontmatter'
 
-/** Markdown whose leading `---` block is tokenized as YAML. */
+/**
+ * Markdown whose `---` block on line 1 is tokenized as YAML. The `start` state is only
+ * the initial state, so it must leave on line 1 whether that line is empty or not.
+ */
 function registerFrontmatterLanguage (): void {
   monaco.languages.register({ id: FRONTMATTER_LANGUAGE })
   monaco.languages.setLanguageConfiguration(FRONTMATTER_LANGUAGE, mdConf)
@@ -37,6 +40,7 @@ function registerFrontmatterLanguage (): void {
     tokenizer: {
       start: [
         [/^---\s*$/, { token: 'meta.tag', next: '@frontmatter', nextEmbedded: 'yaml' }],
+        [/^$/, { token: '', switchTo: '@root' }],
         [/(?=.)/, { token: '', switchTo: '@root' }],
       ],
       frontmatter: [
