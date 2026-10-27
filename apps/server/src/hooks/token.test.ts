@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HOOK_TOKEN_FILE, loadHookToken } from './token.js'
 
 let dir: string
@@ -78,6 +78,22 @@ describe('loadHookToken', () => {
     const replaced = await loadHookToken(dir)
     expect(replaced).not.toBe('short')
     expect((await readFile(file, 'utf8')).trim()).toBe(replaced)
+  })
+
+  it.each(['EPERM', 'ENOTSUP'])('falls back to an exclusive create when link fails with %s', async code => {
+    const link = vi.fn(() => Promise.reject(Object.assign(new Error(code), { code })))
+    const token = await loadHookToken(dir, { link })
+    expect(link).toHaveBeenCalledTimes(1)
+    expect((await readFile(join(dir, HOOK_TOKEN_FILE), 'utf8')).trim()).toBe(token)
+    expect((await stat(join(dir, HOOK_TOKEN_FILE))).mode & 0o777).toBe(0o600)
+    expect(await readdir(dir)).toEqual([HOOK_TOKEN_FILE])
+    expect(await loadHookToken(dir, { link })).toBe(token)
+  })
+
+  it('removes the temp file and rethrows other link errors', async () => {
+    const link = vi.fn(() => Promise.reject(Object.assign(new Error('EIO'), { code: 'EIO' })))
+    await expect(loadHookToken(dir, { link })).rejects.toThrow('EIO')
+    expect(await readdir(dir)).toEqual([])
   })
 
   it('agrees on one token across separate processes starting on a fresh state dir', async () => {
