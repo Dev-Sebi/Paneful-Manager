@@ -1,4 +1,5 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { open, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { McpScope } from '@agent-hub/shared'
 import { resolveClaudeJsonPath } from './files.js'
@@ -39,10 +40,19 @@ export function defaultManagedDir(platform: NodeJS.Platform = process.platform):
   return platform === 'darwin' ? '/Library/Application Support/ClaudeCode' : '/etc/claude-code'
 }
 
+/** Project files are untrusted: `O_NONBLOCK` keeps a FIFO from blocking the open, and only regular files are read. */
 async function readJson(path: string): Promise<unknown> {
   try {
-    const text = await readFile(path, 'utf8')
-    return text.length > MAX_SETTINGS_BYTES ? undefined : (JSON.parse(text) as unknown)
+    const handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK)
+    try {
+      const stats = await handle.stat()
+      if (!stats.isFile() || stats.size > MAX_SETTINGS_BYTES) {
+        return undefined
+      }
+      return JSON.parse(await handle.readFile('utf8')) as unknown
+    } finally {
+      await handle.close()
+    }
   } catch {
     return undefined
   }

@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { run } from '../process/exec.js'
 import { createMcpApproval } from './approval.js'
 
 let base: string
@@ -114,6 +115,14 @@ describe('MCP approval', () => {
     expect(await session.isApproved({ kind: 'user' }, 'free')).toBe(true)
     expect(await session.isApproved(scope(), 'free')).toBe(true)
   })
+
+  it('skips a FIFO or directory in place of a project settings file without blocking', async () => {
+    write(join(home, '.claude', 'settings.json'), { enabledMcpjsonServers: ['srv'] })
+    mkdirSync(join(project, '.claude'))
+    await run('mkfifo', [join(project, '.claude', 'settings.local.json')], { timeoutMs: 5000, maxBuffer: 1024 })
+    mkdirSync(join(project, '.claude', 'settings.json'))
+    expect(await check()).toBe(true)
+  }, 5000)
 
   it('reads each settings file once per session', async () => {
     trust({ enableAllProjectMcpServers: true })
