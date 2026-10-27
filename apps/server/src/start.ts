@@ -1,9 +1,12 @@
 import { join } from 'node:path'
-import { BIND_HOST, resolveStateDir, type AppConfig } from '@agent-hub/shared'
+import { BIND_HOST, HOOK_ENV, resolveStateDir, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
+import { createBackupStore } from './files/backups.js'
 import { createFileService } from './files/service.js'
 import { assertBackupDirOutsideScopes } from './files/state-dir.js'
+import { createHookSettings, resolveClaudeSettingsPath } from './hooks/install.js'
+import { loadHookToken } from './hooks/token.js'
 import { expandHome } from './paths.js'
 import { discoverScopes } from './scopes/discover.js'
 import { assertLoopbackAddress } from './security/origin.js'
@@ -33,10 +36,15 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const stateDir = expandHome(resolveStateDir(env))
   const backupDir = join(stateDir, BACKUPS_DIR_NAME)
   assertBackupDirOutsideScopes(backupDir, await getScopes())
-  const engine = new SessionEngine({ stateDir, logger, ...(tmux === undefined ? {} : { tmux }) })
+  const hookToken = await loadHookToken(stateDir)
+  // The URL is only known after listen; sessions are created through the server, so never before that.
+  let serverUrl = `http://${BIND_HOST}:${config.port}`
+  const sessionEnv = (): Record<string, string> => ({ [HOOK_ENV.token]: hookToken, [HOOK_ENV.url]: serverUrl })
+  const engine = new SessionEngine({ stateDir, logger, sessionEnv, ...(tmux === undefined ? {} : { tmux }) })
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
-  const app = buildApp({ config, logger, files, engine })
+  const hookSettings = createHookSettings({ settingsPath: resolveClaudeSettingsPath(env), backups: createBackupStore({ dir: backupDir }) })
+  const app = buildApp({ config, logger, files, engine, hookToken, hookSettings })
   try {
     await app.listen({ host: BIND_HOST, port: config.port })
   } catch (error) {
@@ -51,6 +59,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     throw error
   }
   const port = typeof address === 'object' && address !== null ? address.port : config.port
+  serverUrl = `http://${BIND_HOST}:${port}`
   const shutdown = async (): Promise<boolean> => {
     let timer: NodeJS.Timeout | undefined
     const timeout = new Promise<false>(resolve => {

@@ -15,6 +15,8 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { AppError } from './errors.js'
 import { registerFiles } from './files/routes.js'
 import type { FileService } from './files/service.js'
+import type { HookSettings } from './hooks/install.js'
+import { registerHooks } from './hooks/routes.js'
 import { registerScopes } from './scopes/routes.js'
 import { registerSecurity } from './security/register-security.js'
 import { createSessionToken } from './security/token.js'
@@ -38,6 +40,10 @@ export interface BuildAppOptions {
   engine?: SessionEngine
   /** Managed-file service; the file routes are only registered when it is given. */
   files?: FileService
+  /** Persisted hook token; `POST /api/hooks` is only registered with it and an engine. */
+  hookToken?: string
+  /** Claude settings installer for the hook install, uninstall and status routes. */
+  hookSettings?: HookSettings
 }
 
 function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): void {
@@ -87,7 +93,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, engine, files }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, engine, files, hookToken, hookSettings }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -109,9 +115,13 @@ export function buildApp({ config, logger, sessionToken, dev, engine, files }: B
     registerFiles(app, { service: files })
     app.addHook('onClose', async () => files.close())
   }
+  if (hookSettings !== undefined) {
+    registerHooks(app, { getPort, settings: hookSettings })
+  }
   // Registered after registerSecurity: its onRequest hook guards these routes, and /ws uses the same checks.
   if (engine !== undefined) {
     registerSessions(app, { engine })
+    registerHooks(app, { getPort, engine, ...(hookToken === undefined ? {} : { token: hookToken }) })
     registerWs(app, { engine, authorizeUpgrade: request => authorizeUpgrade(request, { port: getPort(), token, dev: isDev }) })
     app.addHook('onClose', async () => {
       await engine.close()
