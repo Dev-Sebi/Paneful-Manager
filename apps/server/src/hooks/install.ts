@@ -335,12 +335,14 @@ async function readSettingsFile(path: string): Promise<{ settings?: JsonObject, 
 async function managedFiles(dir: string): Promise<string[]> {
   const dropIns = join(dir, 'managed-settings.d')
   const names = await readdir(dropIns).catch(() => [] as string[])
-  return [join(dir, 'managed-settings.json'), ...names.filter(name => name.endsWith('.json')).toSorted().map(name => join(dropIns, name))]
+  const dropInFiles = names.filter(name => !name.startsWith('.') && name.endsWith('.json')).toSorted()
+  return [join(dir, 'managed-settings.json'), ...dropInFiles.map(name => join(dropIns, name))]
 }
 
+/** Case-sensitive on purpose: the hook URL is always lower case, so a mismatch is reported rather than guessed. */
 function wildcardMatches(pattern: string, url: string): boolean {
   const source = pattern.split('*').map(part => part.replaceAll(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')
-  return new RegExp(`^${source}$`, 'i').test(url)
+  return new RegExp(`^${source}$`).test(url)
 }
 
 function stringList(value: Json | undefined): string[] | undefined {
@@ -395,7 +397,10 @@ export async function getHookStatus({ settingsPath, port, managedDir = MANAGED_S
   let urlRule: { source: string, patterns: string[] } | undefined
   let envRule: { source: string, names: string[] } | undefined
   for (const source of sources) {
-    const { settings } = source.managed ? await readSettingsFile(source.path) : user
+    const { settings, error } = source.managed ? await readSettingsFile(source.path) : { settings: user.settings }
+    if (error !== undefined) {
+      reasons.push({ code: 'settings_invalid', source: source.path, message: error })
+    }
     if (settings === undefined) {
       continue
     }

@@ -134,13 +134,14 @@ describe('installHooks', () => {
     const settings = await json()
     const stop = settings.hooks?.Stop as { hooks: unknown[] }[]
     stop[0]?.hooks.push(hookHandler(7000))
-    settings.hooks = { ...settings.hooks, SubagentStart: [{ hooks: [hookHandler(7000)] }] }
+    settings.hooks = { ...settings.hooks, SessionStart: [{ hooks: [hookHandler(7000)] }], SubagentStop: [{ hooks: [hookHandler(7000)] }] }
     await writeFile(settingsPath, JSON.stringify(settings, null, 2))
 
     expect((await install(7337)).changed).toBe(true)
     const updated = await json()
     expect(updated.hooks?.Stop).toEqual([{ hooks: [hookHandler(7337)] }])
-    expect(updated.hooks).not.toHaveProperty('SubagentStart')
+    expect(updated.hooks).not.toHaveProperty('SessionStart')
+    expect(updated.hooks).not.toHaveProperty('SubagentStop')
     expect(await read()).not.toContain(hookUrl(7000))
   })
 
@@ -210,6 +211,23 @@ describe('getHookStatus', () => {
       ['url_not_allowed', settingsPath],
       ['env_vars_not_allowed', join(managedDir, 'managed-settings.d', '10-hooks.json')],
     ])
+  })
+
+  it('skips hidden drop-ins and reports invalid managed settings', async () => {
+    await install()
+    await mkdir(join(managedDir, 'managed-settings.d'), { recursive: true })
+    await writeFile(join(managedDir, 'managed-settings.d', '.backup.json'), JSON.stringify({ disableAllHooks: true }))
+    expect((await status()).statusAvailable).toBe(true)
+    await writeFile(join(managedDir, 'managed-settings.d', '20-broken.json'), '{ nope')
+    const result = await status()
+    expect(result.statusAvailable).toBe(false)
+    expect(result.reasons.map(reason => [reason.code, reason.source])).toEqual([['settings_invalid', join(managedDir, 'managed-settings.d', '20-broken.json')]])
+  })
+
+  it('matches allowedHttpHookUrls patterns case-sensitively', async () => {
+    await install()
+    await writeFile(settingsPath, JSON.stringify({ ...(await json()), allowedHttpHookUrls: ['HTTP://127.0.0.1:*'] }))
+    expect((await status()).reasons.map(reason => reason.code)).toEqual(['url_not_allowed'])
   })
 
   it('accepts allowlists that include the hook URL and both variables', async () => {
