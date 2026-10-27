@@ -9,7 +9,7 @@ import {
   type McpScope,
   type McpServerConfig,
   type McpServerConfigInput,
-  type McpServerEntryMasked,
+  type McpServerEntry,
   type RemoveMcpServerRequest,
   type Scope,
   type UpsertMcpServerRequest,
@@ -40,6 +40,10 @@ export interface McpService {
   list: (query?: ListMcpServersQuery) => Promise<ListMcpServersResponse>
   upsert: (request: UpsertMcpServerRequest) => Promise<UpsertMcpServerResponse>
   remove: (request: RemoveMcpServerRequest) => Promise<void>
+  /** Unmasked entries for internal use (health checks); never send them to a client. */
+  entries: (query?: ListMcpServersQuery) => Promise<McpServerEntry[]>
+  /** One unmasked entry; 404 when the project or the server is unknown. */
+  entry: (name: string, scope: McpScope) => Promise<McpServerEntry>
 }
 
 function expandHome(path: string, home: string): string {
@@ -125,6 +129,34 @@ export function createMcpService(options: McpServiceOptions): McpService {
     return { kind: scope.kind, projectPath: wanted }
   }
 
+  async function readEntries(query: ListMcpServersQuery = {}): Promise<McpServerEntry[]> {
+    const all = await projectPaths()
+    let paths = all
+    if (query.projectPath !== undefined) {
+      const wanted = canonical(expandHome(query.projectPath.trim(), home))
+      if (!all.includes(wanted)) {
+        throw new AppError('Unknown project', 404, 'not_found')
+      }
+      paths = [wanted]
+    }
+    const scopes: McpScope[] = [{ kind: 'user' }]
+    for (const projectPath of paths) {
+      scopes.push({ kind: 'project', projectPath }, { kind: 'local', projectPath })
+    }
+    const servers: McpServerEntry[] = []
+    for (const scope of scopes) {
+      try {
+        for (const entry of (await files.read(scope)).entries) {
+          servers.push({ ...entry, scope, source: 'file' })
+        }
+      } catch (error) {
+        // One broken `.mcp.json` must not hide every other scope.
+        logger.warn({ scope: scope.kind, err: error instanceof AppError ? error.message : error }, 'Skipping MCP scope')
+      }
+    }
+    return servers
+  }
+
   function cwdOf(scope: McpScope): string {
     return scope.kind === 'user' ? home : scope.projectPath
   }
@@ -155,31 +187,19 @@ export function createMcpService(options: McpServiceOptions): McpService {
 
   return {
     async list(query = {}) {
-      const all = await projectPaths()
-      let paths = all
-      if (query.projectPath !== undefined) {
-        const wanted = canonical(expandHome(query.projectPath.trim(), home))
-        if (!all.includes(wanted)) {
-          throw new AppError('Unknown project', 404, 'not_found')
-        }
-        paths = [wanted]
-      }
-      const scopes: McpScope[] = [{ kind: 'user' }]
-      for (const projectPath of paths) {
-        scopes.push({ kind: 'project', projectPath }, { kind: 'local', projectPath })
-      }
-      const servers: McpServerEntryMasked[] = []
-      for (const scope of scopes) {
-        try {
-          for (const entry of (await files.read(scope)).entries) {
-            servers.push(maskMcpEntry({ ...entry, scope, source: 'file' }))
-          }
-        } catch (error) {
-          // One broken `.mcp.json` must not hide every other scope.
-          logger.warn({ scope: scope.kind, err: error instanceof AppError ? error.message : error }, 'Skipping MCP scope')
-        }
-      }
+      const servers = (await readEntries(query)).map(maskMcpEntry)
       return { servers, ...(await currentMode()) }
+    },
+
+    entries: readEntries,
+
+    async entry(name, requested) {
+      const scope = await knownScope(requested)
+      const found = (await files.read(scope)).entries.find(candidate => candidate.name === name)
+      if (!found) {
+        throw new AppError(`MCP server "${name}" not found`, 404, 'not_found')
+      }
+      return { ...found, scope, source: 'file' }
     },
 
     async upsert(request) {
