@@ -27,6 +27,7 @@ DRY_RUN=0
 YES=0
 FORCE=0
 PURGE=0
+NO_VERIFY=0
 
 usage() {
   cat <<'EOF'
@@ -38,16 +39,17 @@ Options:
   --version <tag|latest>  Release to install (default: latest)
   --from-source <path>    Install from a local release tarball or a built source checkout
   --prefix <dir>          Install directory (default: ~/.local/share/agent-hub)
-  --port <port>           Server port (default: 7337); written to config.yaml only if it is missing
+  --port <port>           Server port (default: 7337, or the port already installed); saved in config.yaml
   --no-systemd            Do not install or start the systemd user units
   --no-wsl-conf           Never offer to enable systemd in /etc/wsl.conf
   --no-windows-task       Never offer the Windows logon task that boots the distro
-  --force                 Reinstall even if this version is already installed
+  --force                 Reinstall the same version; allow a prefix outside HOME or without install marker
+  --no-verify             Install a downloaded release without a published .sha256 file
   --rollback              Switch back to the previously installed release
   --uninstall             Remove services, units and the install directory
   --purge                 With --uninstall: also remove config and state without asking
   --dry-run               Print every step without changing anything
-  -y, --yes               Answer yes to all questions (non-interactive)
+  -y, --yes               Answer yes to all questions (needed without a terminal)
   -h, --help              Show this help
 
 Environment:
@@ -72,7 +74,7 @@ run() {
 
 has_tty() { (exec </dev/tty) 2>/dev/null; }
 
-# confirm <question> <default y|n>: --yes answers yes, --dry-run assumes yes, no terminal uses the default.
+# confirm <question> <default y|n>: --yes answers yes, --dry-run assumes yes, without a terminal the answer is no.
 confirm() {
   if [ "$YES" -eq 1 ]; then return 0; fi
   if [ "$DRY_RUN" -eq 1 ]; then
@@ -80,9 +82,8 @@ confirm() {
     return 0
   fi
   if ! has_tty; then
-    say "  $1 -> no terminal, using default '$2' (pass --yes to accept)"
-    [ "$2" = y ]
-    return
+    say "  $1 -> no (no terminal to ask). Run from a terminal, or pass --yes to accept every question."
+    return 1
   fi
   if [ "$2" = y ]; then hint='[Y/n]'; else hint='[y/N]'; fi
   printf '%s %s ' "$1" "$hint" >/dev/tty
@@ -155,6 +156,7 @@ while [ $# -gt 0 ]; do
     --rollback) ACTION=rollback ;;
     --uninstall) ACTION=uninstall ;;
     --purge) PURGE=1 ;;
+    --no-verify) NO_VERIFY=1 ;;
     --dry-run) DRY_RUN=1 ;;
     -y|--yes) YES=1 ;;
     -h|--help) usage; exit 0 ;;
@@ -171,7 +173,10 @@ CONFIG_HOME=$(xdg_dir "${XDG_CONFIG_HOME:-}" "$HOME/.config")
 STATE_HOME=$(xdg_dir "${XDG_STATE_HOME:-}" "$HOME/.local/state")
 DATA_HOME=$(xdg_dir "${XDG_DATA_HOME:-}" "$HOME/.local/share")
 PREFIX=${PREFIX:-$DATA_HOME/agent-hub}
-case "$PREFIX" in /*) PREFIX=${PREFIX%/} ;; *) PREFIX=$(pwd)/$PREFIX ;; esac
+case "$PREFIX" in /*) ;; *) PREFIX=$(pwd)/$PREFIX ;; esac
+command -v realpath >/dev/null 2>&1 || die "realpath (coreutils) is required"
+PREFIX=$(realpath -m -- "$PREFIX")
+HOME_REAL=$(realpath -m -- "$HOME")
 CONFIG_DIR=$CONFIG_HOME/agent-hub
 CONFIG_FILE=$CONFIG_DIR/config.yaml
 STATE_DIR=$STATE_HOME/agent-hub
@@ -179,9 +184,12 @@ UNIT_DIR=$CONFIG_HOME/systemd/user
 RELEASES_DIR=$PREFIX/releases
 CURRENT_LINK=$PREFIX/current
 PREVIOUS_LINK=$PREFIX/previous
+MARKER=$PREFIX/.agent-hub-install
 
 case "$PREFIX" in
-  /|"$HOME"|"$HOME/"|/usr|/usr/*|/etc|/etc/*) die "Refusing to use $PREFIX as install prefix" ;;
+  /|"$HOME_REAL"|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var|/boot) die "Refusing to use $PREFIX as install prefix" ;;
+  "$HOME_REAL"/*) ;;
+  *) [ "$FORCE" -eq 1 ] || die "Refusing to use $PREFIX as install prefix: it is outside $HOME_REAL (pass --force to allow)" ;;
 esac
 case "$AGENT_HUB_REPO" in
   */*/*|*[!A-Za-z0-9._/-]*|/*|*/) die "AGENT_HUB_REPO must look like <owner>/<repo>" ;;
@@ -205,6 +213,16 @@ distro_name() {
 }
 
 windows_task_name() { printf 'AgentHub-%s' "$1"; }
+
+# True when %UserProfile%\.wslconfig sets instanceIdleTimeout=-1 (best effort, false when unknown).
+wslconfig_keeps_distro() {
+  command -v wslpath >/dev/null 2>&1 || return 1
+  # shellcheck disable=SC2016
+  profile=$(powershell.exe -NoProfile -NonInteractive -Command '$env:USERPROFILE' 2>/dev/null | tr -d '\r') || return 1
+  [ -n "$profile" ] || return 1
+  file="$(wslpath -u "$profile" 2>/dev/null)/.wslconfig" || return 1
+  grep -Eiq '^[[:space:]]*instanceIdleTimeout[[:space:]]*=[[:space:]]*-1[[:space:]]*$' "$file" 2>/dev/null
+}
 
 windows_task_exists() {
   command -v powershell.exe >/dev/null 2>&1 || return 1
@@ -231,6 +249,14 @@ install_windows_task() {
   say "  WSL does not start on its own after Windows boots. A scheduled task can run"
   say "  'wsl.exe -d $distro --exec true' at your Windows logon, which boots the distro so"
   say "  systemd starts Agent Hub. It runs as your Windows user, no admin rights needed."
+  say "  The task only boots the distro: WSL stops an idle distro again after instanceIdleTimeout"
+  say "  (default 15 s, [general] in %UserProfile%\\.wslconfig) and the VM after vmIdleTimeout ([wsl2])."
+  if wslconfig_keeps_distro; then
+    say "  Your .wslconfig already sets instanceIdleTimeout=-1, so the distro stays up after the task ran."
+  else
+    say "  For the task to be useful, add 'instanceIdleTimeout=-1' under [general] in %UserProfile%\\.wslconfig"
+    say "  (applies to all distros, needs 'wsl.exe --shutdown' once). The installer does not edit that file."
+  fi
   if ! confirm "Create the Windows logon task $task?" n; then
     say "  Skipped. Add it later by re-running the installer."
     return 0
@@ -263,8 +289,8 @@ remove_windows_task() {
 wsl_conf_has_systemd() {
   [ -f "$WSL_CONF" ] || return 1
   awk '
-    /^[[:space:]]*\[/ { boot = tolower($0) ~ /^[[:space:]]*\[boot\][[:space:]]*$/ ; next }
-    boot && tolower($0) ~ /^[[:space:]]*systemd[[:space:]]*=[[:space:]]*true[[:space:]]*$/ { found = 1 }
+    /^[[:space:]]*\[/ { boot = tolower($0) ~ /^[[:space:]]*\[boot\][[:space:]]*([#;].*)?$/ ; next }
+    boot && tolower($0) ~ /^[[:space:]]*systemd[[:space:]]*=[[:space:]]*true[[:space:]]*([#;].*)?$/ { found = 1 }
     END { exit found ? 0 : 1 }
   ' "$WSL_CONF"
 }
@@ -275,7 +301,7 @@ merged_wsl_conf() {
     awk '
       /^[[:space:]]*\[/ {
         if (boot && !done) { print "systemd=true"; done = 1 }
-        boot = tolower($0) ~ /^[[:space:]]*\[boot\][[:space:]]*$/
+        boot = tolower($0) ~ /^[[:space:]]*\[boot\][[:space:]]*([#;].*)?$/
         print; next
       }
       boot && tolower($0) ~ /^[[:space:]]*systemd[[:space:]]*=/ { if (!done) { print "systemd=true"; done = 1 } ; next }
@@ -308,8 +334,13 @@ handle_missing_systemd() {
     if confirm "Enable systemd in $WSL_CONF now?" y; then
       tmp=$(mktemp)
       merged_wsl_conf >"$tmp"
-      say "  New $WSL_CONF:"
-      sed 's/^/    | /' "$tmp"
+      if [ -f "$WSL_CONF" ] && command -v diff >/dev/null 2>&1; then
+        say "  Changes to $WSL_CONF:"
+        diff -u "$WSL_CONF" "$tmp" | sed 's/^/    /' || true
+      else
+        say "  New $WSL_CONF:"
+        sed 's/^/    | /' "$tmp"
+      fi
       if [ -f "$WSL_CONF" ]; then
         run sudo cp -p "$WSL_CONF" "$WSL_CONF.agent-hub.bak"
       fi
@@ -343,7 +374,11 @@ check_requirements() {
 
   command -v tmux >/dev/null 2>&1 || die "tmux $MIN_TMUX_VERSION or later is required: sudo apt-get install -y tmux"
   TMUX_BIN=$(command -v tmux)
-  tmux_version=$(tmux -V | sed 's/^[^0-9]*\([0-9][0-9.]*\).*/\1/')
+  tmux_raw=$(tmux -V 2>/dev/null || true)
+  tmux_version=$(printf '%s' "$tmux_raw" | sed 's/^[^0-9]*\([0-9][0-9.]*\).*/\1/')
+  case "$tmux_version" in
+    ''|*[!0-9.]*) die "Cannot read the tmux version from 'tmux -V' (got '$tmux_raw'); tmux $MIN_TMUX_VERSION or later is required" ;;
+  esac
   version_ge "$tmux_version" "$MIN_TMUX_VERSION" ||
     die "tmux $MIN_TMUX_VERSION or later is required, found $tmux_version (Ubuntu 22.04+ ships a recent enough tmux)"
   say "  tmux $tmux_version"
@@ -380,12 +415,16 @@ check_requirements() {
 ensure_pnpm() {
   pinned=$(node -p 'const p = require(process.argv[1]).packageManager || ""; p.startsWith("pnpm@") ? p.slice(5) : ""' "$1/package.json")
   if command -v pnpm >/dev/null 2>&1; then
-    say "  pnpm $(pnpm --version) found"
-    return 0
+    have=$(pnpm --version 2>/dev/null || echo 0)
+    if [ -z "$pinned" ] || version_ge "$have" "${pinned%%.*}"; then
+      say "  pnpm $have found"
+      return 0
+    fi
+    say "  pnpm $have is older than the required major version ${pinned%%.*}"
   fi
   [ -n "$pinned" ] || die "pnpm not found and package.json pins no pnpm version"
-  command -v corepack >/dev/null 2>&1 || die "pnpm not found and corepack is missing: npm install -g pnpm@$pinned"
-  say "  pnpm not found; corepack can install pnpm@$pinned into ~/.local/bin"
+  command -v corepack >/dev/null 2>&1 || die "pnpm $pinned is required and corepack is missing: npm install -g pnpm@$pinned"
+  say "  corepack can install pnpm@$pinned into ~/.local/bin"
   confirm "Install pnpm@$pinned with corepack?" y || die "pnpm is required"
   run mkdir -p "$HOME/.local/bin"
   run corepack enable --install-directory "$HOME/.local/bin" pnpm
@@ -411,18 +450,18 @@ resolve_tag() {
     fi
   elif [ "$VERSION" = latest ]; then
     command -v curl >/dev/null 2>&1 || die "curl is required"
-    url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$AGENT_HUB_REPO/releases/latest") ||
+    url=$(curl -fsSLI --proto '=https' --tlsv1.2 -o /dev/null -w '%{url_effective}' "https://github.com/$AGENT_HUB_REPO/releases/latest") ||
       die "Cannot resolve the latest release of $AGENT_HUB_REPO"
     TAG=${url##*/}
   else
     TAG=$VERSION
   fi
   case "$TAG" in
-    ''|latest|*[!A-Za-z0-9._-]*) die "Invalid release tag: '$TAG'" ;;
+    ''|latest|releases|*[!A-Za-z0-9._-]*) die "Invalid release tag: '$TAG' (does $AGENT_HUB_REPO have a published release?)" ;;
   esac
 }
 
-# fetch_tarball <dir>: leaves agent-hub-<tag>.tar.gz in <dir>, checksum-verified when a .sha256 exists.
+# fetch_tarball <dir>: leaves agent-hub-<tag>.tar.gz in <dir>; downloads need a .sha256 unless --no-verify.
 fetch_tarball() {
   name="agent-hub-$TAG.tar.gz"
   if [ -d "$FROM_SOURCE" ]; then
@@ -445,6 +484,8 @@ fetch_tarball() {
     actual=$(sha256sum "$1/$name" | awk '{ print $1 }')
     [ "$expected" = "$actual" ] || die "Checksum mismatch for $name (expected $expected, got $actual)"
     say "  sha256 verified"
+  elif [ -z "$FROM_SOURCE" ] && [ "$NO_VERIFY" -eq 0 ]; then
+    die "The release publishes no $name.sha256; refusing to install unverified (pass --no-verify to override)"
   else
     warn "No .sha256 file for $name; skipping checksum verification"
   fi
@@ -464,6 +505,10 @@ render_unit() {
       let text = fs.readFileSync(process.argv[1], "utf8")
       for (const key of keys) {
         const value = process.env["R_" + key]
+        if (/[\r\n]/.test(value)) {
+          console.error("Error: " + key + " contains a line break and cannot be written to a unit file")
+          process.exit(1)
+        }
         text = text.split("@" + key + "@").join(key === "PATH" || key === "LANG" ? quoted(value) : value)
       }
       fs.writeFileSync(process.argv[2], text)
@@ -471,6 +516,11 @@ render_unit() {
 }
 
 # ---------- install steps ----------
+
+unit_port() {
+  [ -f "$UNIT_DIR/$SERVER_UNIT" ] || return 1
+  sed -n 's/^Environment=AGENT_HUB_PORT=\([0-9][0-9]*\)$/\1/p' "$UNIT_DIR/$SERVER_UNIT" | head -n 1
+}
 
 configured_port() {
   [ -f "$CONFIG_FILE" ] || return 1
@@ -480,8 +530,10 @@ configured_port() {
 install_release() {
   run mkdir -p "$RELEASES_DIR"
   [ "$DRY_RUN" -eq 0 ] || { say "  (dry run) would fetch, extract and install $TAG into $RELEASES_DIR/$TAG"; return 0; }
+  [ -f "$MARKER" ] || write_marker "(installing $TAG)"
   work=$(mktemp -d "$RELEASES_DIR/.staging-XXXXXX")
-  trap 'rm -rf "$work"' EXIT INT TERM
+  trap 'rm -rf "$work"' EXIT
+  trap 'exit 130' INT TERM
   fetch_tarball "$work"
   mkdir "$work/release"
   tar -xzf "$work/agent-hub-$TAG.tar.gz" -C "$work/release" --strip-components=1 --no-same-owner
@@ -517,11 +569,32 @@ prune_releases() {
     tag=$(basename "$dir")
     [ "$tag" = "$keep_current" ] || [ "$tag" = "$keep_previous" ] || [ "$tag" = "$TAG" ] || run rm -rf "$dir"
   done
+  for dir in "$RELEASES_DIR"/.staging-*; do
+    [ ! -d "$dir" ] || run rm -rf "$dir"
+  done
+}
+
+write_marker() {
+  [ "$DRY_RUN" -eq 1 ] || printf 'agent-hub %s\n' "$1" >"$MARKER"
 }
 
 write_config() {
   if [ -f "$CONFIG_FILE" ]; then
-    say "  $CONFIG_FILE exists, left unchanged"
+    if [ -z "$PORT" ] || [ "$(configured_port || true)" = "$PORT" ]; then
+      say "  $CONFIG_FILE exists, left unchanged"
+      return 0
+    fi
+    say "  setting port: $PORT in $CONFIG_FILE"
+    [ "$DRY_RUN" -eq 0 ] || return 0
+    tmp=$(mktemp "$CONFIG_DIR/.config.XXXXXX")
+    awk -v port="$PORT" '
+      /^port:/ && !done { print "port: " port; done = 1; next }
+      { print }
+      END { if (!done) print "port: " port }
+    ' "$CONFIG_FILE" >"$tmp"
+    chmod --reference="$CONFIG_FILE" "$tmp" 2>/dev/null || true
+    mv "$tmp" "$CONFIG_FILE"
+    CHANGED=1
     return 0
   fi
   run mkdir -p "$CONFIG_DIR"
@@ -551,12 +624,15 @@ write_units() {
   [ "$DRY_RUN" -eq 0 ] || { say "  (dry run) would write $UNIT_DIR/$TMUX_UNIT and $UNIT_DIR/$SERVER_UNIT"; UNITS_CHANGED=1; return 0; }
   mkdir -p "$UNIT_DIR"
   for unit in "$TMUX_UNIT" "$SERVER_UNIT"; do
-    tmp=$(mktemp)
-    render_unit "$CURRENT_LINK/packaging/systemd/$unit" "$tmp"
-    if [ -f "$UNIT_DIR/$unit" ] && cmp -s "$tmp" "$UNIT_DIR/$unit"; then
-      rm -f "$tmp"
+    rendered=$(mktemp)
+    render_unit "$CURRENT_LINK/packaging/systemd/$unit" "$rendered"
+    if [ -f "$UNIT_DIR/$unit" ] && cmp -s "$rendered" "$UNIT_DIR/$unit"; then
+      rm -f "$rendered"
     else
       say "  writing $UNIT_DIR/$unit"
+      tmp=$(mktemp "$UNIT_DIR/.agent-hub-unit.XXXXXX")
+      cat "$rendered" >"$tmp"
+      rm -f "$rendered"
       mv "$tmp" "$UNIT_DIR/$unit"
       chmod 0644 "$UNIT_DIR/$unit"
       UNITS_CHANGED=1
@@ -596,7 +672,7 @@ health_check() {
   info "Health check"
   waited=0
   while [ "$waited" -lt "$HEALTH_TIMEOUT_SEC" ]; do
-    if curl -fsS "http://127.0.0.1:$EFFECTIVE_PORT/api/health" >/dev/null 2>&1; then
+    if curl -fsS --max-time 5 "http://127.0.0.1:$EFFECTIVE_PORT/api/health" >/dev/null 2>&1; then
       say "  Agent Hub is up: http://127.0.0.1:$EFFECTIVE_PORT/"
       return 0
     fi
@@ -617,11 +693,11 @@ do_install() {
   require_plain_path "$NODE_BIN" "node path"
   require_plain_path "$TMUX_BIN" "tmux path"
 
-  existing_port=$(configured_port || true)
-  EFFECTIVE_PORT=${PORT:-${existing_port:-$DEFAULT_PORT}}
-  if [ -n "$PORT" ] && [ -n "$existing_port" ] && [ "$PORT" != "$existing_port" ]; then
-    warn "config.yaml has port $existing_port; the service sets AGENT_HUB_PORT=$PORT, which wins"
+  if [ -d "$PREFIX" ] && [ ! -f "$MARKER" ] && [ -n "$(ls -A "$PREFIX")" ] && [ "$FORCE" -eq 0 ]; then
+    die "$PREFIX is not empty and has no Agent Hub install marker; choose another --prefix (or pass --force)"
   fi
+  existing_port=$(unit_port || configured_port || true)
+  EFFECTIVE_PORT=${PORT:-${existing_port:-$DEFAULT_PORT}}
 
   installed=$(release_tag_of "$CURRENT_LINK" || true)
   NEED_RELEASE=1
@@ -635,7 +711,7 @@ do_install() {
   else
     say "  - $TAG is already installed in $PREFIX (use --force to reinstall)"
   fi
-  say "  - config $CONFIG_FILE (only if missing), state dir $STATE_DIR (0700) with tmux.conf"
+  say "  - config $CONFIG_FILE (created if missing; port set when --port is given), state dir $STATE_DIR (0700) with tmux.conf"
   if [ "$NO_SYSTEMD" -eq 0 ]; then
     say "  - user units $TMUX_UNIT + $SERVER_UNIT in $UNIT_DIR, enabled and started; lingering enabled"
   fi
@@ -653,6 +729,7 @@ do_install() {
     info "Installing $TAG"
     install_release
     flip_current
+    write_marker "$TAG"
     prune_releases
     CHANGED=1
   fi
@@ -669,7 +746,9 @@ do_install() {
   fi
   install_windows_task
 
-  if [ "$CHANGED" -eq 0 ]; then
+  if [ "$DRY_RUN" -eq 1 ]; then
+    say "Dry run finished: would install Agent Hub $TAG. Nothing was changed."
+  elif [ "$CHANGED" -eq 0 ]; then
     say "Agent Hub $TAG is already installed and up to date."
   else
     say "Agent Hub $TAG installed."
@@ -683,6 +762,7 @@ do_install() {
 # ---------- rollback ----------
 
 do_rollback() {
+  [ -f "$MARKER" ] || die "No Agent Hub install found in $PREFIX"
   current=$(release_tag_of "$CURRENT_LINK" || true)
   previous=$(release_tag_of "$PREVIOUS_LINK" || true)
   if [ -z "$previous" ] || [ ! -d "$RELEASES_DIR/$previous" ]; then die "No previous release to roll back to"; fi
@@ -694,6 +774,7 @@ do_rollback() {
     run ln -sfn "releases/$current" "$PREFIX/previous.tmp"
     run mv -T "$PREFIX/previous.tmp" "$PREVIOUS_LINK"
   fi
+  write_marker "$previous"
   if [ "$NO_SYSTEMD" -eq 0 ] && { [ "$DRY_RUN" -eq 1 ] || systemd_user_available; }; then
     run systemctl --user restart "$SERVER_UNIT"
   fi
@@ -703,10 +784,13 @@ do_rollback() {
 # ---------- uninstall ----------
 
 do_uninstall() {
+  if [ -d "$PREFIX" ] && [ ! -f "$MARKER" ] && [ -n "$(ls -A "$PREFIX")" ]; then
+    die "$PREFIX has no Agent Hub install marker ($MARKER); refusing to delete anything"
+  fi
   info "Plan"
   say "  - stop and disable $SERVER_UNIT and $TMUX_UNIT (ends all running Agent Hub sessions)"
   say "  - remove $UNIT_DIR/$SERVER_UNIT and $UNIT_DIR/$TMUX_UNIT"
-  say "  - remove $PREFIX"
+  say "  - remove releases/, current, previous and the install marker from $PREFIX (and $PREFIX if then empty)"
   say "  - ask whether to remove config ($CONFIG_DIR) and state ($STATE_DIR)"
   is_wsl && say "  - remove the Windows logon task if present"
   confirm "Uninstall Agent Hub?" n || die "Aborted"
@@ -720,7 +804,17 @@ do_uninstall() {
   if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then
     run systemctl --user daemon-reload || true
   fi
-  if [ -d "$PREFIX" ] || [ -L "$PREFIX" ] || [ "$DRY_RUN" -eq 1 ]; then run rm -rf "$PREFIX"; fi
+  if [ -d "$PREFIX" ] && [ ! -f "$MARKER" ]; then
+    run rmdir "$PREFIX"
+  elif [ -f "$MARKER" ]; then
+    run rm -rf "$RELEASES_DIR"
+    run rm -f "$CURRENT_LINK" "$PREVIOUS_LINK" "$PREFIX/current.tmp" "$PREFIX/previous.tmp" "$MARKER"
+    if [ "$DRY_RUN" -eq 1 ] || rmdir "$PREFIX" 2>/dev/null; then
+      say "  removed $PREFIX"
+    else
+      say "  kept $PREFIX (it contains files Agent Hub did not install)"
+    fi
+  fi
 
   for dir in "$CONFIG_DIR" "$STATE_DIR"; do
     [ -d "$dir" ] || [ "$DRY_RUN" -eq 1 ] || continue
