@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import type { AppConfig, Scope } from '@agent-hub/shared'
@@ -22,6 +22,14 @@ function globalPath(env: Record<string, string | undefined>): string {
   return dir ? resolve(expandHome(dir)) : join(homedir(), '.claude')
 }
 
+async function canonical(path: string): Promise<string> {
+  try {
+    return await realpath(path)
+  } catch {
+    return resolve(path)
+  }
+}
+
 async function isDirectory(path: string): Promise<boolean> {
   try {
     return (await stat(path)).isDirectory()
@@ -37,15 +45,15 @@ async function discoverWorktrees(
 ): Promise<Scope[]> {
   let stdout: string
   try {
-    ;({ stdout } = await run('git', ['-C', projectPath, 'worktree', 'list', '--porcelain']))
+    ;({ stdout } = await run('git', ['-C', projectPath, 'worktree', 'list', '--porcelain', '-z']))
   } catch (error) {
     // Not a git repo (or git missing): only the project scope remains.
     logger?.warn({ projectPath, err: error }, 'Could not list git worktrees')
     return []
   }
   const scopes: Scope[] = []
-  for (const entry of parseWorktreeList(stdout)) {
-    if (entry.bare || resolve(entry.path) === projectPath) {
+  for (const [index, entry] of parseWorktreeList(stdout).entries()) {
+    if (index === 0 || entry.bare || (await canonical(entry.path)) === projectPath) {
       continue
     }
     if (entry.prunable) {
@@ -68,16 +76,19 @@ export async function discoverScopes({ config, env, run = runFile, logger }: Dis
   const seen = new Set<string>()
   for (const configured of config.projects) {
     const expanded = expandHome(configured.trim())
-    const projectPath = isAbsolute(expanded) ? resolve(expanded) : undefined
-    if (!projectPath || seen.has(projectPath)) {
-      if (!projectPath) {logger?.warn({ project: configured }, 'Skipping non-absolute project path')}
+    if (!isAbsolute(expanded)) {
+      logger?.warn({ project: configured }, 'Skipping non-absolute project path')
+      continue
+    }
+    if (!(await isDirectory(expanded))) {
+      logger?.warn({ projectPath: expanded }, 'Skipping missing project directory')
+      continue
+    }
+    const projectPath = await canonical(expanded)
+    if (seen.has(projectPath)) {
       continue
     }
     seen.add(projectPath)
-    if (!(await isDirectory(projectPath))) {
-      logger?.warn({ projectPath }, 'Skipping missing project directory')
-      continue
-    }
     scopes.push({ kind: 'project', path: projectPath })
     scopes.push(...(await discoverWorktrees(projectPath, run, logger)))
   }

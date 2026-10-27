@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { parseWorktreeList } from './porcelain.js'
 
+/** Converts readable newline fixtures into `-z` output. */
+function z(text: string): string {
+  return text.replace(/\n/g, '\0')
+}
+
 describe('parseWorktreeList', () => {
   it('parses a main checkout and two worktrees', () => {
     const out = [
@@ -8,7 +13,7 @@ describe('parseWorktreeList', () => {
       'worktree /repo-a\nHEAD bbb\nbranch refs/heads/feat/a\n',
       'worktree /repo b\nHEAD ccc\nbranch refs/heads/b\n',
     ].join('\n')
-    expect(parseWorktreeList(out).map(w => [w.path, w.branch])).toEqual([
+    expect(parseWorktreeList(z(out)).map(w => [w.path, w.branch])).toEqual([
       ['/repo', 'main'],
       ['/repo-a', 'feat/a'],
       ['/repo b', 'b'],
@@ -22,7 +27,7 @@ describe('parseWorktreeList', () => {
       'worktree /l\nHEAD bbb\nbranch refs/heads/l\nlocked reason here\n',
       'worktree /p\nHEAD ccc\ndetached\nprunable gitdir file points to non-existent location\n',
     ].join('\n')
-    const [bare, detached, locked, prunable] = parseWorktreeList(out)
+    const [bare, detached, locked, prunable] = parseWorktreeList(z(out))
     expect(bare?.bare).toBe(true)
     expect(detached?.detached).toBe(true)
     expect(detached?.branch).toBeUndefined()
@@ -30,8 +35,8 @@ describe('parseWorktreeList', () => {
     expect(prunable?.prunable).toBe(true)
   })
 
-  it('handles empty output, CRLF and trailing blank lines', () => {
+  it('handles empty output and trailing separators', () => {
     expect(parseWorktreeList('')).toEqual([])
-    expect(parseWorktreeList('worktree /r\r\nHEAD a\r\nbranch refs/heads/m\r\n\r\n\r\n')).toHaveLength(1)
+    expect(parseWorktreeList(z('worktree /r\nHEAD a\nbranch refs/heads/m\n\n'))).toHaveLength(1)
   })
 })

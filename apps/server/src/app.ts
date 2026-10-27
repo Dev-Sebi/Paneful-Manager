@@ -78,6 +78,6 @@ export function buildApp({ config, logger }: BuildAppOptions): FastifyInstance {
   })
   registerErrorHandlers(app)
   registerCore(app)
-  registerScopes(app, { config })
+  registerScopes(app, { getConfig: () => config })
   return app
 }

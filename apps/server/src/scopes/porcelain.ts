@@ -12,7 +12,7 @@ const BRANCH_PREFIX = 'refs/heads/'
 
 function parseBlock(block: string): GitWorktree | undefined {
   let entry: GitWorktree | undefined
-  for (const line of block.split('\n')) {
+  for (const line of block.split('\0')) {
     const space = line.indexOf(' ')
     const key = space === -1 ? line : line.slice(0, space)
     const value = space === -1 ? '' : line.slice(space + 1)
@@ -30,11 +30,10 @@ function parseBlock(block: string): GitWorktree | undefined {
   return entry?.path ? entry : undefined
 }
 
-/** Parses `git worktree list --porcelain` output (blocks separated by blank lines). */
+/** Parses `git worktree list --porcelain -z` output (fields and entries are NUL separated). */
 export function parseWorktreeList(output: string): GitWorktree[] {
   return output
-    .replace(/\r\n/g, '\n')
-    .split(/\n\n+/)
+    .split('\0\0')
     .map(parseBlock)
     .filter((entry): entry is GitWorktree => entry !== undefined)
 }
