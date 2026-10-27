@@ -126,6 +126,7 @@
     if (triggerRef.value && triggerRef.value === document.activeElement) {
       tabs.removed(triggerRef.value)
     }
+    tabs.unmounted(props.value)
     releaseValue()
     tabs.registry.delete(props.value)
     selectedTabs.delete(props.value)

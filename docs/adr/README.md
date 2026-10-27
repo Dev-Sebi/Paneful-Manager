@@ -13,3 +13,4 @@ Format and process: [ADR 0001](0001-record-architecture-decisions.md).
 | [0007](0007-hooks-based-session-status.md) | Hooks-based session status | accepted |
 | [0008](0008-design-tokens-pipeline.md) | Design tokens pipeline | accepted |
 | [0009](0009-mcp-config-via-cli.md) | MCP configuration via the claude CLI with a file fallback | accepted |
+| [0010](0010-agent-teams.md) | Agent teams (experimental) | proposed |
