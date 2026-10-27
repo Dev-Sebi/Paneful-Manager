@@ -214,10 +214,10 @@ The policy is coalesce, then close with `4008`; output is never dropped, because
 ### Rules
 
 - **Atomic write:** write `<dir>/.<name>.agent-hub-<random>.tmp` in the same directory (same filesystem), copy the target's mode, `fsync`, `rename` over the target. A crash leaves either the old or the new file, never a partial one.
-- **Conflict detection:** every read returns a version `{ mtimeMs, sha256 }`. Writes carry the version they are based on; right before the rename the server re-stats and re-hashes the target. Mismatch (or file created/deleted meanwhile) returns `409 conflict` with the current version, and the UI shows a diff or reload choice.
+- **Conflict detection:** every read returns `mtimeMs` and the sha256 `hash` of the content. Writes carry the hash they are based on as `expectedHash` (omitted only for a new file); the server compares it under a per-path lock and re-hashes the target once more right before the rename. Mismatch (or file created/deleted meanwhile) returns `409 conflict` with `{ currentHash }`, and the UI shows a diff or reload choice.
 - **Never silent overwrite:** there is no force flag in the API. Overwriting after a conflict needs a fresh read. External changes are pushed to the UI by a file watcher (T31).
 - **Symlinks:** paths are resolved with `realpath` and the resolved path must still be inside an allowlisted root. Writes go to the resolved target, so the link itself is kept. Links that resolve outside the allowlist are rejected. New files are never created through a dangling link.
-- **Backups:** before the server overwrites or deletes a file it does not exclusively own (Claude settings, CLAUDE.md, skills, presets, `config.yaml`), the previous content is copied to `$STATE/backups/<encoded-path>/<timestamp>` with mode `0600`. A deleted skill directory is backed up as one tar archive of the directory. Retention: the last 20 backups per file and at most 50 MB in total; the oldest backups are pruned first.
+- **Backups:** before the server overwrites or deletes a file it does not exclusively own (Claude settings, CLAUDE.md, skills, presets, `config.yaml`), the previous content is copied to `$STATE/backups/<encoded-path>/<timestamp>` with mode `0600`. A deleted skill directory is backed up file by file; it is only removed when it holds nothing but managed files, otherwise `409 conflict` lists the blocking entries. Retention: the last 20 backups per file and at most 50 MB in total; the oldest backups are pruned first.
 
 ## Security model
 
