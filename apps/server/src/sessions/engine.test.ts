@@ -218,8 +218,8 @@ describe('SessionEngine', () => {
     server.sessions.set(`ah-${a.id}`, { dead: true, status: 3, path: dir })
     await engine.poll()
     expect(states).toEqual([
-      { sessionId: a.id, state: 'idle', lifecycle: 'exited' },
-      { sessionId: a.id, state: 'idle', lifecycle: 'exited', exitCode: 3 },
+      { sessionId: a.id, state: 'idle', lifecycle: 'exited', stateSince: a.stateSince },
+      { sessionId: a.id, state: 'idle', lifecycle: 'exited', exitCode: 3, stateSince: a.stateSince },
     ])
     expect(removed).toEqual([b.id])
     await engine.poll()
@@ -336,5 +336,68 @@ describe('SessionEngine', () => {
     await engine.close()
     expect(ptys[0]?.killed).toBe(true)
     expect(server.calls.some(call => call[0] === 'kill-session')).toBe(false)
+  })
+
+  it('passes the hook environment to new sessions', async () => {
+    const env = new SessionEngine({
+      stateDir: join(dir, 'state'),
+      logger,
+      tmux: new Tmux({ run: server.run }),
+      spawnPty,
+      pollIdleMs: 60_000,
+      sessionEnv: () => ({ AGENT_HUB_HOOK_TOKEN: 'hook-token', AGENT_HUB_URL: 'http://127.0.0.1:7337' }),
+    })
+    await env.start()
+    const session = await env.create({ cwd: dir, command: 'claude', args: [], cols: 80, rows: 24 })
+    const args = server.calls.find(call => call[0] === 'new-session') ?? []
+    for (const pair of [`AGENT_HUB_SESSION_ID=${session.id}`, 'AGENT_HUB_HOOK_TOKEN=hook-token', 'AGENT_HUB_URL=http://127.0.0.1:7337']) {
+      expect(args[args.indexOf(pair) - 1]).toBe('-e')
+    }
+    expect(args.indexOf('--')).toBeGreaterThan(args.indexOf('AGENT_HUB_URL=http://127.0.0.1:7337'))
+    await env.close()
+  })
+
+  it('applies hook states, tracks stateSince and broadcasts only changes', async () => {
+    await engine.start()
+    const session = await engine.create({ cwd: dir, command: 'claude', args: [], cols: 80, rows: 24 })
+    expect(session.stateSince).toBe(session.createdAt)
+    const frames: unknown[] = []
+    engine.on('state', change => frames.push(change))
+
+    expect(engine.applyHookState(session.id, 'working')).toBe(true)
+    const working = engine.get(session.id)
+    expect(working).toMatchObject({ state: 'working' })
+    expect(frames).toEqual([{ sessionId: session.id, state: 'working', lifecycle: 'running', stateSince: working?.stateSince }])
+
+    await new Promise(resolve => setTimeout(resolve, 5))
+    expect(engine.applyHookState(session.id, 'working')).toBe(true)
+    expect(frames).toHaveLength(1)
+    expect(engine.get(session.id)?.stateSince).toBe(working?.stateSince)
+    expect(engine.get(session.id)?.lastEventAt).not.toBe(working?.lastEventAt)
+
+    expect(engine.applyHookState('missing', 'idle')).toBe(false)
+    await engine.store.flush()
+    const stored = (await engine.store.loadAll()).find(s => s.id === session.id)
+    expect(stored).toMatchObject({ state: 'working', stateSince: working?.stateSince })
+  })
+
+  it('ignores hook states for exited sessions', async () => {
+    await engine.start()
+    const session = await engine.create({ cwd: dir, command: 'claude', args: [], cols: 80, rows: 24 })
+    server.sessions.set(session.tmuxSession, { dead: true, status: 0, path: dir })
+    await engine.poll()
+    expect(engine.applyHookState(session.id, 'working')).toBe(true)
+    expect(engine.get(session.id)).toMatchObject({ state: 'idle', lifecycle: 'exited' })
+  })
+
+  it('resets state and stateSince when re-adopting', async () => {
+    const store = new SessionStore(join(dir, 'state'))
+    await store.init()
+    await store.save(record('known1'))
+    server.sessions.set('ah-known1', { dead: false, path: '/tmp' })
+    await engine.start()
+    const adopted = engine.get('known1')
+    expect(adopted?.state).toBe('idle')
+    expect(Date.parse(adopted?.stateSince ?? '')).toBeGreaterThan(Date.parse('2026-10-27T10:00:00.000Z'))
   })
 })
