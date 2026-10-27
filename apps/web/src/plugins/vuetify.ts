@@ -7,6 +7,7 @@
 // Composables
 import { createVuetify } from 'vuetify'
 import { darkTheme, lightTheme } from '@/styles/generated/theme'
+import { loadUiPrefs } from '@/stores/ui'
 // Styles
 import '@mdi/font/css/materialdesignicons.css'
 import 'vuetify/styles'
@@ -14,7 +15,7 @@ import 'vuetify/styles'
 // https://vuetifyjs.com/en/introduction/why-vuetify/#feature-guides
 export default createVuetify({
   theme: {
-    defaultTheme: 'dark',
+    defaultTheme: loadUiPrefs().theme ?? 'dark',
     themes: { dark: darkTheme, light: lightTheme },
   },
 })
