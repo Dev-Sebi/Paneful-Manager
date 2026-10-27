@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AhButton preview</title>
+<style>
+/* Fallback values generated from tokens.json (dark theme). */
+:root {
+  --ah-color-bg-canvas: #12151a;
+  --ah-color-bg-surface: #1a1e24;
+  --ah-color-bg-elevated: #22272e;
+  --ah-color-bg-hover: #2b313a;
+  --ah-color-bg-selected: #152f63;
+  --ah-color-fg-primary: #eef1f4;
+  --ah-color-fg-muted: #9aa4b0;
+  --ah-color-fg-disabled: #59636f;
+  --ah-color-fg-on-accent: #0b0d10;
+  --ah-color-fg-on-danger: #0b0d10;
+  --ah-color-accent-default: #6496f7;
+  --ah-color-accent-hover: #8db2fc;
+  --ah-color-danger-default: #f47067;
+  --ah-color-danger-hover: #ff938a;
+  --ah-color-border-default: #3f4752;
+  --ah-color-border-focus: #6496f7;
+  --ah-space-1: 4px;
+  --ah-space-2: 8px;
+  --ah-space-3: 12px;
+  --ah-space-4: 16px;
+  --ah-space-6: 24px;
+  --ah-radius-md: 6px;
+  --ah-font-family-ui: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ah-font-size-sm: 12px;
+  --ah-font-size-md: 13px;
+  --ah-font-weight-medium: 500;
+  --ah-font-line-height-tight: 1.2;
+  --ah-motion-duration-fast: 100ms;
+  --ah-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+body { margin: 0; padding: var(--ah-space-6); background: var(--ah-color-bg-canvas); color: var(--ah-color-fg-primary); font-family: var(--ah-font-family-ui); font-size: var(--ah-font-size-md); }
+h2 { font-size: var(--ah-font-size-sm); color: var(--ah-color-fg-muted); font-weight: var(--ah-font-weight-medium); margin: var(--ah-space-6) 0 var(--ah-space-2); }
+.row { display: flex; flex-wrap: wrap; gap: var(--ah-space-3); align-items: center; background: var(--ah-color-bg-surface); padding: var(--ah-space-4); border-radius: var(--ah-radius-md); }
+.btn { display: inline-flex; align-items: center; gap: var(--ah-space-2); height: 28px; padding: 0 var(--ah-space-3); border: 1px solid transparent; border-radius: var(--ah-radius-md); font: inherit; font-weight: var(--ah-font-weight-medium); line-height: var(--ah-font-line-height-tight); cursor: pointer; transition: background-color var(--ah-motion-duration-fast) var(--ah-motion-easing-standard); }
+.sm { height: 24px; padding: 0 var(--ah-space-2); gap: var(--ah-space-1); font-size: var(--ah-font-size-sm); }
+.lg { height: 32px; padding: 0 var(--ah-space-4); }
+.icon { width: 28px; padding: 0; justify-content: center; }
+.primary { background: var(--ah-color-accent-default); color: var(--ah-color-fg-on-accent); }
+.primary:hover, .primary.is-hover { background: var(--ah-color-accent-hover); }
+.secondary { background: var(--ah-color-bg-elevated); color: var(--ah-color-fg-primary); border-color: var(--ah-color-border-default); }
+.ghost { background: transparent; color: var(--ah-color-fg-primary); }
+.secondary:hover, .ghost:hover, .secondary.is-hover, .ghost.is-hover { background: var(--ah-color-bg-hover); }
+.danger { background: var(--ah-color-danger-default); color: var(--ah-color-fg-on-danger); }
+.danger:hover, .danger.is-hover { background: var(--ah-color-danger-hover); }
+.btn:focus-visible, .is-focus { outline: 2px solid var(--ah-color-border-focus); outline-offset: 2px; }
+.is-pressed { background: var(--ah-color-bg-selected); }
+.btn:disabled { opacity: 0.4; color: var(--ah-color-fg-disabled); cursor: not-allowed; }
+.spin { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: r 0.8s linear infinite; }
+@keyframes r { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+</style>
+</head>
+<body>
+<h1 style="font-size: var(--ah-font-size-md)">AhButton</h1>
+
+<h2>Variants (md)</h2>
+<div class="row">
+  <button class="btn primary">Start session</button>
+  <button class="btn secondary">Save preset</button>
+  <button class="btn ghost">Details</button>
+  <button class="btn danger">Close session</button>
+</div>
+
+<h2>Sizes (sm / md / lg)</h2>
+<div class="row">
+  <button class="btn primary sm">Small</button>
+  <button class="btn primary">Medium</button>
+  <button class="btn primary lg">Large</button>
+  <button class="btn ghost icon" aria-label="Split pane">&#9707;</button>
+</div>
+
+<h2>States (secondary)</h2>
+<div class="row">
+  <button class="btn secondary">Default</button>
+  <button class="btn secondary is-hover">Hover</button>
+  <button class="btn secondary is-focus">Focus</button>
+  <button class="btn secondary is-pressed" aria-pressed="true">Pressed</button>
+  <button class="btn secondary" disabled>Disabled</button>
+  <button class="btn secondary" aria-busy="true"><span class="spin"></span>Loading</button>
+</div>
+
+<h2>States (primary / danger)</h2>
+<div class="row">
+  <button class="btn primary is-hover">Hover</button>
+  <button class="btn primary is-focus">Focus</button>
+  <button class="btn primary" disabled>Disabled</button>
+  <button class="btn danger is-hover">Hover</button>
+  <button class="btn danger is-focus">Focus</button>
+  <button class="btn danger" disabled>Disabled</button>
+</div>
+</body>
+</html>

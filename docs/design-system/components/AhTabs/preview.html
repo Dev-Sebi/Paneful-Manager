@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AhTabs preview</title>
+<style>
+/* Fallback values generated from tokens.json (dark theme). */
+:root {
+  --ah-color-bg-canvas: #12151a;
+  --ah-color-bg-surface: #1a1e24;
+  --ah-color-bg-elevated: #22272e;
+  --ah-color-bg-hover: #2b313a;
+  --ah-color-fg-primary: #eef1f4;
+  --ah-color-fg-muted: #9aa4b0;
+  --ah-color-fg-disabled: #59636f;
+  --ah-color-accent-default: #6496f7;
+  --ah-color-border-default: #3f4752;
+  --ah-color-border-focus: #6496f7;
+  --ah-color-status-working: #6496f7;
+  --ah-color-status-waiting: #e3b341;
+  --ah-color-status-error: #f47067;
+  --ah-color-status-idle: #9aa4b0;
+  --ah-space-2: 8px;
+  --ah-space-3: 12px;
+  --ah-space-4: 16px;
+  --ah-space-6: 24px;
+  --ah-radius-sm: 4px;
+  --ah-radius-full: 9999px;
+  --ah-shadow-2: 0px 4px 12px 0px #00000080;
+  --ah-font-family-ui: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ah-font-size-sm: 12px;
+  --ah-font-size-md: 13px;
+  --ah-font-weight-medium: 500;
+  --ah-font-line-height-tight: 1.2;
+}
+body { margin: 0; padding: var(--ah-space-6); background: var(--ah-color-bg-canvas); color: var(--ah-color-fg-primary); font-family: var(--ah-font-family-ui); font-size: var(--ah-font-size-md); }
+h2 { font-size: var(--ah-font-size-sm); color: var(--ah-color-fg-muted); font-weight: var(--ah-font-weight-medium); margin: var(--ah-space-6) 0 var(--ah-space-2); }
+.tablist { display: flex; align-items: stretch; height: 32px; background: var(--ah-color-bg-surface); border-bottom: 1px solid var(--ah-color-border-default); }
+.tablist.compact { height: 28px; }
+.tab { position: relative; display: flex; align-items: center; gap: var(--ah-space-2); min-width: 96px; max-width: 240px; padding: 0 var(--ah-space-3); color: var(--ah-color-fg-muted); line-height: var(--ah-font-line-height-tight); cursor: pointer; border: 0; background: var(--ah-color-bg-surface); font: inherit; }
+.tab .t { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; }
+.tab:hover, .tab.is-hover { background: var(--ah-color-bg-hover); color: var(--ah-color-fg-primary); }
+.tab[aria-selected="true"] { background: var(--ah-color-bg-canvas); color: var(--ah-color-fg-primary); font-weight: var(--ah-font-weight-medium); }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--ah-color-accent-default); }
+.tab:focus-visible, .tab.is-focus { outline: 2px solid var(--ah-color-border-focus); outline-offset: -2px; }
+.tab[aria-disabled="true"] { color: var(--ah-color-fg-disabled); cursor: not-allowed; }
+.tab.is-moving { background: var(--ah-color-bg-elevated); color: var(--ah-color-fg-primary); box-shadow: var(--ah-shadow-2); }
+.x { width: 16px; height: 16px; display: grid; place-items: center; border-radius: var(--ah-radius-sm); visibility: hidden; font-size: var(--ah-font-size-sm); }
+.tab[aria-selected="true"] .x, .tab:hover .x, .tab.is-hover .x, .tab.is-focus .x { visibility: visible; }
+.x:hover { background: var(--ah-color-bg-hover); }
+.dirty .x { visibility: visible; }
+.dirty .x::before { content: ""; width: 8px; height: 8px; border-radius: var(--ah-radius-full); background: var(--ah-color-fg-primary); }
+.dirty .x span { display: none; }
+.dot { width: 8px; height: 8px; border-radius: var(--ah-radius-full); flex: none; }
+.working { background: var(--ah-color-status-working); }
+.waiting { background: var(--ah-color-status-waiting); }
+.error { background: var(--ah-color-status-error); }
+.idle { background: var(--ah-color-status-idle); }
+.add { padding: 0 var(--ah-space-3); background: none; border: 0; color: var(--ah-color-fg-muted); font: inherit; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1 style="font-size: var(--ah-font-size-md)">AhTabs / AhTab</h1>
+
+<h2>Default density: active, inactive, hover, focus, dirty, disabled, add button</h2>
+<div class="tablist" role="tablist" aria-label="Sessions">
+  <button class="tab" role="tab" aria-selected="true"><span class="dot working"></span><span class="t">api-server</span><span class="x" aria-hidden="true"><span>&times;</span></span></button>
+  <button class="tab" role="tab" aria-selected="false" tabindex="-1"><span class="dot waiting"></span><span class="t">frontend</span><span class="x" aria-hidden="true"><span>&times;</span></span></button>
+  <button class="tab is-hover" role="tab" aria-selected="false" tabindex="-1"><span class="dot idle"></span><span class="t">Hover</span><span class="x" aria-hidden="true"><span>&times;</span></span></button>
+  <button class="tab is-focus" role="tab" aria-selected="false" tabindex="-1"><span class="dot error"></span><span class="t">Focus</span><span class="x" aria-hidden="true"><span>&times;</span></span></button>
+  <button class="tab dirty" role="tab" aria-selected="false" tabindex="-1"><span class="t">settings.json</span><span class="x" aria-hidden="true"><span>&times;</span></span></button>
+  <button class="tab" role="tab" aria-selected="false" aria-disabled="true" tabindex="-1"><span class="t">Disabled</span></button>
+  <button class="add" aria-label="New tab">+</button>
+</div>
+
+<h2>Compact density, long title truncation</h2>
+<div class="tablist compact" role="tablist" aria-label="Editors">
+  <button class="tab" role="tab" aria-selected="false" tabindex="-1"><span class="t">skills</span><span class="x" aria-hidden="true"><span>&times;</span></span></button>
+  <button class="tab" role="tab" aria-selected="true"><span class="t">a-very-long-workspace-preset-name-that-truncates</span><span class="x" aria-hidden="true"><span>&times;</span></span></button>
+</div>
+
+<h2>Keyboard reorder in progress (Ctrl+Shift+ArrowRight)</h2>
+<div class="tablist" role="tablist" aria-label="Reorder example">
+  <button class="tab" role="tab" aria-selected="false" tabindex="-1"><span class="t">one</span></button>
+  <button class="tab is-moving is-focus" role="tab" aria-selected="true"><span class="t">two</span><span class="x" aria-hidden="true"><span>&times;</span></span></button>
+  <button class="tab" role="tab" aria-selected="false" tabindex="-1"><span class="t">three</span></button>
+</div>
+</body>
+</html>
