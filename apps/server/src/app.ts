@@ -13,6 +13,8 @@ import {
 } from '@agent-hub/shared'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { AppError } from './errors.js'
+import { registerFiles } from './files/routes.js'
+import type { FileService } from './files/service.js'
 import { registerScopes } from './scopes/routes.js'
 import { registerSecurity } from './security/register-security.js'
 import { createSessionToken } from './security/token.js'
@@ -28,6 +30,8 @@ export interface BuildAppOptions {
   sessionToken?: string
   /** Allows the Vite dev origins; defaults to `NODE_ENV === 'development'`. */
   dev?: boolean
+  /** Managed-file service; the file routes are only registered when it is given. */
+  files?: FileService
 }
 
 function registerCore(app: FastifyInstance): void {
@@ -75,7 +79,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, files }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -95,5 +99,9 @@ export function buildApp({ config, logger, sessionToken, dev }: BuildAppOptions)
   })
   registerCore(app)
   registerScopes(app, { getConfig: () => config })
+  if (files) {
+    registerFiles(app, { service: files })
+    app.addHook('onClose', async () => files.close())
+  }
   return app
 }
