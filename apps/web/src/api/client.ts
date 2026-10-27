@@ -1,15 +1,26 @@
-import type { ApiError, ApiErrorCode, CreateSessionRequestInput, PatchConfigRequest, z } from '@agent-hub/shared'
+import type {
+  ApiError,
+  ApiErrorCode,
+  CreateSessionRequestInput,
+  PatchConfigRequest,
+  RemoveMcpServerRequest,
+  UpsertMcpServerRequestInput,
+  z,
+} from '@agent-hub/shared'
 import {
   API_ROUTES,
   ApiErrorSchema,
   CreateSessionResponseSchema,
   GetConfigResponseSchema,
   HealthResponseSchema,
+  ListMcpServersResponseSchema,
   ListPresetsResponseSchema,
   ListSessionsResponseSchema,
   PatchConfigResponseSchema,
+  RemoveMcpServerResponseSchema,
   ScopesResponseSchema,
   SESSION_TOKEN_HEADER,
+  UpsertMcpServerResponseSchema,
 } from '@agent-hub/shared'
 import { getToken, refreshToken } from './token'
 
@@ -101,4 +112,14 @@ export const api = {
   createSession: (request: CreateSessionRequestInput) =>
     fetchJson(API_ROUTES.sessions, { schema: CreateSessionResponseSchema, method: 'POST', body: request }),
   listPresets: () => fetchJson(API_ROUTES.presets, { schema: ListPresetsResponseSchema }),
+  mcp: {
+    list: (projectPath?: string) => {
+      const query = projectPath ? `?${new URLSearchParams({ projectPath })}` : ''
+      return fetchJson(`${API_ROUTES.mcp}${query}`, { schema: ListMcpServersResponseSchema })
+    },
+    upsert: (request: UpsertMcpServerRequestInput) =>
+      fetchJson(API_ROUTES.mcp, { schema: UpsertMcpServerResponseSchema, method: 'PUT', body: request }),
+    remove: (request: RemoveMcpServerRequest) =>
+      fetchJson(API_ROUTES.mcp, { schema: RemoveMcpServerResponseSchema, method: 'DELETE', body: request }),
+  },
 }

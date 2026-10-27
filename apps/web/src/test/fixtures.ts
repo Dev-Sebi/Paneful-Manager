@@ -1,4 +1,4 @@
-import type { AppTab, Session } from '@agent-hub/shared'
+import type { AppTab, McpServerEntryMasked, Session } from '@agent-hub/shared'
 
 export function makeSession (id: string, overrides: Partial<Session> = {}): Session {
   return {
@@ -25,4 +25,14 @@ export function makeTab (id: string): AppTab {
 
 export function jsonResponse (body: unknown, status = 200): Response {
   return Response.json(body, { status, headers: { 'content-type': 'application/json' } })
+}
+
+export function makeMcpEntry (name: string, overrides: Partial<McpServerEntryMasked> = {}): McpServerEntryMasked {
+  return {
+    name,
+    scope: { kind: 'user' },
+    source: 'cli',
+    config: { transport: 'stdio', command: 'npx', args: ['-y', 'server'], env: { API_KEY: { masked: true, set: true }, PATH: '/usr/bin' } },
+    ...overrides,
+  }
 }
