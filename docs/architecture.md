@@ -78,7 +78,7 @@ flowchart TB
 
 | Operation | What happens |
 | --- | --- |
-| Create (REST or preset autostart) | Generate id, write metadata (`lifecycle: starting`), `new-session -d -s ah-<id> -c <cwd> -x <cols> -y <rows> -e AGENT_HUB_SESSION_ID=<id> -e AGENT_HUB_HOOK_TOKEN=<token> -- env -- <command> <args...>` (`env --` because tmux runs a single-word command through `sh -c`), then `running`; broadcast `session.created`. `cwd` must be an existing directory (`400 bad_request`). Failure: `session_spawn_failed`, metadata removed. |
+| Create (REST or preset autostart) | Generate id, write metadata (`lifecycle: starting`), `new-session -d -s ah-<id> -c <cwd> -x <cols> -y <rows> -e AGENT_HUB_HOOK_TOKEN=<token> -e AGENT_HUB_URL=http://127.0.0.1:<port> -e AGENT_HUB_SESSION_ID=<id> -- env -- <command> <args...>` (`env --` because tmux runs a single-word command through `sh -c`), then `running`; broadcast `session.created`. `cwd` must be an existing directory (`400 bad_request`). Failure: `session_spawn_failed`, metadata removed. |
 | Browser closed | Nothing. Sessions keep running; the pty closes when no client is attached. |
 | Close app tab | Client asks for confirmation (`confirmCloseTab`), then `DELETE /api/sessions/:id` per pane: `kill-session -t =ah-<id>`, metadata deleted, `session.removed` broadcast. |
 | Command exits | Pane stays dead (`remain-on-exit`); engine sets `lifecycle: exited` with `exitCode` from `#{pane_dead_status}`. The session stays visible until the user closes it. |
@@ -207,7 +207,7 @@ The policy is coalesce, then close with `4008`; output is never dropped, because
 | --- | --- | --- |
 | Own config: `config.yaml`, `workspaces/*.yaml` | File service, atomic | YAML written through the `yaml` Document API so user comments and unknown keys survive. Preset file name must equal `PresetNameSchema`. |
 | Own state: `$STATE/**` | Atomic | No conflict check (server is the only writer). |
-| Claude settings: `$CLAUDE_DIR/settings.json` | Merge `hooks` key only, atomic, conflict-checked | Adds Agent Hub hook entries if missing; never changes or removes other entries or keys. Uninstall removes only entries pointing at Agent Hub's hook URL. The port is baked into that URL, so a port change re-merges the entries; running Claude Code sessions pick up hook edits live. |
+| Claude settings: `$CLAUDE_DIR/settings.json` | Merge `hooks` key only, atomic, conflict-checked | Adds Agent Hub hook entries if missing; never changes or removes other entries or keys. Agent Hub's entries are identified by their exact URL `http://127.0.0.1:<any port>/api/hooks`, never by an extra key. Uninstall removes only those entries (and groups, event keys or the `hooks` key it emptied), so install then uninstall restores the file byte for byte when it uses one consistent indentation. The port is baked into that URL, so a port change re-merges the entries; running Claude Code sessions pick up hook edits live. Invalid JSON (including comments) is `409 conflict` and never rewritten. Symlinks are followed. |
 | `CLAUDE.md` and skills | File service, atomic, conflict-checked | Only inside allowlisted scopes: global `$CLAUDE_DIR/CLAUDE.md` and `$CLAUDE_DIR/skills/**`; for each configured project and its git worktrees `<root>/CLAUDE.md`, `<root>/CLAUDE.local.md`, `<root>/.claude/skills/**`. |
 | MCP servers | `claude mcp add-json` / `claude mcp remove` via `execFile` (verified subcommands) | Never edit `~/.claude.json` or `.mcp.json` directly; the CLI owns their format. There is no update command: an edit is remove + add, which is not atomic (a failed add leaves the server removed; the UI reports it and offers to retry). Removing a remote (`http`/`sse`) server also drops its stored OAuth tokens, so the user must re-authenticate; the UI warns before editing one. |
 | Worktree helper | Copy gitignored files into a new worktree | Only after explicit confirmation, target must be inside the worktree (T34). |
@@ -232,8 +232,10 @@ flowchart LR
   H -- yes --> K{POST /api/hooks?}
   K -- yes --> HO{Origin header present?}
   HO -- yes --> X403
-  HO -- no --> HT{Hook token valid?}
-  HT -- no --> X403
+  HO -- no --> E{Token and session headers both empty?}
+  E -- yes --> X204[204, ignored]
+  E -- no --> HT{Hook token valid?}
+  HT -- no --> X401
   HT -- yes --> OK
   K -- no --> O{Origin present and not allowed?}
   O -- yes --> X403
@@ -251,7 +253,7 @@ flowchart LR
 | Origin allowlist | Checked on every request that carries `Origin`, and required on every mutating request except `POST /api/hooks`. Allowed: exactly `http://localhost:<port>`, `http://127.0.0.1:<port>` or `http://[::1]:<port>`; with `NODE_ENV=development` also `http://localhost:3000` / `http://127.0.0.1:3000` (Vite). A mismatch, including `null`, is `403`; a missing `Origin` on a mutation is `401`. Reads without `Origin` pass. No CORS headers are ever sent. Reusable as `isAllowedOrigin(origin, port, dev)`. |
 | Per-boot token | `randomBytes(32)` base64url generated at startup, kept in memory, new on every restart. Required as `X-Agent-Hub-Token` (`SESSION_TOKEN_HEADER`) on every `POST`/`PUT`/`PATCH`/`DELETE` (except `POST /api/hooks`) and as `token.<t>` subprotocol on `/ws`; compared in constant time (SHA-256 + `timingSafeEqual`); missing or wrong is `401 unauthorized`. `GET /api/health` stays token-free. The SPA fetches it from `GET /api/session-token` (`SessionTokenResponseSchema`) before every WS connect and once more after any `401`/`403`. That route sits behind the Host and Origin checks and also rejects `Sec-Fetch-Site: cross-site`; without CORS headers other origins cannot read it. |
 | WebSocket upgrade | `authorizeUpgrade(req, { port, token, dev })`: Host allowed, `Origin` present and allowed, `Sec-WebSocket-Protocol` offers `agent-hub.v1` (`WS_SUBPROTOCOL`) and exactly one `token.<token>`. The server echoes only `agent-hub.v1`. No token in the query string. |
-| Hook token | Separate random token in `$STATE/hook-token` (`0600`), stable across restarts because re-adopted sessions keep their environment. Only valid on `POST /api/hooks` (`API_ROUTES.hooks`), which is exempt from the per-boot token (`POST` only; other methods need it) and rejects any request that carries an `Origin` header (Claude Code sends none; browsers always do). The route itself lands in T26. |
+| Hook token | Separate random token in `$STATE/hook-token` (`0600`), stable across restarts because re-adopted sessions keep their environment. Only valid on `POST /api/hooks` (`API_ROUTES.hooks`), which is exempt from the per-boot token (`POST` only; other methods need it) and rejects any request that carries an `Origin` header (Claude Code sends none; browsers always do). The route checks `X-Agent-Hub-Hook-Token` (`HOOK_TOKEN_HEADER`, constant time, `401` otherwise) before the body is parsed; a request with both hook headers empty comes from a Claude session not started by Agent Hub and gets `204`. |
 | Process spawning | `run(file, args, { cwd, timeoutMs, maxBuffer, env })` in `src/process/exec.ts`: `spawn` with an argument array, `shell: false` and `detached: true` (own process group); on timeout or output overflow the whole group gets `SIGKILL`. Rejects with `RunError` (`exit`/`signal`/`timeout`/`max-buffer`/`spawn`) unless exit code 0. The child env is `PATH`, `HOME`, `LANG`, `LC_ALL`, `USER`, `TMPDIR`, `SHELL` from the server env, overridden by the caller's `env`. node-pty also takes argument arrays only; commands after `--` in `new-session`. ESLint bans in `apps/server`: `exec`/`execSync` imports, default/namespace/dynamic `child_process` imports, a `shell` option other than `false` in `spawn`/`execFile`/`fork` calls, and options passed as a variable or spread there. |
 | Path allowlist | `createAllowlist(roots).resolveInside(candidate)` in `src/fs/allowlist.ts`: rejects empty, relative and NUL-byte paths, `~`-expands, `path.resolve`s, then `realpath`s the candidate (or its nearest existing parent for new files) and checks it against the `realpath` of each root (`path.relative`, no `..` segment). `..` and symlink escapes, and paths through dangling links, fail with `403 forbidden`. Callers must use the returned path; writers use temp file + rename in the resolved directory (TOCTOU). |
 | Security headers | Every response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`; `/api/*` also `Cache-Control: no-store`. A strict CSP for the SPA is not set yet; it comes with serving the built web client. |
@@ -280,7 +282,7 @@ flowchart LR
 
 ## Session state machine
 
-`lifecycle` (process) and `state` (activity) are independent fields of `Session`. `state` only has meaning while `lifecycle` is `running`; on `exited` it keeps its last value and the UI shows the exit instead.
+`lifecycle` (process) and `state` (activity) are independent fields of `Session`. `state` only has meaning while `lifecycle` is `running`; on `exited` it keeps its last value and the UI shows the exit instead. `stateSince` records when `state` last changed (creation, re-adoption or a hook that changed it); the UI derives its elapsed timer from it and pulses the badge once on `waiting`.
 
 ```mermaid
 stateDiagram-v2
@@ -293,47 +295,67 @@ stateDiagram-v2
 
     state running {
         [*] --> idle
-        idle --> working: UserPromptSubmit
-        idle --> working: SubagentStart
-        working --> working: PreToolUse / PostToolUse / PostToolUseFailure / SubagentStart
-        working --> waiting: PermissionRequest / Notification(permission_prompt, elicitation_dialog)
+        idle --> working: SessionStart / UserPromptSubmit
+        working --> working: PreToolUse / PostToolUse / PostToolUseFailure
+        working --> waiting: PermissionRequest / Notification(permission_prompt, idle_prompt, elicitation_dialog)
+        idle --> waiting: Notification(idle_prompt)
         waiting --> working: PostToolUse / UserPromptSubmit
-        working --> idle: Stop / Notification(idle_prompt)
-        working --> error: StopFailure
+        working --> idle: Stop / SubagentStop / SessionEnd
         waiting --> idle: Stop
+        working --> error: StopFailure
         error --> working: UserPromptSubmit
-        error --> idle: SessionStart
     }
 ```
 
 ### Hook mapping
 
-Claude Code supports `http` hooks that POST the hook input JSON to a URL, configured in `$CLAUDE_DIR/settings.json` (verified in the Claude Code hooks reference). Agent Hub merges one `http` handler per event below into the user settings, pointing at `http://127.0.0.1:<port>/api/hooks` with headers `X-Agent-Hub-Session: $AGENT_HUB_SESSION_ID` and `X-Agent-Hub-Hook-Token: $AGENT_HUB_HOOK_TOKEN` (`allowedEnvVars` lists both) and `timeout: 5` seconds. Claude sessions not started by Agent Hub have no such variables; the server ignores their requests. A non-2xx response, connection failure or timeout is a non-blocking error for Claude Code (verified in the hooks reference), so a stopped Agent Hub never blocks a session.
+Claude Code supports `http` hooks that POST the hook input JSON (`Content-Type: application/json`) to a URL, configured in `$CLAUDE_DIR/settings.json`. Agent Hub installs one matcher group per event below into the user settings, each with this handler:
 
-These Claude Code settings can disable status reporting: `disableAllHooks`, `allowManagedHooksOnly`, `allowedHttpHookUrls` (if it does not include the Agent Hub URL) and `httpHookAllowedEnvVars` (if it does not include both variables). The server checks the merged settings it can read and the UI shows "status unavailable" for affected sessions instead of a stale state.
+```json
+{
+  "type": "http",
+  "url": "http://127.0.0.1:<port>/api/hooks",
+  "headers": { "X-Agent-Hub-Session-Id": "$AGENT_HUB_SESSION_ID", "X-Agent-Hub-Hook-Token": "$AGENT_HUB_HOOK_TOKEN" },
+  "allowedEnvVars": ["AGENT_HUB_SESSION_ID", "AGENT_HUB_HOOK_TOKEN"],
+  "timeout": 5
+}
+```
+
+The `Notification` group carries `"matcher": "permission_prompt|idle_prompt|elicitation_dialog"` (exact match), all other groups have no matcher. Installing is explicit (`POST /api/hooks/install`, later a Settings toggle) and idempotent; `POST /api/hooks/uninstall` removes only these handlers; both back up the previous file first (see [File-write policy](#file-write-policy)). `GET /api/hooks/status` reports `installed`, `portMatches`, `installedEvents` and `statusAvailable` with `reasons`.
+
+New sessions get `AGENT_HUB_SESSION_ID`, `AGENT_HUB_HOOK_TOKEN` and `AGENT_HUB_URL` through `tmux new-session -e`. Re-adopted sessions keep the environment they were started with; sessions started before the hook token existed, or whose server port changed, report nothing until they are restarted. Claude sessions not started by Agent Hub resolve both headers to empty strings and get `204`; they change nothing.
+
+`POST /api/hooks` always answers fast and without a body: `204` (accepted, unknown session, invalid session id or unparseable payload, all ignored) or `401` (wrong hook token). An empty 2xx is a plain success for Claude Code; a JSON body would be parsed as hook output. Its body limit is 16 MiB because tool payloads can exceed the global 1 MiB.
 
 | Hook event (matcher) | New `state` | Verified |
 | --- | --- | --- |
-| `SessionStart` | `idle` | event yes |
-| `UserPromptSubmit` | `working` | event yes |
-| `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `SubagentStart` | `working` | event yes |
+| `SessionStart` | `working` | event yes; mapping per T26 brief, see ADR 0007 |
+| `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure` | `working` | events yes |
 | `PermissionRequest` | `waiting` | event yes |
-| `Notification` (`permission_prompt`, `elicitation_dialog`) | `waiting` | matcher values yes |
-| `Notification` (`idle_prompt`) | `idle` | matcher value yes |
-| `Stop` | `idle` | event yes |
+| `Notification` (`permission_prompt`, `idle_prompt`, `elicitation_dialog`) | `waiting` | matcher values and `notification_type` input field yes |
+| `Stop`, `SubagentStop` | `idle` | events yes |
 | `StopFailure` | `error` | event yes |
-| `SessionEnd` | no change; triggers an exit poll | event yes |
-| all others | ignored | - |
+| `SessionEnd` | `idle`, plus an early exit poll (`engine.poll()`) | event yes |
+| all others | no change | - |
 
-Assumed, verify in T26/T50:
+`mapHookEvent` in `packages/shared/src/hooks.ts` is the single source of this table. Each accepted hook for a `running` session sets `lastEventAt`; only a changed `state` also sets `stateSince`, persists the record and broadcasts a `state` frame (so `lastEventAt` on disk may lag). Events for `exited` sessions are ignored.
 
-- Environment variable interpolation in `http` hook headers works for variables set with `tmux new-session -e`, and an unset variable yields an empty header instead of a failed hook.
+These Claude Code settings can disable status reporting; `GET /api/hooks/status` checks the user settings file plus `/etc/claude-code/managed-settings.json` and `managed-settings.d/*.json` and lists every hit: `disableAllHooks: true`, `allowManagedHooksOnly: true` (managed only), `allowedHttpHookUrls` without a pattern matching the hook URL (`*` wildcard, lists merged), `httpHookAllowedEnvVars` without both variables. Project settings depend on the session directory and are not checked.
+
+Verified in the Claude Code hooks and settings references (2026-10-27):
+
+- `http` handler fields `url`, `headers` (`$VAR` / `${VAR}` interpolation), `allowedEnvVars` (unlisted variables become empty strings), `timeout` (seconds; default 600), the event names and `Notification` matcher values used above.
+- Non-2xx, connection failure and timeout are non-blocking errors; an empty 2xx is success.
+- Settings files are strict JSON; a value the schema rejects is a Settings Error for the whole file, so Agent Hub adds no marker keys to handlers.
+- Identical handlers defined in several settings files run once; settings edits, including hooks, apply to running sessions.
+
+Assumed, verify in T50 or with a live session:
+
+- A variable listed in `allowedEnvVars` but unset in the environment yields an empty header (documented only for unlisted variables).
 - `PostToolUse` after an approved permission prompt reliably moves `waiting` back to `working`; a denied prompt is followed by `Stop` or `UserPromptSubmit`.
-- How much latency a slow or unreachable hook endpoint adds per event within the 5 s timeout.
-- Agent-team teammates (`TeammateIdle`, `TaskCreated`, `TaskCompleted`) need their own mapping behind `experimental.agentTeams`; not part of v1 state (T50).
-- The minimum Claude Code version that supports `http` hooks and `StopFailure`; older versions would need a `command` hook fallback.
-
-Each accepted hook updates `state` and `lastEventAt`, persists the record and broadcasts a `state` frame. Events for an `exited` session are ignored.
+- Latency a slow or unreachable endpoint adds per event within the 5 s timeout (`SessionEnd` hooks share a 1.5 s budget).
+- Agent-team events (`TeammateIdle`, `TaskCreated`, `TaskCompleted`) need their own mapping behind `experimental.agentTeams` (T50).
+- The minimum Claude Code version that supports `http` hooks and `StopFailure`; the reference states none.
 
 ## Repo layout and build
 
@@ -411,7 +433,7 @@ Paths may start with `~`; the server expands them.
 | `config.ts` | `AppConfigSchema` | `config.yaml`: `port`, `experimental.agentTeams` (false), `confirmCloseTab` (true), `projects` (paths), `logLevel` (`info`), `theme` (`dark` \| `light` \| `system`, default `dark`). |
 | | `ConfigPatchSchema` | Partial update; nested objects merge, arrays replace (`applyConfigPatch`). |
 | | `PortSchema`, `LogLevelSchema`, `ThemeSchema` | Building blocks; `resolvePort(configPort, env)` applies `AGENT_HUB_PORT`, `resolveConfigDir(env)` applies `XDG_CONFIG_HOME`. |
-| `session.ts` | `SessionSchema` | One session = one tmux session: `id`, `hostId`, `title?`, `cwd`, `command`, `args`, `tmuxSession`, `createdAt`, `state`, `lifecycle`, `exitCode?` (only when exited), `lastEventAt`, `cols`, `rows`. Timestamps are ISO 8601 strings. |
+| `session.ts` | `SessionSchema` | One session = one tmux session: `id`, `hostId`, `title?`, `cwd`, `command`, `args`, `tmuxSession`, `createdAt`, `state`, `lifecycle`, `exitCode?` (only when exited), `lastEventAt`, `stateSince?` (when `state` last changed; optional only for records written before it existed), `cols`, `rows`. Timestamps are ISO 8601 strings. |
 | | `SessionStateSchema` | `working \| waiting \| error \| idle`, derived from Claude Code hooks. |
 | | `SessionLifecycleSchema` | `starting \| running \| exited`. |
 | `layout.ts` | `LayoutSchema` | `single \| row \| column \| grid-2x2 \| custom`; `custom` carries a split tree (`LayoutNodeSchema`) whose leaves point at pane indexes and carry relative `size` weights. |
@@ -422,6 +444,8 @@ Paths may start with `~`; the server expands them.
 | `mcp.ts` | `McpServerSchema` | Discriminated by `transport`: `stdio` (`command`, `args`, `env?`) or `http`/`sse` (`url`, `headers?`); `scope` is `global \| project \| worktree`. |
 | `api.ts` | `ApiErrorSchema` | Every non-2xx body: `{ code, message, details? }`; `validation_failed` requires `details: { path, message }[]` (`toValidationError`). |
 | | REST schemas | See table below. |
+| `hooks.ts` | `HookPayloadSchema`, `mapHookEvent` | Claude Code hook input (loose: only `hook_event_name`, `session_id?`, `notification_type?` are validated) and the event-to-state mapping, see [Hook mapping](#hook-mapping). |
+| | `HookStatusSchema`, `HookChangeResponseSchema` | Hook install status and install/uninstall results. |
 | `ws.ts` | `ClientMessageSchema`, `ServerMessageSchema` | WebSocket protocol, see below. |
 
 Minimal preset (`~/.config/agent-hub/workspaces/project1.yaml`; full examples in `examples/`, validated by `examples.test.ts`):
@@ -455,6 +479,10 @@ All routes live under `/api` (`API_ROUTES`).
 | `DELETE /api/presets/:name` | `PresetParamsSchema` | `DeletePresetResponseSchema` |
 | `GET /api/config` | - | `GetConfigResponseSchema` |
 | `PATCH /api/config` | `PatchConfigRequestSchema` | `PatchConfigResponseSchema` (`config`, `restartRequired`) |
+| `POST /api/hooks` | Claude Code hook input (`HookPayloadSchema`), headers `X-Agent-Hub-Hook-Token`, `X-Agent-Hub-Session-Id` | `204` without body, or `401` |
+| `GET /api/hooks/status` | - | `HookStatusSchema` |
+| `POST /api/hooks/install` | `HookChangeRequestSchema` (empty) | `HookChangeResponseSchema` (`changed`, `status`) |
+| `POST /api/hooks/uninstall` | `HookChangeRequestSchema` (empty) | `HookChangeResponseSchema` |
 
 ### WebSocket protocol
 
@@ -471,7 +499,7 @@ Terminal data (`input`, `output`, `scrollback`) is a plain UTF-8 string, not bas
 | client to server | `ping` | - | Keep-alive. |
 | server to client | `output` | `sessionId`, `data` | Live terminal output. |
 | server to client | `scrollback` | `sessionId`, `data` | History sent once after `attach`, before any `output`. |
-| server to client | `state` | `sessionId`, `state`, `lifecycle`, `exitCode?` | Activity or lifecycle changed. |
+| server to client | `state` | `sessionId`, `state`, `lifecycle`, `exitCode?`, `stateSince?` | Activity or lifecycle changed; the UI's elapsed timer counts from `stateSince`. |
 | server to client | `session.created` | `session` | A session was created (by any client or a preset). |
 | server to client | `session.removed` | `sessionId` | A session was killed or cleaned up. |
 | server to client | `error` | `sessionId?`, `code`, `message` | `bad_message`, `protocol_mismatch`, `unknown_session`, `not_attached`, `tmux_unavailable`, `internal`. |
