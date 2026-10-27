@@ -20,6 +20,7 @@ export const API_ROUTES = {
   scopes: `${API_PREFIX}/scopes`,
   files: `${API_PREFIX}/files`,
   fileContent: `${API_PREFIX}/files/content`,
+  mcp: `${API_PREFIX}/mcp`,
 } as const
 
 // Security
