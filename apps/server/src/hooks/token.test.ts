@@ -26,6 +26,12 @@ describe('loadHookToken', () => {
     expect((await readFile(file, 'utf8')).trim()).toBe(token)
   })
 
+  it('creates exactly one token when called concurrently', async () => {
+    const tokens = await Promise.all([1, 2, 3, 4].map(() => loadHookToken(dir)))
+    expect(new Set(tokens).size).toBe(1)
+    expect((await readFile(join(dir, HOOK_TOKEN_FILE), 'utf8')).trim()).toBe(tokens[0])
+  })
+
   it('tightens the mode of an existing token and replaces an invalid one', async () => {
     const file = join(dir, HOOK_TOKEN_FILE)
     const existing = 'a'.repeat(43)
