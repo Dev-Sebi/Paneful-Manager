@@ -140,6 +140,10 @@ printf 'port: 7400\ntheme: light\n' >"$CONFIG"
 install_sh --yes --force --from-source "$V1" --no-windows-task
 check "existing config kept" contains "$CONFIG" "theme: light"
 check "unit follows the configured port" contains "$UNITS/agent-hub.service" "AGENT_HUB_PORT=7400"
+install_sh --yes --port 7500 --from-source "$V1" --no-windows-task
+check "--port updates the unit without --force" contains "$UNITS/agent-hub.service" "AGENT_HUB_PORT=7500"
+check "--port restarts the server" contains "$STUB_LOG" "systemctl --user restart agent-hub.service"
+check "--port leaves an existing config alone" contains "$CONFIG" "^port: 7400$"
 
 # ---------- upgrade and rollback ----------
 
