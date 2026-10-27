@@ -3,8 +3,13 @@
     <h1 class="ah-home__title">Agent Hub</h1>
     <p class="ah-home__text">Run and supervise your terminal agents in one place.</p>
     <v-btn color="primary" variant="flat">Get started</v-btn>
+    <EditorShowcase />
   </main>
 </template>
+
+<script lang="ts" setup>
+  import EditorShowcase from '@/components/editor/EditorShowcase.vue'
+</script>
 
 <style scoped>
 .ah-home {
