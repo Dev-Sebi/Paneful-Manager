@@ -67,7 +67,8 @@ flowchart TB
 - **Server.** Runs as the systemd user service `agent-hub.service` inside WSL (`Restart=on-failure`, `Wants=` and `After=agent-hub-tmux.service`), installed by `install.sh` (T60). It binds `127.0.0.1:<port>` only (`BIND_HOST`, `resolvePort`). In development `pnpm dev` runs it with `tsx watch` instead.
 - **One tmux server** with the dedicated socket name `agent-hub` (`tmux -L agent-hub ...`), so the user's own tmux sessions are never listed, touched or killed. It is owned by its own user unit `agent-hub-tmux.service` (`Type=forking`, `ExecStart=tmux -L agent-hub -f %S/agent-hub/tmux.conf start-server`), so restarting or stopping `agent-hub.service` never kills sessions.
 - **tmux.conf** (`$STATE/tmux.conf`, written by the installer): `exit-empty off` (server stays up without sessions), `remain-on-exit on` (exit codes stay readable), status line off, large `history-limit` for scrollback, `window-size latest`. tmux reads it only when the tmux server starts; changes need a restart of `agent-hub-tmux.service`.
-- **The engine never starts the tmux server.** If the socket is missing it reports `tmux_unavailable` (to be added to `ApiErrorCodeSchema` in T12), refuses to create sessions and keeps retrying the listing. In development the developer starts it with the same command.
+- **The engine never starts the tmux server.** Every `execFile` call passes `tmux -N` (never start a server). If the socket is missing it reports `tmux_unavailable` (`ApiErrorCodeSchema`, HTTP 503), refuses to create sessions and keeps retrying the listing. In development the developer starts it with the same command.
+- **No alternate screen.** When the tmux server becomes available, the engine appends `xterm-256color:smcup@:rmcup@` to the server option `terminal-overrides` (once), so the attach pty never switches xterm.js to the alternate buffer and scrollback written before the redraw stays visible.
 - **Requirements:** tmux 3.2 or later (`new-session -e`); the installer checks `tmux -V`. The installer runs `loginctl enable-linger` so user units run without a login session, and documents that WSL shuts the VM down when idle, which ends all sessions (assumed, verify in T60).
 - **One tmux session per Agent Hub session**, running exactly one command (default `claude`) in one window and pane. Agent Hub layouts (splits, tabs) are drawn in the browser, never with tmux panes.
 - **One pty per attached session.** When the first client attaches, the engine spawns `tmux -L agent-hub attach-session -t =ah-<id>` with node-pty and fans its output out to every attached WS client. When the last client detaches, the pty is closed; the tmux session keeps running. tmux therefore only ever sees one client per session, and the pty size is the session size.
@@ -77,13 +78,13 @@ flowchart TB
 
 | Operation | What happens |
 | --- | --- |
-| Create (REST or preset autostart) | Generate id, write metadata (`lifecycle: starting`), `new-session -d -s ah-<id> -c <cwd> -x <cols> -y <rows> -e AGENT_HUB_SESSION_ID=<id> -e AGENT_HUB_HOOK_TOKEN=<token> -- <command> <args...>`, then `running`; broadcast `session.created`. Failure: `session_spawn_failed`, metadata removed. |
+| Create (REST or preset autostart) | Generate id, write metadata (`lifecycle: starting`), `new-session -d -s ah-<id> -c <cwd> -x <cols> -y <rows> -e AGENT_HUB_SESSION_ID=<id> -e AGENT_HUB_HOOK_TOKEN=<token> -- env -- <command> <args...>` (`env --` because tmux runs a single-word command through `sh -c`), then `running`; broadcast `session.created`. `cwd` must be an existing directory (`400 bad_request`). Failure: `session_spawn_failed`, metadata removed. |
 | Browser closed | Nothing. Sessions keep running; the pty closes when no client is attached. |
 | Close app tab | Client asks for confirmation (`confirmCloseTab`), then `DELETE /api/sessions/:id` per pane: `kill-session -t =ah-<id>`, metadata deleted, `session.removed` broadcast. |
 | Command exits | Pane stays dead (`remain-on-exit`); engine sets `lifecycle: exited` with `exitCode` from `#{pane_dead_status}`. The session stays visible until the user closes it. |
 | Server restart | Re-adoption, see below. |
 
-Exit detection polls `list-panes -t =ah-<id>: -F '#{pane_dead} #{pane_dead_status}'` for attached and unattached sessions on a short interval; the `SessionEnd` hook is only a hint that triggers an early poll. A tmux `pane-died` hook calling back into the server is an optional later optimization.
+Exit detection polls one `list-sessions` call (the re-adoption format below, which includes `pane_dead` and `pane_dead_status`) for all sessions: every 1 s while any session is attached, every 5 s otherwise; a session missing from the listing is removed (`session.removed`). `list-panes -t =ah-<id>: -F '#{pane_dead}\t#{pane_dead_status}'` is available for single checks; the `SessionEnd` hook is only a hint that triggers an early poll (`engine.poll()`). A tmux `pane-died` hook calling back into the server is an optional later optimization.
 
 ### Re-adoption after restart
 
@@ -106,7 +107,7 @@ Re-adopted sessions keep the environment they were created with, which is why th
 
 - Session ids are generated by the server: 12 characters of `crypto.randomBytes(9).toString('base64url')`, so the charset is `[A-Za-z0-9_-]`, the same as `TmuxSessionNameSchema`.
 - tmux session name: `ah-<sessionId>` (`Session.tmuxSession`). The prefix marks sessions as ours during re-adoption and guarantees a name never starts with `-`.
-- `SessionIdSchema` currently only checks `min(1)`. T12 should tighten it to the charset above so that every valid id yields a valid `tmuxSession`.
+- `SessionIdSchema` enforces the charset above, so every valid id yields a valid `tmuxSession`.
 
 ### Where things live
 
@@ -122,7 +123,7 @@ Re-adopted sessions keep the environment they were created with, which is why th
 | `$STATE/backups/<encoded-path>/<timestamp>` | backups before overwriting or deleting files (see below) | server |
 | journald (`journalctl --user -u agent-hub`) | logs (pino to stdout) | server |
 
-The state directory follows the XDG base directory spec the same way `resolveConfigDir` does for config: `$XDG_STATE_HOME/agent-hub` when set, otherwise `~/.local/state/agent-hub`. A `resolveStateDir(env)` helper belongs next to `resolveConfigDir` in `packages/shared` (T12).
+The state directory follows the XDG base directory spec the same way `resolveConfigDir` does for config: `$XDG_STATE_HOME/agent-hub` when set, otherwise `~/.local/state/agent-hub` (`resolveStateDir(env)` in `packages/shared`).
 
 ## WebSocket runtime behavior
 
@@ -161,7 +162,7 @@ For each `attach {sessionId, cols, rows, scrollback}`:
 1. Unknown id: `error unknown_session`.
 2. Register the client on the session; spawn the pty if it is the first client. Live output for this client is buffered from now on.
 3. Apply the size (resize rule below).
-4. If `scrollback` is `true`: `capture-pane -p -e -J -S -<history> -E -1 -t =ah-<id>` (history above the visible screen, with escape sequences) and send it as one `scrollback` frame. The client resets its xterm before writing it.
+4. If `scrollback` is `true`: read `#{history_size}` (`display-message -p -t =ah-<id>:`); if it is not 0, `capture-pane -p -e -J -S -<min(history_size, 10000)> -E -1 -t =ah-<id>:` (history above the visible screen, with escape sequences; tmux swaps `-S`/`-E` on an empty history, hence the check). Line feeds become `\r\n` and the result is sent as one `scrollback` frame. The client resets its xterm before writing it.
 5. Ask tmux to redraw the visible screen: read the pty's client tty with `list-clients -t =ah-<id>: -F '#{client_tty}'`, then `execFile tmux refresh-client -t <client_tty>`. Flush the buffered output and stream `output` frames. The redraw goes through the shared pty, so every viewer of that session receives it; it is a harmless repaint.
 
 The visible screen always comes from tmux's redraw, so it is never duplicated. Lines that scroll off the screen exactly between capture and redraw may be missing from history; this is accepted for v1.
