@@ -335,6 +335,15 @@ Assumed, verify in T26/T50:
 
 Each accepted hook updates `state` and `lastEventAt`, persists the record and broadcasts a `state` frame. Events for an `exited` session are ignored.
 
+## Agent teams (experimental)
+
+Behind `experimental.agentTeams` (default off) and Claude Code `>= 2.1.309`, see [ADR 0010](adr/0010-agent-teams.md).
+
+- Launch: a YAML template becomes `--agents` JSON plus a first prompt to the lead; the lead runs with `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` and `--teammate-mode tmux`.
+- Task board: read-only, tolerant parse of `~/.claude/tasks/<team>/*.json`, refreshed on `TaskCreated`/`TaskCompleted` hooks plus a slow poll.
+- Pane map: `members[].tmuxPaneId` from `~/.claude/teams/<team>/config.json`, only while the lead runs.
+- Agent Hub never writes team or task files.
+
 ## Repo layout and build
 
 ```text
