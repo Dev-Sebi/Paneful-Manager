@@ -14,11 +14,13 @@
     <header v-if="!hideHeader" ref="headerRef" class="ah-terminal-pane__header">
       <AhStatusBadge v-if="status" announce :state="status" variant="dot" />
       <span class="ah-terminal-pane__title">{{ title }}</span>
+
       <span v-if="member" class="ah-terminal-pane__member" :title="memberTooltip">
         <span class="ah-terminal-pane__member-name">{{ member.name }}</span>
         <AhStatusBadge :label="member.role" size="sm" :state="status ?? 'idle'" />
         <span v-if="member.others?.length" class="ah-terminal-pane__member-more">+{{ member.others.length }}</span>
       </span>
+
       <span v-if="cwd" class="ah-terminal-pane__cwd" :title="cwd"><bdi>{{ cwd }}</bdi></span>
       <span v-else class="ah-terminal-pane__spacer" />
       <span v-if="readonly" class="ah-terminal-pane__readonly">Read-only</span>

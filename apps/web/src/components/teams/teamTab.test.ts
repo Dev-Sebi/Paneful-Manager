@@ -3,8 +3,9 @@ import { AppTabSchema } from '@agent-hub/shared'
 import { describe, expect, it } from 'vitest'
 import { buildTeamTab, memberRole, sessionMembers, teamLayout, unlinkedReason } from './teamTab'
 
-const linked = (name: string, sessionId: string, extra: Partial<TeamMember> = {}): TeamMember =>
-  ({ name, ...extra, link: { status: 'linked', sessionId, via: 'pane' } })
+function linked (name: string, sessionId: string, extra: Partial<TeamMember> = {}): TeamMember {
+  return { name, ...extra, link: { status: 'linked', sessionId, via: 'pane' } }
+}
 const team = (members: TeamMember[], name = 'session-1a2b3c4d'): Team => ({ name, members, tasks: [], lastUpdated: null })
 const all = () => true
 

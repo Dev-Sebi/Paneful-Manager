@@ -50,8 +50,8 @@
   import { computed } from 'vue'
   import { AhButton } from '@/components/ah'
   import { memberColorVar, relativeTime, safeId } from './teamColor'
-  import TeamTaskCard from './TeamTaskCard.vue'
   import { memberRole } from './teamTab'
+  import TeamTaskCard from './TeamTaskCard.vue'
 
   const props = defineProps<{ team: Team, now: number }>()
   const emit = defineEmits<{ 'open-tab': [team: Team] }>()
