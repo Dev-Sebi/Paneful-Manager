@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Session } from '@agent-hub/shared'
@@ -202,6 +202,16 @@ describe('SessionEngine', () => {
     expect(created).toEqual([session])
     const newSession = server.calls.find(call => call[0] === 'new-session')
     expect(newSession).toContain(`AGENT_HUB_SESSION_ID=${session.id}`)
+  })
+
+  it('rejects a cwd with control characters before tmux sees it', async () => {
+    await engine.start()
+    for (const name of ['x\nah-forged\t1\tsrv\t1\t0\t\tsh', 'tab\there']) {
+      const cwd = join(dir, name)
+      await mkdir(cwd)
+      await expect(engine.create({ cwd, command: 'sh', args: [], cols: 80, rows: 24 })).rejects.toMatchObject({ statusCode: 400, message: /control characters/ })
+    }
+    expect(server.calls.some(call => call[0] === 'new-session')).toBe(false)
   })
 
   it('detects exits and vanished sessions when polling', async () => {
