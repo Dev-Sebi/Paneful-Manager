@@ -23,7 +23,7 @@ export default defineConfig({
     {
       command: 'pnpm --filter @agent-hub/shared build && pnpm --filter @agent-hub/server build && node e2e/start-server.mjs',
       url: `http://127.0.0.1:${SERVER_PORT}/api/health`,
-      env: { AGENT_HUB_PORT: SERVER_PORT },
+      env: { AGENT_HUB_PORT: SERVER_PORT, AGENT_HUB_DEV_ORIGINS: baseURL },
       reuseExistingServer: !isCI,
       timeout: 120_000,
       // The script kills its private tmux server on SIGTERM; the default SIGKILL would leak it.

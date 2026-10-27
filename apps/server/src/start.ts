@@ -11,7 +11,7 @@ import { assertBackupDirOutsideScopes } from './files/state-dir.js'
 import { createMcpService } from './mcp/service.js'
 import { expandHome } from './paths.js'
 import { discoverScopes } from './scopes/discover.js'
-import { assertLoopbackAddress } from './security/origin.js'
+import { assertLoopbackAddress, DEV_ORIGINS_ENV_VAR, parseDevOrigins } from './security/origin.js'
 import { SessionEngine } from './sessions/engine.js'
 import type { Tmux } from './tmux/tmux.js'
 
@@ -56,7 +56,8 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
   const mcp = createMcpService({ getScopes, env, backupDir, logger })
-  const app = buildApp({ config, logger, files, engine, worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) }, mcp, configStore: store })
+  const devOrigins = parseDevOrigins(env[DEV_ORIGINS_ENV_VAR], message => logger.warn(message))
+  const app = buildApp({ config, logger, devOrigins, files, engine, worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) }, mcp, configStore: store })
   try {
     await app.listen({ host: BIND_HOST, port: config.port })
   } catch (error) {

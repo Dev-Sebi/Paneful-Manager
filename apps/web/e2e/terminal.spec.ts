@@ -22,6 +22,8 @@ test('creates a session, round-trips input and restores it after reload without 
   await page.getByRole('button', { name: 'New session' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByLabel('Working directory')).toHaveValue('~/')
+  await dialog.getByLabel('Command').fill('')
+  await expect(dialog.getByRole('button', { name: 'Create' })).toBeDisabled()
   await dialog.getByLabel('Command').fill('sh')
   await dialog.getByRole('button', { name: 'Create' }).click()
   await expect(page).toHaveURL(/\/workspaces\/tab-/)

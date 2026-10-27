@@ -149,15 +149,19 @@
   })
   const shownExitCode = computed(() => props.exitCode ?? liveExitCode.value)
 
-  function prefersReducedMotion (): boolean {
-    return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const motionQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : undefined
+  const reducedMotion = ref(motionQuery?.matches ?? false)
+  function onMotionChange (event: MediaQueryListEvent) {
+    reducedMotion.value = event.matches
   }
+  motionQuery?.addEventListener('change', onMotionChange)
+  disposers.push(() => motionQuery?.removeEventListener('change', onMotionChange))
 
   function xtermTheme () {
     return theme.current.value.dark ? xtermDarkTheme : xtermLightTheme
   }
 
-  /** Fits to the container; skipped while hidden, and a pane shown again resends its size (last attach wins). */
+  /** Fits to the container. A hidden pane (inactive tab) detaches; shown again it re-attaches at its new size. */
   function fit (): void {
     const el = termRef.value
     const instance = term.value
@@ -166,6 +170,7 @@
     }
     if (el.offsetWidth === 0 || el.offsetHeight === 0) {
       hidden = true
+      binding.value?.pause()
       return
     }
     const dims = fitAddon.proposeDimensions()
@@ -178,8 +183,10 @@
       instance.resize(dims.cols, dims.rows)
       emit('resize', { cols: instance.cols, rows: instance.rows })
     }
-    if (binding.value) {
-      binding.value.resize(instance.cols, instance.rows, wasHidden)
+    if (binding.value && wasHidden) {
+      binding.value.resume()
+    } else if (binding.value) {
+      binding.value.resize(instance.cols, instance.rows)
     } else {
       bind(instance)
     }
@@ -206,7 +213,7 @@
         emit('state', { state: message.state, lifecycle: message.lifecycle, exitCode: message.exitCode })
       },
       onExited: () => emit('exited'),
-      onInputDropped: () => ui.notify('Connection lost, some input was dropped', 'error'),
+      onInputDropped: () => ui.notify('Input discarded: connection unavailable'),
     })
   }
 
@@ -265,12 +272,12 @@
     }
   })
 
-  watch(() => [props.focused, props.cursorBlink, props.cursorStyle, props.fontSize, props.readonly] as const, () => {
+  watch(() => [props.focused, props.cursorBlink, props.cursorStyle, props.fontSize, props.readonly, reducedMotion.value] as const, () => {
     const instance = term.value
     if (!instance) {
       return
     }
-    instance.options.cursorBlink = props.focused && props.cursorBlink && !prefersReducedMotion()
+    instance.options.cursorBlink = props.focused && props.cursorBlink && !reducedMotion.value
     instance.options.cursorStyle = props.cursorStyle
     instance.options.disableStdin = props.readonly
     if (instance.options.fontSize !== props.fontSize) {
@@ -295,7 +302,7 @@
     const instance = new Terminal({
       // Unicode11Addon sets `term.unicode.activeVersion`, which xterm still marks as proposed API.
       allowProposedApi: true,
-      cursorBlink: props.focused && props.cursorBlink && !prefersReducedMotion(),
+      cursorBlink: props.focused && props.cursorBlink && !reducedMotion.value,
       cursorInactiveStyle: props.readonly ? 'none' : 'outline',
       cursorStyle: props.cursorStyle,
       disableStdin: props.readonly,

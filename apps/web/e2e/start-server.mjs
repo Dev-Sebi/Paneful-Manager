@@ -53,7 +53,8 @@ const env = {
   XDG_CONFIG_HOME: dirs.config,
   CLAUDE_CONFIG_DIR: dirs.claude,
   TMUX_TMPDIR: dirs.tmux,
-  NODE_ENV: 'production',
+  // Dev mode makes the server honor AGENT_HUB_DEV_ORIGINS, which lists the e2e Vite origin.
+  NODE_ENV: 'development',
 }
 // An inherited $TMUX would point the private server's clients at the caller's tmux.
 delete env.TMUX

@@ -290,9 +290,9 @@ export interface AhTerminalPaneEmits {
   (e: 'restart'): void
   /** OSC title change from the running program. */
   (e: 'title-change', title: string): void
-  /** `state` frame for this session (addition to the spec). */
+  /** `state` frame received for this session. */
   (e: 'state', payload: AhTerminalStatePayload): void
-  /** The session was removed on the server (addition to the spec). */
+  /** The session was removed on the server. */
   (e: 'exited'): void
 }
 

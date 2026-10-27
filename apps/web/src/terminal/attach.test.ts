@@ -2,7 +2,7 @@ import type { AttachClient, AttachTerminal } from './attach'
 import type { ClientMessageInput, ServerMessage, ServerMessageType } from '@agent-hub/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope } from 'vue'
-import { INPUT_QUEUE_LIMIT_BYTES, RESIZE_DEBOUNCE_MS, useSessionAttach } from './attach'
+import { INPUT_FRAME_LIMIT_BYTES, INPUT_QUEUE_LIMIT_BYTES, RESIZE_DEBOUNCE_MS, splitInput, useSessionAttach } from './attach'
 
 class FakeClient implements AttachClient {
   open = true
@@ -159,15 +159,29 @@ describe('useSessionAttach', () => {
     expect(client.ofType('input').map(message => message.data)).toEqual(['a', 'b'])
   })
 
-  it('drops input beyond the queue limit and reports it once', () => {
+  it('drops input beyond the queue limit and everything after it until the queue drains', () => {
     const { client, term, onInputDropped } = setup()
     client.open = false
-    term.type('x'.repeat(INPUT_QUEUE_LIMIT_BYTES))
-    term.type('y')
+    term.type('x'.repeat(INPUT_QUEUE_LIMIT_BYTES - 1))
+    term.type('yy')
     term.type('z')
     expect(onInputDropped).toHaveBeenCalledTimes(1)
     client.reconnect()
-    expect(client.ofType('input').map(message => message.data)).toEqual(['x'.repeat(INPUT_QUEUE_LIMIT_BYTES)])
+    expect(client.ofType('input').map(message => message.data)).toEqual(['x'.repeat(INPUT_QUEUE_LIMIT_BYTES - 1)])
+    term.type('after')
+    expect(client.ofType('input').at(-1)?.data).toBe('after')
+  })
+
+  it('splits large input into ordered frames on code point boundaries', () => {
+    const { client, term } = setup()
+    client.emit({ type: 'scrollback', sessionId: ID, data: '' })
+    const paste = `${'a'.repeat(INPUT_FRAME_LIMIT_BYTES - 1)}😀${'b'.repeat(10)}`
+    term.type(paste)
+    const frames = client.ofType('input').map(message => message.data)
+    expect(frames.join('')).toBe(paste)
+    expect(frames).toHaveLength(2)
+    expect(frames[0]).toBe('a'.repeat(INPUT_FRAME_LIMIT_BYTES - 1))
+    expect(frames[1]?.startsWith('😀')).toBe(true)
   })
 
   it('re-attaches after a reconnect and resets the terminal before the new scrollback', () => {
@@ -180,6 +194,23 @@ describe('useSessionAttach', () => {
     client.emit({ type: 'output', sessionId: ID, data: 'three' })
     client.emit({ type: 'scrollback', sessionId: ID, data: 'one two' })
     expect(term.log).toEqual(['reset', 'write:one', 'write:two', 'reset', 'write:one two', 'write:three'])
+  })
+
+  it('detaches while paused, ignores reconnects and re-attaches with scrollback on resume', () => {
+    const { client, term, attach } = setup()
+    client.emit({ type: 'scrollback', sessionId: ID, data: 'one' })
+    attach.pause()
+    expect(client.sent.at(-1)).toEqual({ type: 'detach', sessionId: ID })
+    client.emit({ type: 'output', sessionId: ID, data: 'late' })
+    client.reconnect()
+    expect(client.ofType('attach')).toHaveLength(1)
+    attach.resize(90, 30)
+    vi.advanceTimersByTime(RESIZE_DEBOUNCE_MS)
+    expect(client.ofType('resize')).toEqual([])
+    attach.resume()
+    expect(client.ofType('attach')).toHaveLength(2)
+    client.emit({ type: 'scrollback', sessionId: ID, data: 'one two' })
+    expect(term.log).toEqual(['reset', 'write:one', 'reset', 'write:one two'])
   })
 
   it('attaches once the socket opens when it was closed at start', () => {
@@ -217,5 +248,15 @@ describe('useSessionAttach', () => {
     expect(onState).toHaveBeenCalledWith(expect.objectContaining({ exitCode: 2 }))
     client.emit({ type: 'session.removed', sessionId: ID })
     expect(onExited).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('splitInput', () => {
+  it('keeps every chunk within the byte limit without cutting code points', () => {
+    expect(splitInput('', 4)).toEqual([])
+    expect(splitInput('abcdef', 4)).toEqual(['abcd', 'ef'])
+    expect(splitInput('ab€c', 4)).toEqual(['ab', '€c'])
+    expect(splitInput('😀😀', 4)).toEqual(['😀', '😀'])
+    expect(splitInput('a😀', 4)).toEqual(['a', '😀'])
   })
 })

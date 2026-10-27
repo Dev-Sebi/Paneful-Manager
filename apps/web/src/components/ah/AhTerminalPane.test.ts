@@ -143,6 +143,17 @@ describe('AhTerminalPane', () => {
     expect(wrapper.emitted('restart')).toHaveLength(1)
   })
 
+  it('detaches while hidden and re-attaches with scrollback when shown again', () => {
+    const wrapper = mountPane()
+    const width = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(0)
+    const pane = wrapper.vm as unknown as { fit: () => void }
+    pane.fit()
+    expect(mocks.sent.at(-1)).toEqual({ type: 'detach', sessionId: 's1' })
+    width.mockReturnValue(800)
+    pane.fit()
+    expect(mocks.sent.at(-1)).toEqual({ type: 'attach', sessionId: 's1', cols: 100, rows: 30, scrollback: true })
+  })
+
   it('detaches and disposes xterm on unmount', () => {
     const wrapper = mountPane()
     wrapper.unmount()

@@ -61,7 +61,6 @@
 
     <AhDialog
       v-model="createOpen"
-      confirm-text="Create"
       :loading="creating"
       title="New session"
       @confirm="createSession"
@@ -73,6 +72,7 @@
           density="compact"
           hide-details="auto"
           label="Working directory"
+          :rules="[required]"
           spellcheck="false"
           variant="outlined"
         />
@@ -83,10 +83,23 @@
           density="compact"
           hide-details="auto"
           label="Command"
+          :rules="[required]"
           spellcheck="false"
           variant="outlined"
         />
       </div>
+
+      <template #actions="{ cancel, confirm }">
+        <AhButton data-ah-cancel @click="cancel">Cancel</AhButton>
+
+        <AhButton
+          data-ah-confirm
+          :disabled="!canCreate"
+          :loading="creating"
+          variant="primary"
+          @click="confirm"
+        >Create</AhButton>
+      </template>
     </AhDialog>
 
     <AhDialog
@@ -114,7 +127,7 @@
   import type { AhStatusBadgeState } from '@/components/ah'
   import type { AppTab } from '@agent-hub/shared'
   import { DEFAULT_COMMAND } from '@agent-hub/shared'
-  import { ref, watch } from 'vue'
+  import { computed, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { api } from '@/api/client'
   import { AhButton, AhDialog, AhTab, AhTabPanel, AhTabs } from '@/components/ah'
@@ -139,6 +152,12 @@
   const createCwd = ref('~/')
   const createCommand = ref(DEFAULT_COMMAND)
 
+  const canCreate = computed(() => createCwd.value.trim() !== '' && createCommand.value.trim() !== '')
+
+  function required (value: string): true | string {
+    return value.trim() !== '' || 'Required'
+  }
+
   function paneTitle (sessionId: string): string {
     const session = sessions.byId.get(sessionId)
     return session?.title ?? session?.command ?? sessionId
@@ -155,6 +174,9 @@
   }
 
   async function createSession () {
+    if (!canCreate.value || creating.value) {
+      return
+    }
     creating.value = true
     try {
       const { session } = await api.createSession({ cwd: createCwd.value.trim(), command: createCommand.value.trim() })
