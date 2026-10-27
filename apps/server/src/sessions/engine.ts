@@ -5,6 +5,7 @@ import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 import {
   DEFAULT_HOST_ID,
+  HOOK_ENV,
   SessionSchema,
   type CreateSessionRequest,
   type Session,
@@ -32,6 +33,7 @@ export interface StateChange {
   state: SessionState
   lifecycle: SessionLifecycle
   exitCode?: number
+  stateSince?: string
 }
 
 export interface EngineEvents {
@@ -60,7 +62,7 @@ export interface SessionEngineOptions {
   logger: Pick<BaseLogger, 'debug' | 'info' | 'warn' | 'error'>
   tmux?: Tmux
   spawnPty?: SpawnPty
-  /** Extra environment for new sessions (hook token, T26). */
+  /** Extra environment for new sessions: hook token and server URL; `AGENT_HUB_SESSION_ID` is always set. */
   sessionEnv?: (id: string) => Record<string, string>
   scrollbackLines?: number
   pollAttachedMs?: number
@@ -90,6 +92,7 @@ function stateOf(session: Session): StateChange {
     state: session.state,
     lifecycle: session.lifecycle,
     ...(session.exitCode === undefined ? {} : { exitCode: session.exitCode }),
+    ...(session.stateSince === undefined ? {} : { stateSince: session.stateSince }),
   }
 }
 
@@ -170,6 +173,7 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
       state: 'idle',
       lifecycle: 'starting',
       lastEventAt: now,
+      stateSince: now,
       cols: input.cols,
       rows: input.rows,
     })
@@ -182,7 +186,7 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
         cwd,
         command: input.command,
         args: input.args,
-        env: { ...this.options.sessionEnv?.(id), AGENT_HUB_SESSION_ID: id },
+        env: { ...this.options.sessionEnv?.(id), [HOOK_ENV.sessionId]: id },
         cols: input.cols,
         rows: input.rows,
       })
@@ -197,7 +201,8 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
       this.options.logger.warn({ err: error, sessionId: id }, 'tmux new-session failed')
       throw new AppError('tmux could not start the session', 500, 'session_spawn_failed')
     }
-    const running: Session = { ...starting, lifecycle: 'running' }
+    // A hook may already have changed the state while tmux was starting the command.
+    const running: Session = { ...(this.sessions.get(id) ?? starting), lifecycle: 'running' }
     this.sessions.set(id, running)
     await this.store.save(running)
     this.emit('session.created', running)
@@ -288,6 +293,32 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
     return true
   }
 
+  /**
+   * Applies a state derived from a Claude Code hook; false for unknown sessions.
+   * Only a changed state is persisted and broadcast; events for exited sessions are ignored.
+   */
+  applyHookState(id: string, state: SessionState): boolean {
+    const session = this.sessions.get(id)
+    if (session === undefined) {
+      return false
+    }
+    if (session.lifecycle === 'exited') {
+      return true
+    }
+    const now = new Date().toISOString()
+    if (session.state === state) {
+      this.sessions.set(id, { ...session, lastEventAt: now })
+      return true
+    }
+    const next: Session = { ...session, state, lastEventAt: now, stateSince: now }
+    this.sessions.set(id, next)
+    this.emit('state', stateOf(next))
+    this.store.save(next).catch((error: unknown) => {
+      this.options.logger.warn({ err: error, sessionId: id }, 'Saving session state failed')
+    })
+    return true
+  }
+
   /** Lists tmux sessions once: re-adopts on the first success, then detects exits and vanished sessions. */
   poll(): Promise<void> {
     this.polling ??= this.pollOnce().finally(() => {
@@ -361,11 +392,12 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
           state: 'idle',
           lifecycle: 'running',
           lastEventAt: now,
+          stateSince: now,
           cols: RECOVERED_COLS,
           rows: RECOVERED_ROWS,
         }), info)
       } else {
-        session = withLifecycle({ ...record, state: 'idle' }, info)
+        session = withLifecycle({ ...record, state: 'idle', stateSince: now }, info)
       }
       this.sessions.set(session.id, session)
       await this.store.save(session)

@@ -24,17 +24,20 @@ import { buildApp } from '../app.js'
 import { Tmux } from '../tmux/tmux.js'
 import { SessionEngine } from './engine.js'
 
-function hasTmux(): boolean {
+function has(command: string, flag: string): boolean {
   try {
-    execFileSync('tmux', ['-V'], { stdio: 'ignore' })
+    execFileSync(command, [flag], { stdio: 'ignore' })
     return true
   } catch {
     return false
   }
 }
 
+const hasTmux = (): boolean => has('tmux', '-V')
+
 const WAIT_MS = 5000
 const TOKEN = randomBytes(32).toString('hex')
+const HOOK_TOKEN = randomBytes(32).toString('base64url')
 const socketName = `agent-hub-test-${randomBytes(4).toString('hex')}`
 const logger = pino({ level: 'silent' })
 let dir: string
@@ -48,7 +51,8 @@ function tmux(...args: string[]): string {
 }
 
 function newEngine(): SessionEngine {
-  return new SessionEngine({ stateDir, logger, tmux: new Tmux({ socketName }), pollAttachedMs: 100, pollIdleMs: 100 })
+  const sessionEnv = (): Record<string, string> => ({ AGENT_HUB_HOOK_TOKEN: HOOK_TOKEN, AGENT_HUB_URL: baseUrl })
+  return new SessionEngine({ stateDir, logger, sessionEnv, tmux: new Tmux({ socketName }), pollAttachedMs: 100, pollIdleMs: 100 })
 }
 
 async function waitFor<T>(check: () => T | undefined | false, label: string, timeoutMs = WAIT_MS): Promise<T> {
@@ -140,7 +144,7 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     tmux('-f', conf, 'start-server')
     engine = newEngine()
     await engine.start()
-    app = buildApp({ config: DEFAULT_CONFIG, logger, engine, sessionToken: TOKEN, dev: false })
+    app = buildApp({ config: DEFAULT_CONFIG, logger, engine, sessionToken: TOKEN, hookToken: HOOK_TOKEN, dev: false })
     await app.listen({ host: '127.0.0.1', port: 0 })
     const address = app.server.address()
     baseUrl = `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`
@@ -326,6 +330,22 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     await other.close()
     expect(other.isAttached(id)).toBe(false)
     expect(tmux('list-sessions', '-F', '#{session_name}')).toContain(`ah-${id}`)
+  })
+
+  it.skipIf(!has('curl', '--version'))('turns hook requests sent with the injected environment into state frames', async () => {
+    const post = (event: string): string =>
+      `curl -s -X POST -H "X-Agent-Hub-Hook-Token: $AGENT_HUB_HOOK_TOKEN" -H "X-Agent-Hub-Session-Id: $AGENT_HUB_SESSION_ID" `
+      + `-H "content-type: application/json" -d '{"hook_event_name":"${event}"}' "$AGENT_HUB_URL/api/hooks"`
+    const gate = join(dir, 'hook-gate')
+    const client = await Client.connect()
+    const script = `${post('UserPromptSubmit')}; while [ ! -f '${gate}' ]; do sleep 0.05; done; ${post('Stop')}; sleep 30`
+    const id = await createSession({ cwd: dir, command: 'sh', args: ['-c', script] })
+    const working = await client.waitForMessage('state', m => m.sessionId === id && m.state === 'working')
+    expect(working.stateSince).toBe(engine.get(id)?.stateSince)
+    await writeFile(gate, '')
+    await client.waitForMessage('state', m => m.sessionId === id && m.state === 'idle')
+    expect(engine.get(id)?.state).toBe('idle')
+    client.close()
   })
 
   // Runs last: it kills the shared tmux server.

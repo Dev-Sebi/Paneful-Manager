@@ -19,7 +19,7 @@ function missingTmux(): Tmux {
 describe('startServer', () => {
   it('listens on loopback with an ephemeral port and shuts down', async () => {
     const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
-    const env = { ...process.env, XDG_STATE_HOME: stateHome }
+    const env = { ...process.env, XDG_STATE_HOME: stateHome, XDG_CONFIG_HOME: join(stateHome, 'config') }
     const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env, tmux: missingTmux() })
     expect(await readdir(join(stateHome, 'agent-hub'))).toContain('sessions')
     expect(server.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/)

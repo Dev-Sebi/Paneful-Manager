@@ -30,6 +30,12 @@ describe('SessionSchema', () => {
     }
   })
 
+  it('keeps an optional stateSince timestamp', () => {
+    expect(SessionSchema.parse(valid).stateSince).toBeUndefined()
+    expect(SessionSchema.parse({ ...valid, stateSince: '2026-10-27T10:00:06.000Z' }).stateSince).toBe('2026-10-27T10:00:06.000Z')
+    expect(issuePaths(SessionSchema, { ...valid, stateSince: 'yesterday' })).toEqual(['stateSince'])
+  })
+
   it('allows exitCode only for exited sessions', () => {
     expect(SessionSchema.parse({ ...valid, lifecycle: 'exited', exitCode: 1 }).exitCode).toBe(1)
     expect(issuePaths(SessionSchema, { ...valid, exitCode: 0 })).toEqual(['exitCode'])

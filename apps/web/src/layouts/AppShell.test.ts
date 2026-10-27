@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getConfig: vi.fn(),
   listScopes: vi.fn(),
   listSessions: vi.fn(),
+  listPresets: vi.fn(),
 }))
 vi.mock('@/api/client', () => ({ api: mocks }))
 vi.mock('@/api/ws', () => ({
@@ -25,6 +26,7 @@ async function mountAt (path: string, agentTeams = false) {
   })
   mocks.listScopes.mockResolvedValue({ scopes: [] })
   mocks.listSessions.mockResolvedValue({ sessions: [] })
+  mocks.listPresets.mockResolvedValue({ presets: [] })
   const pinia = createPinia()
   setActivePinia(pinia)
   const router = createAppRouter(createMemoryHistory())
@@ -58,13 +60,12 @@ describe('AppShell', () => {
     expect(wrapper.findAll('a.v-list-item').map(link => link.text())).toContain('Teams')
   })
 
-  it('shows the workspaces empty state with the preset CTA', async () => {
+  it('shows the workspaces empty state with the presets panel', async () => {
     const { wrapper } = await mountAt('/workspaces')
     expect(wrapper.text()).toContain('No sessions yet')
-    const cta = wrapper.findAll('button').find(button => button.text() === 'Open preset')
-    expect(cta).toBeDefined()
-    await cta?.trigger('click')
-    expect(useUiStore().snackbars[0]?.text).toBe('Presets are not available yet')
+    expect(wrapper.text()).toContain('Presets')
+    expect(wrapper.text()).toContain('No presets yet')
+    expect(wrapper.findAll('button').some(button => button.text() === 'New preset')).toBe(true)
   })
 
   it('shows empty states for scope sections and the 404 view', async () => {

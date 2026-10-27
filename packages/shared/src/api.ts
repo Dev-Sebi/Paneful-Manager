@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { AppConfigSchema, ConfigPatchSchema } from './config.js'
 import { DEFAULT_COLS, DEFAULT_COMMAND, DEFAULT_ROWS } from './defaults.js'
+import { AppPaneSchema, LayoutSchema, paneListSchema } from './layout.js'
 import { PresetNameSchema, WorkspacePresetSchema } from './preset.js'
 import { PathSchema, ScopeSchema } from './scope.js'
 import { SessionIdSchema, SessionSchema, TerminalSizeSchema } from './session.js'
@@ -14,9 +15,13 @@ export const API_ROUTES = {
   session: `${API_PREFIX}/sessions/:id`,
   presets: `${API_PREFIX}/presets`,
   preset: `${API_PREFIX}/presets/:name`,
+  presetLaunch: `${API_PREFIX}/presets/:name/launch`,
   config: `${API_PREFIX}/config`,
   sessionToken: `${API_PREFIX}/session-token`,
   hooks: `${API_PREFIX}/hooks`,
+  hooksInstall: `${API_PREFIX}/hooks/install`,
+  hooksUninstall: `${API_PREFIX}/hooks/uninstall`,
+  hooksStatus: `${API_PREFIX}/hooks/status`,
   scopes: `${API_PREFIX}/scopes`,
   files: `${API_PREFIX}/files`,
   fileContent: `${API_PREFIX}/files/content`,
@@ -146,6 +151,21 @@ export type PresetResponse = z.infer<typeof PresetResponseSchema>
 /** DELETE /api/presets/:name */
 export const DeletePresetResponseSchema = z.strictObject({ name: PresetNameSchema, deleted: z.literal(true) })
 export type DeletePresetResponse = z.infer<typeof DeletePresetResponseSchema>
+
+/** A launched preset tab: the runtime tab without its id (the web assigns one). */
+export const LaunchedTabSchema = z.strictObject({
+  title: z.string(),
+  layout: LayoutSchema,
+  panes: paneListSchema(AppPaneSchema),
+})
+export type LaunchedTab = z.infer<typeof LaunchedTabSchema>
+
+/** POST /api/presets/:name/launch; one entry per preset tab, in preset order. */
+export const LaunchPresetResponseSchema = z.strictObject({
+  name: PresetNameSchema,
+  tabs: z.array(LaunchedTabSchema).min(1),
+})
+export type LaunchPresetResponse = z.infer<typeof LaunchPresetResponseSchema>
 
 // Scopes
 

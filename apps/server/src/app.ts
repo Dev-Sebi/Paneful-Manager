@@ -17,7 +17,12 @@ import { createConfigStore, type ConfigStore } from './config/store.js'
 import { AppError } from './errors.js'
 import { registerFiles } from './files/routes.js'
 import type { FileService } from './files/service.js'
+import type { HookSettings } from './hooks/install.js'
+import { registerHooks } from './hooks/routes.js'
 import { registerMcp, type McpDeps } from './mcp/routes.js'
+import type { PresetLauncher } from './presets/launch.js'
+import { registerPresets } from './presets/routes.js'
+import type { PresetStore } from './presets/store.js'
 import { registerScopes } from './scopes/routes.js'
 import { runFile } from './scopes/run-git.js'
 import { registerSecurity } from './security/register-security.js'
@@ -48,8 +53,14 @@ export interface BuildAppOptions {
   engine?: SessionEngine
   /** Managed-file service; the file routes are only registered when it is given. */
   files?: FileService
+  /** Persisted hook token; `POST /api/hooks` is only registered with it and an engine. */
+  hookToken?: string
+  /** Claude settings installer for the hook install, uninstall and status routes. */
+  hookSettings?: HookSettings
   /** Live config store; defaults to an in-memory store seeded from `config`. */
   configStore?: ConfigStore
+  /** Preset store for `/api/presets`; the launch route also needs the session engine's launcher. */
+  presets?: { store: PresetStore; launcher?: PresetLauncher }
   /** Worktree helper; its routes are only registered when this is given. */
   worktrees?: Omit<WorktreeDeps, 'run'> & Partial<Pick<WorktreeDeps, 'run'>>
   /** MCP config service (and optional health runner); the MCP routes are only registered when it is given. */
@@ -107,7 +118,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], engine, files, worktrees, mcp, configStore, teams, webDist }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], engine, files, presets, worktrees, mcp, configStore, teams, webDist, hookToken, hookSettings }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -131,14 +142,21 @@ export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], e
     registerFiles(app, { service: files })
     app.addHook('onClose', async () => files.close())
   }
+  if (hookSettings !== undefined) {
+    registerHooks(app, { getPort, settings: hookSettings })
+  }
   // Registered after registerSecurity: its onRequest hook guards these routes, and /ws uses the same checks.
   let hub: WsHub | undefined
   if (engine !== undefined) {
     registerSessions(app, { engine })
+    registerHooks(app, { getPort, engine, ...(hookToken === undefined ? {} : { token: hookToken }) })
     hub = registerWs(app, { engine, authorizeUpgrade: request => authorizeUpgrade(request, { port: getPort(), token, dev: isDev, devOrigins }) })
     app.addHook('onClose', async () => {
       await engine.close()
     })
+  }
+  if (presets) {
+    registerPresets(app, presets)
   }
   if (worktrees) {
     registerWorktrees(app, { ...worktrees, run: worktrees.run ?? runFile })

@@ -29,6 +29,8 @@
             @click="resetLayout"
           >Reset layout</AhButton>
 
+          <AhButton prepend-icon="mdi-view-dashboard-outline" size="sm" variant="ghost" @click="presetsOpen = true">Presets</AhButton>
+
           <AhButton prepend-icon="mdi-plus" size="sm" variant="ghost" @click="openCreate">New session</AhButton>
         </template>
       </AhTabs>
@@ -75,17 +77,19 @@
       </AhTabPanel>
     </template>
 
-    <EmptyState
-      v-else
-      action-label="Open preset"
-      icon="mdi-console"
-      message="No sessions yet"
-      @action="ui.notify('Presets are not available yet')"
-    >
-      <template #actions>
-        <AhButton prepend-icon="mdi-plus" @click="openCreate">New session</AhButton>
-      </template>
-    </EmptyState>
+    <div v-else class="workspaces__empty">
+      <EmptyState icon="mdi-console" message="No sessions yet">
+        <template #actions>
+          <AhButton prepend-icon="mdi-plus" @click="openCreate">New session</AhButton>
+        </template>
+      </EmptyState>
+
+      <PresetsPanel />
+    </div>
+
+    <AhDialog v-model="presetsOpen" size="lg" title="Presets">
+      <PresetsPanel @launched="presetsOpen = false" />
+    </AhDialog>
 
     <AhDialog
       v-model="createOpen"
@@ -164,6 +168,7 @@
   import AhTerminalPane from '@/components/ah/AhTerminalPane.vue'
   import EmptyState from '@/components/EmptyState.vue'
   import PanePlaceholder from '@/components/PanePlaceholder.vue'
+  import PresetsPanel from '@/components/presets/PresetsPanel.vue'
   import { useCloseTab } from '@/composables/useCloseTab'
   import { useConfigStore } from '@/stores/config'
   import { useLayoutSizesStore } from '@/stores/layoutSizes'
@@ -184,6 +189,7 @@
   const closing = useCloseTab()
   const maximized = ref<string>()
   const createOpen = ref(false)
+  const presetsOpen = ref(false)
   const creating = ref(false)
   const createCwd = ref('~/')
   const createCommand = ref(DEFAULT_COMMAND)
@@ -358,6 +364,16 @@
 }
 
 .workspaces__layout { flex: 1; min-height: 0; }
+
+.workspaces__empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ah-space-4);
+  padding: var(--ah-space-4);
+  overflow-y: auto;
+}
 
 .workspaces__pane { height: 100%; }
 
