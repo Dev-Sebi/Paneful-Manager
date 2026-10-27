@@ -13,6 +13,7 @@ import {
 } from '@agent-hub/shared'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { AppError } from './errors.js'
+import { registerScopes } from './scopes/routes.js'
 import { registerSecurity } from './security/register-security.js'
 import { createSessionToken } from './security/token.js'
 
@@ -93,5 +94,6 @@ export function buildApp({ config, logger, sessionToken, dev }: BuildAppOptions)
     dev: dev ?? process.env.NODE_ENV === 'development',
   })
   registerCore(app)
+  registerScopes(app, { getConfig: () => config })
   return app
 }

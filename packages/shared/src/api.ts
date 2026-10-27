@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { AppConfigSchema, ConfigPatchSchema } from './config.js'
 import { DEFAULT_COLS, DEFAULT_COMMAND, DEFAULT_ROWS } from './defaults.js'
 import { PresetNameSchema, WorkspacePresetSchema } from './preset.js'
-import { PathSchema } from './scope.js'
+import { PathSchema, ScopeSchema } from './scope.js'
 import { SessionIdSchema, SessionSchema, TerminalSizeSchema } from './session.js'
 
 export const API_PREFIX = '/api'
@@ -17,6 +17,7 @@ export const API_ROUTES = {
   config: `${API_PREFIX}/config`,
   sessionToken: `${API_PREFIX}/session-token`,
   hooks: `${API_PREFIX}/hooks`,
+  scopes: `${API_PREFIX}/scopes`,
 } as const
 
 // Security
@@ -129,6 +130,12 @@ export type PresetResponse = z.infer<typeof PresetResponseSchema>
 /** DELETE /api/presets/:name */
 export const DeletePresetResponseSchema = z.strictObject({ name: PresetNameSchema, deleted: z.literal(true) })
 export type DeletePresetResponse = z.infer<typeof DeletePresetResponseSchema>
+
+// Scopes
+
+/** GET /api/scopes */
+export const ScopesResponseSchema = z.strictObject({ scopes: z.array(ScopeSchema) })
+export type ScopesResponse = z.infer<typeof ScopesResponseSchema>
 
 // Config
 

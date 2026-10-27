@@ -12,6 +12,7 @@ import {
   PatchConfigResponseSchema,
   PresetParamsSchema,
   SessionTokenResponseSchema,
+  ScopesResponseSchema,
   isZodError,
   toValidationError,
   UpsertPresetRequestSchema,
@@ -143,5 +144,18 @@ describe('session token', () => {
     for (const code of ['unauthorized', 'forbidden']) {
       expect(ApiErrorSchema.parse({ code, message: 'x' }).code).toBe(code)
     }
+  })
+})
+
+describe('scopes API', () => {
+  it('parses all scope kinds and rejects unknown keys', () => {
+    roundTrip(ScopesResponseSchema, {
+      scopes: [
+        { kind: 'global', path: '~/.claude' },
+        { kind: 'project', path: '/p' },
+        { kind: 'worktree', path: '/p-wt', branch: 'feat', projectPath: '/p' },
+      ],
+    })
+    expect(ScopesResponseSchema.safeParse({ scopes: [], extra: 1 }).success).toBe(false)
   })
 })
