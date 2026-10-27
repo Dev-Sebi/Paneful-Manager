@@ -1,6 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
 
 const isCI = Boolean(process.env.CI)
+/** Real server for e2e; kept off the default port so a running Agent Hub is never touched. */
+const SERVER_PORT = '7340'
+/** Own Vite instance; a dev server on 3000 proxies to the default port instead. */
+const WEB_PORT = 3001
+const baseURL = `http://localhost:${WEB_PORT}`
 
 export default defineConfig({
   testDir: './e2e',
@@ -10,14 +15,26 @@ export default defineConfig({
   retries: isCI ? 2 : 0,
   reporter: isCI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL,
     trace: 'on-first-retry',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    command: 'pnpm --filter @agent-hub/web dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      command: 'pnpm --filter @agent-hub/shared build && pnpm --filter @agent-hub/server build && node e2e/start-server.mjs',
+      url: `http://127.0.0.1:${SERVER_PORT}/api/health`,
+      env: { AGENT_HUB_PORT: SERVER_PORT },
+      reuseExistingServer: !isCI,
+      timeout: 120_000,
+      // The script kills its private tmux server on SIGTERM; the default SIGKILL would leak it.
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 },
+    },
+    {
+      command: `pnpm exec vite --port ${WEB_PORT} --strictPort`,
+      url: baseURL,
+      env: { AGENT_HUB_PORT: SERVER_PORT },
+      reuseExistingServer: !isCI,
+      timeout: 120_000,
+    },
+  ],
 })
