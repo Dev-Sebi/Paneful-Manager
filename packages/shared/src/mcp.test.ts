@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { API_ROUTES } from './api.js'
 import {
   ListMcpServersResponseSchema,
+  McpHealthRequestSchema,
+  McpHealthResultSchema,
   McpServerConfigSchema,
   McpServerEntrySchema,
   McpServerNameSchema,
@@ -111,5 +113,21 @@ describe('requests and responses', () => {
     expect(issuePaths(RemoveMcpServerRequestSchema, { name: 'x', scope: { kind: 'team' } })).toEqual(['scope.kind'])
     expect(ListMcpServersResponseSchema.parse({ servers: [], mode: 'file' })).toEqual({ servers: [], mode: 'file' })
     expect(API_ROUTES.mcp).toBe('/api/mcp')
+  })
+})
+
+describe('health check schemas', () => {
+  it('parses requests and results', () => {
+    expect(McpHealthRequestSchema.parse({ name: 'x', scope: { kind: 'user' } })).toEqual({ name: 'x', scope: { kind: 'user' } })
+    expect(issuePaths(McpHealthRequestSchema, { name: '-s', scope: { kind: 'user' } })).toEqual(['name'])
+    const result = { name: 'x', scope: { kind: 'user' }, status: 'ok', latencyMs: 12, serverInfo: { name: 's', version: '1' }, protocolVersion: '2025-06-18' }
+    expect(McpHealthResultSchema.parse(result)).toEqual(result)
+    expect(API_ROUTES.mcpHealth).toBe('/api/mcp/health')
+  })
+
+  it('rejects unknown statuses and over-long errors', () => {
+    const base = { name: 'x', scope: { kind: 'user' } }
+    expect(issuePaths(McpHealthResultSchema, { ...base, status: 'bad' })).toEqual(['status'])
+    expect(issuePaths(McpHealthResultSchema, { ...base, status: 'error', error: 'e'.repeat(201) })).toEqual(['error'])
   })
 })

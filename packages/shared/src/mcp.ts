@@ -170,3 +170,33 @@ export const RemoveMcpServerResponseSchema = z.strictObject({
   removed: z.literal(true),
 })
 export type RemoveMcpServerResponse = z.infer<typeof RemoveMcpServerResponseSchema>
+
+// Health check
+
+export const McpHealthStatusSchema = z.enum(['ok', 'error', 'timeout', 'unsupported'])
+export type McpHealthStatus = z.infer<typeof McpHealthStatusSchema>
+
+export const MCP_HEALTH_ERROR_MAX = 200
+
+/** POST /api/mcp/health: spawns the server (stdio) or contacts it (http, sse) and performs the `initialize` handshake. */
+export const McpHealthRequestSchema = z.strictObject({ name: McpServerNameSchema, scope: McpScopeSchema })
+export type McpHealthRequest = z.infer<typeof McpHealthRequestSchema>
+
+/** `error` is scrubbed of env and header values. */
+export const McpHealthResultSchema = z.strictObject({
+  name: McpServerNameSchema,
+  scope: McpScopeSchema,
+  status: McpHealthStatusSchema,
+  latencyMs: z.number().int().nonnegative().optional(),
+  serverInfo: z.strictObject({ name: z.string(), version: z.string() }).optional(),
+  protocolVersion: z.string().optional(),
+  error: z.string().max(MCP_HEALTH_ERROR_MAX).optional(),
+})
+export type McpHealthResult = z.infer<typeof McpHealthResultSchema>
+
+/** GET /api/mcp/health query; without `projectPath` every configured project and worktree is checked. */
+export const McpHealthQuerySchema = z.strictObject({ projectPath: PathSchema.optional() })
+export type McpHealthQuery = z.infer<typeof McpHealthQuerySchema>
+
+export const McpHealthListResponseSchema = z.strictObject({ results: z.array(McpHealthResultSchema) })
+export type McpHealthListResponse = z.infer<typeof McpHealthListResponseSchema>
