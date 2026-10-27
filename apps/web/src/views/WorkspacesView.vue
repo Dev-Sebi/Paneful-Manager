@@ -43,23 +43,24 @@
           @resized="refit"
         >
           <template #pane="{ index }">
-            <AhTerminalPane
-              v-if="tab.panes[index]"
-              :ref="el => setPaneRef(tab.panes[index]!.sessionId, el)"
-              class="workspaces__pane"
-              :connection="sessions.byId.get(tab.panes[index]!.sessionId)?.lifecycle === 'exited' ? 'exited' : 'connecting'"
-              :cwd="sessions.byId.get(tab.panes[index]!.sessionId)?.cwd"
-              :exit-code="sessions.byId.get(tab.panes[index]!.sessionId)?.exitCode"
-              :focused="tab.id === tabs.activeId"
-              :maximized="maximized === tab.panes[index]!.sessionId"
-              :session-id="tab.panes[index]!.sessionId"
-              :status="sessions.byId.get(tab.panes[index]!.sessionId)?.state"
-              :title="paneTitle(tab.panes[index]!.sessionId)"
-              @close="ui.notify('Closing panes is not available yet')"
-              @restart="ui.notify('Restarting sessions is not available yet')"
-              @split="ui.notify('Split panes are not available yet')"
-              @toggle-maximize="toggleMaximize(tab.panes[index]!.sessionId)"
-            />
+            <template v-for="pane in tab.panes.slice(index, index + 1)" :key="pane.sessionId">
+              <AhTerminalPane
+                :ref="el => setPaneRef(pane.sessionId, el)"
+                class="workspaces__pane"
+                :connection="sessions.byId.get(pane.sessionId)?.lifecycle === 'exited' ? 'exited' : 'connecting'"
+                :cwd="sessions.byId.get(pane.sessionId)?.cwd"
+                :exit-code="sessions.byId.get(pane.sessionId)?.exitCode"
+                :focused="tab.id === tabs.activeId"
+                :maximized="maximized === pane.sessionId"
+                :session-id="pane.sessionId"
+                :status="sessions.byId.get(pane.sessionId)?.state"
+                :title="paneTitle(pane.sessionId)"
+                @close="ui.notify('Closing panes is not available yet')"
+                @restart="ui.notify('Restarting sessions is not available yet')"
+                @split="ui.notify('Split panes are not available yet')"
+                @toggle-maximize="toggleMaximize(pane.sessionId)"
+              />
+            </template>
           </template>
         </AhSplitLayout>
       </AhTabPanel>

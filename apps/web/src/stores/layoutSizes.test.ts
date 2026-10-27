@@ -28,12 +28,26 @@ describe('layout sizes store', () => {
   })
 
   it('drops an invalid persisted payload', () => {
-    localStorage.setItem(LAYOUT_SIZES_STORAGE_KEY, JSON.stringify({ a: { 0: [-1, 101] } }))
+    localStorage.setItem(LAYOUT_SIZES_STORAGE_KEY, JSON.stringify([1, 2]))
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     setActivePinia(createPinia())
     expect(useLayoutSizesStore().sizes).toEqual({})
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
+  })
+
+  it('keeps valid tabs when another tab entry is invalid', () => {
+    localStorage.setItem(LAYOUT_SIZES_STORAGE_KEY, JSON.stringify({ good: { 0: [40, 60] }, bad: { 0: [-1, 101] } }))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setActivePinia(createPinia())
+    expect(Object.keys(useLayoutSizesStore().sizes)).toEqual(['good'])
+    warn.mockRestore()
+  })
+
+  it('rejects sizes below the minimum', () => {
+    const store = useLayoutSizesStore()
+    store.set('a', '0', [5, 95])
+    expect(store.get('a', '0', 2)).toBeUndefined()
   })
 
   it('resets and prunes tabs', () => {

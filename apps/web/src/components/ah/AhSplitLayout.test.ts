@@ -94,7 +94,26 @@ describe('AhSplitLayout rendering', () => {
   })
 })
 
+describe('AhSplitLayout nesting', () => {
+  it('labels nested splitters by their first pane', async () => {
+    const wrapper = mountLayout({ kind: 'grid-2x2' }, 4)
+    await flushPromises()
+    const labels = wrapper.findAll('.splitpanes__splitter').map(el => el.attributes('aria-label'))
+    expect(labels).toContain('Resize panes 1 and 3')
+    expect(labels).toContain('Resize panes 1 and 2')
+    expect(labels).toContain('Resize panes 3 and 4')
+  })
+})
+
 describe('AhSplitLayout sizes', () => {
+  it('does not save a resized event without a pointer or key event', async () => {
+    const wrapper = mountLayout({ kind: 'row' }, 2)
+    await flushPromises()
+    wrapper.findComponent({ name: 'Splitpanes' }).vm.$emit('resized', { panes: [{ min: 0, max: 100, size: 20 }, { min: 0, max: 100, size: 80 }] })
+    await flushPromises()
+    expect(useLayoutSizesStore().sizes['tab-1']).toBeUndefined()
+  })
+
   it('restores persisted sizes on mount', async () => {
     localStorage.setItem(LAYOUT_SIZES_STORAGE_KEY, JSON.stringify({ 'tab-1': { 0: [30, 70] } }))
     const wrapper = mountLayout({ kind: 'row' }, 2)
@@ -102,6 +121,13 @@ describe('AhSplitLayout sizes', () => {
     const [first, second] = wrapper.findAll('.splitpanes__pane')
     expect(first?.attributes('style')).toContain('30%')
     expect(second?.attributes('style')).toContain('70%')
+  })
+
+  it('ignores persisted sizes below the minimum pane share', async () => {
+    localStorage.setItem(LAYOUT_SIZES_STORAGE_KEY, JSON.stringify({ 'tab-1': { 0: [2, 98] } }))
+    const wrapper = mountLayout({ kind: 'row' }, 2)
+    await flushPromises()
+    expect(wrapper.findAll('.splitpanes__pane')[0]?.attributes('style')).toContain('50%')
   })
 
   it('ignores persisted sizes that do not fit the pane count', async () => {

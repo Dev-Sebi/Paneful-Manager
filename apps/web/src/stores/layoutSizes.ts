@@ -7,20 +7,35 @@ export const LAYOUT_SIZES_STORAGE_KEY = 'agent-hub.layout-sizes.v1'
 
 /** Sizes in percent of the panes of one split node. */
 const SizesSchema = z.array(z.number().positive()).min(2)
-/** Tab id to split node path to sizes. */
-const PersistedSizesSchema = z.record(z.string(), z.record(z.string(), SizesSchema))
+/** Split node path to sizes, for one tab. */
+const TabSizesSchema = z.record(z.string(), SizesSchema)
 
-type PersistedSizes = z.infer<typeof PersistedSizesSchema>
+type PersistedSizes = Record<string, z.infer<typeof TabSizesSchema>>
+
+/** Smallest share of a split a pane can shrink to, in percent. */
+export const MIN_PANE_PERCENT = 10
 
 const SUM_TOLERANCE = 1
 
 function loadSizes (): PersistedSizes {
   const raw = readStorage(LAYOUT_SIZES_STORAGE_KEY)
-  const parsed = PersistedSizesSchema.safeParse(raw)
-  if (!parsed.success && raw !== undefined) {
-    console.warn('[layout-sizes] dropped invalid persisted payload')
+  const outer = z.record(z.string(), z.unknown()).safeParse(raw)
+  if (!outer.success) {
+    if (raw !== undefined) {
+      console.warn('[layout-sizes] dropped invalid persisted payload')
+    }
+    return {}
   }
-  return parsed.success ? parsed.data : {}
+  const result: PersistedSizes = {}
+  for (const [tabId, entry] of Object.entries(outer.data)) {
+    const parsed = TabSizesSchema.safeParse(entry)
+    if (parsed.success) {
+      result[tabId] = parsed.data
+    } else {
+      console.warn('[layout-sizes] dropped invalid sizes of a tab')
+    }
+  }
+  return result
 }
 
 export const useLayoutSizesStore = defineStore('layoutSizes', () => {
@@ -33,7 +48,8 @@ export const useLayoutSizesStore = defineStore('layoutSizes', () => {
       return undefined
     }
     const total = saved.reduce((sum, value) => sum + value, 0)
-    return Math.abs(total - 100) <= SUM_TOLERANCE ? saved : undefined
+    const fits = Math.abs(total - 100) <= SUM_TOLERANCE && saved.every(value => value >= MIN_PANE_PERCENT)
+    return fits ? saved : undefined
   }
 
   function set (tabId: string, path: string, value: number[]) {

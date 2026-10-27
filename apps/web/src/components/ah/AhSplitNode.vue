@@ -4,6 +4,7 @@
     ref="splitRef"
     class="ah-split-node"
     :horizontal="node.direction === 'column'"
+    :maximize-panes="false"
     @resized="onResized"
   >
     <Pane
@@ -31,11 +32,8 @@
   import type { SplitpanesResizedPayload } from 'splitpanes'
   import { Pane, Splitpanes } from 'splitpanes'
   import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-  import { useLayoutSizesStore } from '@/stores/layoutSizes'
+  import { MIN_PANE_PERCENT, useLayoutSizesStore } from '@/stores/layoutSizes'
   import { defaultSizes } from './layoutTree'
-
-  /** Smallest share of a split a pane can shrink to, in percent. */
-  const MIN_PANE_PERCENT = 10
 
   const props = defineProps<{
     node: LayoutNode
@@ -129,7 +127,7 @@
 }
 
 /* Splitpanes creates the splitters at runtime, so they carry no scope attribute. */
-.ah-split-node :deep(> .splitpanes__splitter) {
+.ah-split-node > :deep(.splitpanes__splitter) {
   flex: none;
   background: transparent;
   transition: background-color var(--ah-motion-duration-fast) var(--ah-motion-easing-standard);
@@ -138,8 +136,8 @@
 .ah-split-node.splitpanes--vertical > :deep(.splitpanes__splitter) { width: var(--ah-space-1); }
 .ah-split-node.splitpanes--horizontal > :deep(.splitpanes__splitter) { height: var(--ah-space-1); }
 
-.ah-split-node :deep(> .splitpanes__splitter:hover),
-.ah-split-node :deep(> .splitpanes__splitter:focus-visible) {
+.ah-split-node > :deep(.splitpanes__splitter:hover),
+.ah-split-node > :deep(.splitpanes__splitter:focus-visible) {
   background: var(--ah-color-border-focus);
   outline: none;
 }
