@@ -12,14 +12,14 @@ import {
 
 describe('mapHookEvent', () => {
   it.each([
-    ['SessionStart', 'working'],
+    ['SessionStart', null],
     ['UserPromptSubmit', 'working'],
     ['PreToolUse', 'working'],
     ['PostToolUse', 'working'],
     ['PostToolUseFailure', 'working'],
     ['PermissionRequest', 'waiting'],
     ['Stop', 'idle'],
-    ['SubagentStop', 'idle'],
+    ['SubagentStop', null],
     ['StopFailure', 'error'],
     ['SessionEnd', 'idle'],
     ['SubagentStart', null],
@@ -33,8 +33,9 @@ describe('mapHookEvent', () => {
 
   it.each([
     ['permission_prompt', 'waiting'],
-    ['idle_prompt', 'waiting'],
+    ['idle_prompt', 'idle'],
     ['elicitation_dialog', 'waiting'],
+    ['elicitation_url_dialog', 'waiting'],
     ['auth_success', null],
     ['agent_completed', null],
   ])('Notification %s -> %s', (type, state) => {
@@ -54,13 +55,15 @@ describe('mapHookEvent', () => {
 describe('hook constants', () => {
   it('installs every mapped event plus Notification', () => {
     expect(HOOK_EVENTS).toContain('Notification')
+    expect(HOOK_EVENTS).not.toContain('SessionStart')
+    expect(HOOK_EVENTS).not.toContain('SubagentStop')
     for (const event of HOOK_EVENTS.filter(name => name !== 'Notification')) {
       expect(mapHookEvent(event)).not.toBeNull()
     }
   })
 
   it('uses an exact-match notification matcher', () => {
-    expect(HOOK_NOTIFICATION_MATCHER).toMatch(/^[a-z_|]+$/)
+    expect(HOOK_NOTIFICATION_MATCHER).toBe('permission_prompt|elicitation_dialog|elicitation_url_dialog|idle_prompt')
   })
 
   it('builds the loopback hook URL that the pattern recognizes for any port', () => {

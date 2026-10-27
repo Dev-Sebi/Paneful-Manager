@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { PassThrough } from 'node:stream'
 import {
   API_ROUTES,
   HOOK_SESSION_HEADER,
@@ -14,6 +15,7 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance, type InjectOptio
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBackupStore } from '../files/backups.js'
+import { createLogger } from '../logger.js'
 import { registerSecurity } from '../security/register-security.js'
 import { createHookSettings } from './install.js'
 import { HOOK_BODY_LIMIT_BYTES, registerHooks, type HookTarget } from './routes.js'
@@ -86,10 +88,12 @@ describe('POST /api/hooks', () => {
   })
 
   it('maps Notification by type and ignores unmapped events', async () => {
-    await hook({ hook_event_name: 'Notification', notification_type: 'idle_prompt', message: 'waiting' })
+    await hook({ hook_event_name: 'Notification', notification_type: 'permission_prompt', message: 'Claude needs your permission' })
+    await hook({ hook_event_name: 'Notification', notification_type: 'idle_prompt', message: 'Claude is waiting for your input' })
     await hook({ hook_event_name: 'Notification', notification_type: 'auth_success' })
+    await hook({ hook_event_name: 'SubagentStop' })
     await hook({ hook_event_name: 'PreCompact' })
-    expect(engine.applied).toEqual([[SESSION_ID, 'waiting']])
+    expect(engine.applied).toEqual([[SESSION_ID, 'waiting'], [SESSION_ID, 'idle']])
   })
 
   it('polls after SessionEnd', async () => {
@@ -156,5 +160,28 @@ describe('hook settings routes', () => {
   it('needs the per-boot token and an Origin like every mutation', async () => {
     expect((await app.inject({ method: 'POST', url: API_ROUTES.hooksInstall, headers: { host: HOST } })).statusCode).toBe(401)
     expect((await app.inject({ method: 'POST', url: API_ROUTES.hooksInstall, headers: { host: HOST, origin: ORIGIN } })).statusCode).toBe(401)
+  })
+})
+
+describe('hook request logging', () => {
+  it('logs hook requests without the hook token', async () => {
+    const stream = new PassThrough()
+    const chunks: string[] = []
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk.toString('utf8')))
+    const logger: FastifyBaseLogger = createLogger('debug', {}, stream)
+    const logged = Fastify({ loggerInstance: logger })
+    registerSecurity(logged, { getPort: () => PORT, token: SESSION_TOKEN, dev: false })
+    registerHooks(logged, { getPort: () => PORT, engine, token: HOOK_TOKEN })
+    const headers = { host: HOST, 'content-type': 'application/json', [HOOK_TOKEN_HEADER]: HOOK_TOKEN, [HOOK_SESSION_HEADER]: 'unknownid' }
+    const accepted = await logged.inject({ method: 'POST', url: API_ROUTES.hooks, headers, payload: { hook_event_name: 'Stop' } })
+    const rejected = await logged.inject({ method: 'POST', url: API_ROUTES.hooks, headers: { ...headers, [HOOK_TOKEN_HEADER]: `${HOOK_TOKEN}x` }, payload: {} })
+    logged.log.info({ req: { headers } }, 'explicit header log')
+    await logged.close()
+    expect([accepted.statusCode, rejected.statusCode]).toEqual([204, 401])
+    const output = chunks.join('')
+    expect(output).toContain(API_ROUTES.hooks)
+    expect(output).toContain('Ignoring hook for an unknown session')
+    expect(output).toContain('explicit header log')
+    expect(output).not.toContain(HOOK_TOKEN)
   })
 })

@@ -19,22 +19,28 @@ export const HOOK_ENV = {
 /** Seconds Claude Code waits for the hook endpoint; failures and timeouts never block Claude Code. */
 export const HOOK_TIMEOUT_SEC = 5
 
-/** Notification types that mean the session needs the user. */
-export const WAITING_NOTIFICATION_TYPES = ['permission_prompt', 'idle_prompt', 'elicitation_dialog'] as const
+/** State per `Notification` type; other types change nothing. */
+export const NOTIFICATION_STATES = {
+  permission_prompt: 'waiting',
+  elicitation_dialog: 'waiting',
+  elicitation_url_dialog: 'waiting',
+  idle_prompt: 'idle',
+} as const satisfies Record<string, SessionState>
 
 /** Exact-match matcher for the Notification hook entry (letters, `_` and `|` only). */
-export const HOOK_NOTIFICATION_MATCHER = WAITING_NOTIFICATION_TYPES.join('|')
+export const HOOK_NOTIFICATION_MATCHER = Object.keys(NOTIFICATION_STATES).join('|')
 
-/** State per hook event; `Notification` depends on `notification_type` and is handled in `mapHookEvent`. */
+/**
+ * State per hook event; `Notification` depends on `notification_type` and is handled in `mapHookEvent`.
+ * `SessionStart` is absent because it does not support `http` hooks.
+ */
 export const HOOK_EVENT_STATES = {
-  SessionStart: 'working',
   UserPromptSubmit: 'working',
   PreToolUse: 'working',
   PostToolUse: 'working',
   PostToolUseFailure: 'working',
   PermissionRequest: 'waiting',
   Stop: 'idle',
-  SubagentStop: 'idle',
   StopFailure: 'error',
   SessionEnd: 'idle',
 } as const satisfies Record<string, SessionState>
@@ -64,7 +70,7 @@ function isMappedEvent(eventName: string): eventName is keyof typeof HOOK_EVENT_
 export function mapHookEvent(eventName: string, payload: { notification_type?: unknown } = {}): SessionState | null {
   if (eventName === 'Notification') {
     const type = payload.notification_type
-    return typeof type === 'string' && (WAITING_NOTIFICATION_TYPES as readonly string[]).includes(type) ? 'waiting' : null
+    return typeof type === 'string' && Object.hasOwn(NOTIFICATION_STATES, type) ? NOTIFICATION_STATES[type as keyof typeof NOTIFICATION_STATES] : null
   }
   return isMappedEvent(eventName) ? HOOK_EVENT_STATES[eventName] : null
 }
