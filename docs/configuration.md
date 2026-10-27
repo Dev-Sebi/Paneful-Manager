@@ -162,4 +162,47 @@ With the flag on, the server reads, without writing:
 
 It shows them as a task board and links team members to Agent Hub sessions by tmux pane. With the flag off, `GET /api/teams` returns `enabled: false` and reads no files; team tabs are hidden. The lowest Claude Code version tested with agent teams is 2.1.309.
 
-Team templates (a YAML file that launches a team) are not part of this version. [ADR 0010](adr/0010-agent-teams.md) is still `proposed`.
+### Team templates
+
+A team template is a YAML file that starts a lead Claude Code session with a generated first prompt. Claude Code spawns the teammates from that prompt, so names, models and directories are requests, not guarantees. Team templates depend on the same experimental feature as the board. [ADR 0012](adr/0012-team-templates.md) describes the design; [ADR 0010](adr/0010-agent-teams.md) is `proposed`.
+
+File: `~/.config/agent-hub/teams/<name>.yaml` (`$XDG_CONFIG_HOME/agent-hub/teams/` when set). The directory is created on the first write. Files are validated by `TeamTemplateSchema` in `packages/shared/src/team-templates.ts`. Example: `examples/teams/review-team.yaml`.
+
+| Key | Type | Default | Limits and rules |
+| --- | --- | --- | --- |
+| `name` | string | required | Same rules as preset names: `^[A-Za-z0-9][A-Za-z0-9_-]*$`, at most 64 characters. Must equal the file name without `.yaml`. |
+| `description` | string | none | At most 500 characters, no NUL. |
+| `experimental` | `true` | required | Must be `true`; marks the file as depending on the experimental feature. |
+| `goal` | string | none | At most 4000 characters, no control characters except tab and newline. Added to the first prompt. |
+| `lead.cwd` | path | required | Must be an existing directory at launch (`400` otherwise). A leading `~` is expanded. |
+| `lead.command` | string | `claude` | Non-empty, no NUL and no `=`. |
+| `lead.args` | list of strings | `[]` | No NUL. Must not contain `--`, `--teammate-mode`, `--session-id`, `--settings`, `--model`, `-p` or `--print`, `-r` or `--resume`, `-c` or `--continue`, `--fork-session` (also with `=value`), or short option groups that contain `p`, `c` or `r`. The launch sets these itself. |
+| `lead.model` | string | none | Letters, digits and `. _ : - [ ]` only. |
+| `teammates` | list | required | 1 to 8 entries. |
+| `teammates[].name` | string | required | At most 32 characters, `^[a-z0-9][a-z0-9-]*$`, not `team-lead` or `lead`, unique within the template. |
+| `teammates[].prompt` | string | required | 1 to 4000 characters, no control characters except tab and newline. |
+| `teammates[].cwd` | path | none | Instruction only: Claude Code starts teammates in the lead's directory. |
+| `teammates[].model` | string | none | Same pattern as `lead.model`. |
+| `env` | map | `{}` | Only these keys: `ANTHROPIC_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_CODE_MAX_OUTPUT_TOKENS`, `MAX_THINKING_TOKENS`, `BASH_DEFAULT_TIMEOUT_MS`, `BASH_MAX_TIMEOUT_MS`, `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`. Values: single line, at most 256 characters. |
+
+Unknown keys are kept when the file is rewritten. Total size: the generated lead command (cwd, command, args, settings JSON and first prompt) must not exceed 12 KB (12288 bytes, UTF-8). tmux refuses longer commands.
+
+Launch (`POST /api/team-templates/<name>/launch`, returns `201`):
+
+1. The lead cwd is checked to be a directory.
+2. `<lead.command> --version` must report Claude Code 2.1.309 or later, otherwise `409`. Versions above 2.1.311 are launched with `untestedVersion: true`, and the UI shows a warning.
+3. The server picks the lead's session id (a UUID, passed as `--session-id`), so the team name is known before Claude Code starts. The team name is `session-` followed by the first 8 characters of that id.
+4. One session is created with the command `lead.command`, the arguments `lead.args`, `--teammate-mode tmux`, `--session-id <uuid>`, `--settings` with the env (template `env` plus `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` and `CLAUDE_CODE_TASK_LIST_ID=<team name>`), optional `--model`, and the first prompt. The template args come first, so a variadic option ends before `--teammate-mode`.
+5. The launch (`template`, `sessionId`, `team`, `launchedAt`) is appended to `~/.local/state/agent-hub/team-launches.json`. Entries whose lead session has exited or is gone are dropped on the next write.
+6. If anything fails after the lead has started, the lead session is killed and nothing is recorded.
+
+No `.claude/agents/` files are written. Teammate roles travel in the first prompt only.
+
+Endpoints: `GET` and `POST /api/team-templates`, `GET`, `PUT` and `DELETE /api/team-templates/<name>`, `POST /api/team-templates/<name>/launch`. While `experimental.agentTeams` is off, every one of them answers `404`.
+
+Limits:
+
+- Teammates are spawned by Claude Code. Names, models and directories in the prompt are requests, and the lead may deviate.
+- No per-teammate tools or permission mode: teammates start in the lead's mode.
+- A trailing template arg that expects a value (for example `--add-dir` with nothing after it) takes `--teammate-mode` as its value and breaks the launch. This is not checked.
+- Not verified in a real team run yet: the spawn behavior from the first prompt, `--session-id` together with agent teams, and the task list redirect through `CLAUDE_CODE_TASK_LIST_ID`.

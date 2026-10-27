@@ -104,6 +104,19 @@ Sessions that exited on their own stay visible until their tab is closed.
 | `systemd is not running in this WSL distro`, or `systemctl --user` fails | `/etc/wsl.conf` has no `[boot]` section with `systemd=true`, or WSL was not restarted after adding it | `ps -p 1 -o comm=` must print `systemd`. Add `[boot]` and `systemd=true` to `/etc/wsl.conf`, run `wsl.exe --shutdown` in Windows PowerShell, open the distro again and re-run the installer with the same options. |
 | The installer says `already enables systemd, but WSL has not been restarted since` | the setting exists but WSL still runs without systemd | run `wsl.exe --shutdown` in Windows PowerShell and open the distro again. |
 
+## Team templates
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| 404 `not_found` with "Team templates need experimental.agentTeams" on `/api/team-templates` | the flag is off, so every team template route answers 404 | set `experimental.agentTeams: true` in `config.yaml` (or `PATCH /api/config`). |
+| Launch answers 409: "Agent teams need Claude Code 2.1.309 or later (found ...)" | the lead command reports an older version, or `--version` printed nothing | update Claude Code. Check with `<lead.command> --version` in the lead's directory. |
+| Launch answers 409: "Could not run <command> --version" | the lead command is not on `PATH` for the server | set `lead.command` to an absolute path, or put the command on the `PATH` of the service (see [tmux unavailable](#tmux-unavailable)). |
+| Launch answers 400 "cwd ... is not a directory" | `lead.cwd` does not exist | create the directory or correct the path. |
+| Save answers 400 with "the generated lead command is N bytes, the limit is 12288" (a hand-edited file is refused with 409 and the same message) | the prompts, goal or args are too long for one tmux command | shorten `goal`, the teammate prompts or `lead.args`. |
+| Save or launch answers 400 about `lead.args` | an argument is reserved by the launch (for example `--model`, `--session-id`, `-p`) | remove it; the launch sets these flags itself. |
+| The lead starts but no teammates appear | Claude Code did not follow the first prompt. Its spawn behavior is not verified. | open the lead session and ask for the teammates by name, or check the board for the team name in the Teams view. |
+| Team board stays empty | the lead has no tasks yet, or the flag was turned off | the board reads `$CLAUDE_CONFIG_DIR/tasks/<team>/` and `teams/<team>/`; both appear only after Claude Code writes them. |
+
 ## Browser shows "Disconnected"
 
 The status badge in the app bar shows `Disconnected` when the WebSocket is closed. The web app reconnects by itself.

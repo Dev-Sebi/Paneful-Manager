@@ -23,7 +23,7 @@ Related: [Configuration](configuration.md), [Troubleshooting](troubleshooting.md
 curl -fsSL https://github.com/agent-hub/agent-hub/releases/latest/download/install.sh | sh
 ```
 
-The installer downloads from the GitHub repository in `AGENT_HUB_REPO`, which defaults to `agent-hub/agent-hub`. For a fork, set it:
+The installer downloads from the GitHub repository `agent-hub/agent-hub` (the default). The repository can be overridden with `AGENT_HUB_REPO`, for example for a fork:
 
 ```bash
 curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/install.sh | AGENT_HUB_REPO=<owner>/<repo> sh
