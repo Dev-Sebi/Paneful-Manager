@@ -30,7 +30,7 @@ Status: `todo` | `doing` | `review` | `done` | `blocked`. A task starts only whe
 | T21 | `AhTerminalPane`: xterm.js + fit, WS attach, focus, resize, read-only prop | Opus | T12, T20 | done | |
 | T22 | App shell: sidebar, tab bar, routes, Pinia stores, empty states | Sonnet | T20 | done | |
 | T23 | Split layouts (splitpanes), sizes persisted per tab | Sonnet | T21, T22 | done | merged 77c5cac |
-| T24 | Workspace presets: CRUD API (atomic YAML) + UI + autostart | Sonnet | T23, T11 | doing | |
+| T24 | Workspace presets: CRUD API (atomic YAML) + UI + autostart | Sonnet | T23, T11 | done | merged 6edbe9b |
 | T25 | Close-tab flow: confirm, kill sessions, "don't ask again" | Sonnet | T22, T12 | done | |
 | T26 | Session status via Claude Code hooks (merge, never overwrite) | Opus | T12, T11 | done | merged aaf637d |
 
@@ -57,7 +57,7 @@ Status: `todo` | `doing` | `review` | `done` | `blocked`. A task starts only whe
 | ID | Task | Model | Deps | Status | Branch |
 |---|---|---|---|---|---|
 | T50 | Spike + ADR: current agent-teams behavior, min version, on-disk formats | Opus | T12 | done | |
-| T51 | Team templates (YAML) + launch flow | Opus | T50, T24 | todo | |
+| T51 | Team templates (YAML) + launch flow | Opus | T50, T24 | doing | |
 | T52 | Read-only live task board | Sonnet | T50 | done | |
 | T53 | Map teammates to terminal panes | Opus | T50, T23 | doing | |
 
@@ -66,7 +66,7 @@ Status: `todo` | `doing` | `review` | `done` | `blocked`. A task starts only whe
 | ID | Task | Model | Deps | Status | Branch |
 |---|---|---|---|---|---|
 | T60 | `install.sh`: checks, install, systemd user service, wsl.conf, Windows logon task, idempotent, `--uninstall` | Opus | T10, T12 | done | merged c85083b |
-| T61 | Playwright E2E main flows | Sonnet | Waves 2–4 | todo | |
+| T61 | Playwright E2E main flows | Sonnet | Waves 2–4 | doing | |
 | T62 | Full security review of server and installer | Opus | T60 | todo | |
 | T63 | Final docs: install, config reference, screenshots, troubleshooting | Haiku | T60 | todo | |
 | T15 | Lint infra: deterministic Vue parsing at root, ignore `.claude/**`, package lint scripts hooked into root lint | Opus | T14 | done | |
