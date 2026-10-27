@@ -18,6 +18,9 @@ describe('index', () => {
       'ServerMessageSchema',
       'FileEntrySchema',
       'FileChangedMessageSchema',
+      'HookPayloadSchema',
+      'HookStatusSchema',
+      'mapHookEvent',
     ]) {
       expect(shared).toHaveProperty(name)
     }

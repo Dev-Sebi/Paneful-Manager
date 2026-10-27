@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { FileChangeEventSchema, FileHashSchema } from './files.js'
 import { PathSchema } from './scope.js'
-import { SessionIdSchema, SessionLifecycleSchema, SessionSchema, SessionStateSchema, TerminalSizeSchema } from './session.js'
+import { IsoDateTimeSchema, SessionIdSchema, SessionLifecycleSchema, SessionSchema, SessionStateSchema, TerminalSizeSchema } from './session.js'
 
 /** Bump on any breaking change; clients connect to `WS_PATH?v=<version>`. */
 export const WS_PROTOCOL_VERSION = 1
@@ -74,6 +74,8 @@ export const StateMessageSchema = z
     state: SessionStateSchema,
     lifecycle: SessionLifecycleSchema,
     exitCode: z.int().optional(),
+    /** When `state` last changed; the UI derives its elapsed timer from it. */
+    stateSince: IsoDateTimeSchema.optional(),
   })
   .refine(message => message.exitCode === undefined || message.lifecycle === 'exited', {
     message: 'exitCode is only allowed when lifecycle is exited',

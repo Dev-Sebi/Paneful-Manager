@@ -20,6 +20,7 @@ const serverMessages = [
   { type: 'output', sessionId: 's1', data: '\u001b[32mok\u001b[0m äöü ✓\r\n' },
   { type: 'scrollback', sessionId: 's1', data: 'previous output\r\n' },
   { type: 'state', sessionId: 's1', state: 'waiting', lifecycle: 'running' },
+  { type: 'state', sessionId: 's1', state: 'working', lifecycle: 'running', stateSince: '2026-10-27T10:00:00.000Z' },
   { type: 'state', sessionId: 's1', state: 'idle', lifecycle: 'exited', exitCode: 0 },
   {
     type: 'session.created',
