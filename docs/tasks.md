@@ -57,7 +57,7 @@ Status: `todo` | `doing` | `review` | `done` | `blocked`. A task starts only whe
 | ID | Task | Model | Deps | Status | Branch |
 |---|---|---|---|---|---|
 | T50 | Spike + ADR: current agent-teams behavior, min version, on-disk formats | Opus | T12 | done | |
-| T51 | Team templates (YAML) + launch flow | Opus | T50, T24 | doing | |
+| T51 | Team templates (YAML) + launch flow | Opus | T50, T24 | done | merged 16e90f9 |
 | T52 | Read-only live task board | Sonnet | T50 | done | |
 | T53 | Map teammates to terminal panes | Opus | T50, T23 | done | merged 9959eb1 |
 
@@ -67,6 +67,6 @@ Status: `todo` | `doing` | `review` | `done` | `blocked`. A task starts only whe
 |---|---|---|---|---|---|
 | T60 | `install.sh`: checks, install, systemd user service, wsl.conf, Windows logon task, idempotent, `--uninstall` | Opus | T10, T12 | done | merged c85083b |
 | T61 | Playwright E2E main flows | Sonnet | Waves 2–4 | done | merged 53eb515 |
-| T62 | Full security review of server and installer | Opus | T60 | todo | |
-| T63 | Final docs: install, config reference, screenshots, troubleshooting | Haiku | T60 | todo | |
+| T62 | Full security review of server and installer | Opus | T60 | doing | |
+| T63 | Final docs: install, config reference, screenshots, troubleshooting | Haiku | T60 | doing | |
 | T15 | Lint infra: deterministic Vue parsing at root, ignore `.claude/**`, package lint scripts hooked into root lint | Opus | T14 | done | |
