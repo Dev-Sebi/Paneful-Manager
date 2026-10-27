@@ -36,6 +36,17 @@ export const useTabsStore = defineStore('tabs', () => {
     activeId.value = tab.id
   }
 
+  /** Replaces the tab with the same id in place, or adds it; either way it becomes active. */
+  function upsert (tab: AppTab) {
+    const index = tabs.value.findIndex(item => item.id === tab.id)
+    if (index === -1) {
+      add(tab)
+      return
+    }
+    tabs.value[index] = tab
+    activeId.value = tab.id
+  }
+
   function close (id: string) {
     const index = tabs.value.findIndex(tab => tab.id === id)
     if (index === -1) {
@@ -67,5 +78,5 @@ export const useTabsStore = defineStore('tabs', () => {
 
   watch([tabs, activeId], () => writeStorage(TABS_STORAGE_KEY, { tabs: tabs.value, activeId: activeId.value }), { deep: true })
 
-  return { tabs, activeId, dirty, add, close, activate, move, setDirty }
+  return { tabs, activeId, dirty, add, upsert, close, activate, move, setDirty }
 })

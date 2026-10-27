@@ -25,6 +25,18 @@ describe('tabs store', () => {
     expect(second.activeId).toBe('a')
   })
 
+  it('upserts a tab in place and activates it', () => {
+    const store = freshStore()
+    store.add(makeTab('a'))
+    store.add(makeTab('b'))
+    store.upsert({ ...makeTab('a'), title: 'Renamed' })
+    expect(store.tabs.map(tab => [tab.id, tab.title])).toEqual([['a', 'Renamed'], ['b', makeTab('b').title]])
+    expect(store.activeId).toBe('a')
+    store.upsert(makeTab('c'))
+    expect(store.tabs.map(tab => tab.id)).toEqual(['a', 'b', 'c'])
+    expect(store.activeId).toBe('c')
+  })
+
   it.each([
     ['not json', '{oops'],
     ['wrong shape', JSON.stringify({ tabs: 'x', activeId: null })],

@@ -110,6 +110,19 @@ describe('AhTerminalPane', () => {
     expect(wrapper.text()).toContain('Connecting')
   })
 
+  it('shows the linked team member with a role badge', () => {
+    const wrapper = mountPane({ status: 'waiting', member: { name: 'tester', role: 'Lead', others: ['dev', 'qa'] } })
+    const member = wrapper.get('.ah-terminal-pane__member')
+    expect(member.text()).toContain('tester')
+    expect(member.get('.ah-status-badge--label.ah-status-badge--waiting').text()).toBe('Lead')
+    expect(member.text()).toContain('+2')
+    expect(member.attributes('title')).toBe('Same tmux window: dev, qa')
+  })
+
+  it('shows no member badge without a link', () => {
+    expect(mountPane().find('.ah-terminal-pane__member').exists()).toBe(false)
+  })
+
   it('does not attach while hidden', () => {
     vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(0)
     mountPane()

@@ -43,8 +43,16 @@
           @resized="refit"
         >
           <template #pane="{ index }">
-            <template v-for="pane in tab.panes.slice(index, index + 1)" :key="pane.sessionId">
+            <template v-for="pane in tab.panes.slice(index, index + 1)" :key="pane.sessionId ?? `placeholder-${index}`">
+              <PanePlaceholder
+                v-if="pane.placeholder"
+                class="workspaces__pane"
+                :reason="pane.placeholder.reason"
+                :title="pane.placeholder.title"
+              />
+
               <AhTerminalPane
+                v-else-if="pane.sessionId"
                 :ref="el => setPaneRef(pane.sessionId, el)"
                 class="workspaces__pane"
                 :connection="sessions.byId.get(pane.sessionId)?.lifecycle === 'exited' ? 'exited' : 'connecting'"
@@ -52,6 +60,7 @@
                 :exit-code="sessions.byId.get(pane.sessionId)?.exitCode"
                 :focused="tab.id === tabs.activeId"
                 :maximized="maximized === pane.sessionId"
+                :member="paneMember(pane.sessionId)"
                 :session-id="pane.sessionId"
                 :status="sessions.byId.get(pane.sessionId)?.state"
                 :title="paneTitle(pane.sessionId)"
@@ -143,20 +152,24 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhSplitLayoutExpose, AhStatusBadgeState, AhTerminalPaneExpose } from '@/components/ah'
+  import type { AhSplitLayoutExpose, AhStatusBadgeState, AhTerminalPaneExpose, AhTerminalPaneMember } from '@/components/ah'
   import type { AppTab } from '@agent-hub/shared'
   import { DEFAULT_COMMAND } from '@agent-hub/shared'
-  import { computed, nextTick, ref, watch } from 'vue'
+  import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { api } from '@/api/client'
+  import { wsClient } from '@/api/ws'
   import { AhButton, AhDialog, AhSplitLayout, AhTab, AhTabPanel, AhTabs } from '@/components/ah'
   // Imported directly, not through the barrel, so xterm stays in the lazy Workspaces chunk.
   import AhTerminalPane from '@/components/ah/AhTerminalPane.vue'
   import EmptyState from '@/components/EmptyState.vue'
+  import PanePlaceholder from '@/components/PanePlaceholder.vue'
   import { useCloseTab } from '@/composables/useCloseTab'
+  import { useConfigStore } from '@/stores/config'
   import { useLayoutSizesStore } from '@/stores/layoutSizes'
   import { useSessionsStore } from '@/stores/sessions'
   import { useTabsStore } from '@/stores/tabs'
+  import { useTeamsStore } from '@/stores/teams'
   import { useUiStore } from '@/stores/ui'
 
   const route = useRoute()
@@ -165,6 +178,8 @@
   const sessions = useSessionsStore()
   const layoutSizes = useLayoutSizesStore()
   const ui = useUiStore()
+  const config = useConfigStore()
+  const teams = useTeamsStore()
 
   const closing = useCloseTab()
   const maximized = ref<string>()
@@ -185,7 +200,10 @@
     }
   }
 
-  function setPaneRef (sessionId: string, el: unknown) {
+  function setPaneRef (sessionId: string | undefined, el: unknown) {
+    if (sessionId === undefined) {
+      return
+    }
     if (el) {
       paneRefs.set(sessionId, el as AhTerminalPaneExpose)
     } else {
@@ -196,7 +214,9 @@
   /** Refits the panes of the active tab after a splitter move or a tab switch. */
   function refit () {
     for (const pane of activeTab.value?.panes ?? []) {
-      paneRefs.get(pane.sessionId)?.fit()
+      if (pane.sessionId) {
+        paneRefs.get(pane.sessionId)?.fit()
+      }
     }
   }
 
@@ -219,6 +239,27 @@
     const session = sessions.byId.get(sessionId)
     return session?.title ?? session?.command ?? sessionId
   }
+
+  /** Team member header data; only with `experimental.agentTeams` on. */
+  function paneMember (sessionId: string): AhTerminalPaneMember | undefined {
+    if (!config.agentTeams) {
+      return undefined
+    }
+    const member = teams.bySession.get(sessionId)
+    return member ? { name: member.name, role: member.role, others: member.others } : undefined
+  }
+
+  // Team links are only loaded while the flag is on; WS updates arrive as `team.changed`.
+  let unbindTeams: (() => void) | undefined
+  watch(() => config.agentTeams, enabled => {
+    unbindTeams?.()
+    unbindTeams = undefined
+    if (enabled) {
+      unbindTeams = teams.bind(wsClient)
+      void teams.load()
+    }
+  }, { immediate: true })
+  onBeforeUnmount(() => unbindTeams?.())
 
   function toggleMaximize (sessionId: string) {
     maximized.value = maximized.value === sessionId ? undefined : sessionId
@@ -250,8 +291,8 @@
   }
 
   function tabState (tab: AppTab): AhStatusBadgeState | undefined {
-    const first = tab.panes[0]
-    return first ? sessions.byId.get(first.sessionId)?.state : undefined
+    const first = tab.panes.find(pane => pane.sessionId !== undefined)?.sessionId
+    return first ? sessions.byId.get(first)?.state : undefined
   }
 
   function select (id: string) {

@@ -24,7 +24,7 @@ export function useCloseTab () {
 
   function tabSessions (tabId: string): Session[] {
     const tab = tabs.tabs.find(item => item.id === tabId)
-    return (tab?.panes ?? []).flatMap(pane => sessions.byId.get(pane.sessionId) ?? [])
+    return (tab?.panes ?? []).flatMap(pane => (pane.sessionId === undefined ? [] : sessions.byId.get(pane.sessionId) ?? []))
   }
 
   function liveSessions (tabId: string): Session[] {
