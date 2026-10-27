@@ -42,6 +42,9 @@ const serverMessages = [
   { type: 'error', code: 'bad_message', message: 'frame is not valid JSON' },
   { type: 'error', sessionId: 's1', code: 'unknown_session', message: 'No such session' },
   { type: 'pong' },
+  { type: 'file.changed', path: '/home/user/.claude/CLAUDE.md', event: 'change', hash: 'a'.repeat(64) },
+  { type: 'file.changed', path: '/home/user/.claude/skills/demo/SKILL.md', event: 'add' },
+  { type: 'file.changed', path: '/home/user/.claude/CLAUDE.md', event: 'unlink' },
 ]
 
 describe('WS protocol', () => {
@@ -85,6 +88,15 @@ describe('WS protocol', () => {
   it('rejects invalid server messages', () => {
     expect(issuePaths(ServerMessageSchema, { type: 'output', sessionId: 's1', data: 42 })).toEqual(['data'])
     expect(issuePaths(ServerMessageSchema, { type: 'error', code: 'oops', message: 'x' })).toEqual(['code'])
+  })
+
+  it('rejects invalid file.changed messages', () => {
+    const base = { type: 'file.changed', path: '/p/CLAUDE.md' }
+    expect(issuePaths(ServerMessageSchema, { ...base, event: 'rename' })).toEqual(['event'])
+    expect(issuePaths(ServerMessageSchema, { ...base, event: 'change', hash: 'xyz' })).toEqual(['hash'])
+    expect(issuePaths(ServerMessageSchema, { ...base, event: 'unlink', hash: 'a'.repeat(64) })).toEqual(['hash'])
+    expect(issuePaths(ServerMessageSchema, { ...base, event: 'add', extra: true })).toEqual([''])
+    expect(issuePaths(ServerMessageSchema, { type: 'file.changed', event: 'add' })).toEqual(['path'])
   })
 
   it('parses raw frames', () => {
