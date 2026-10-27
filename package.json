@@ -4,11 +4,13 @@
   "type": "module",
   "version": "0.0.0",
   "license": "MIT",
+  "packageManager": "pnpm@11.5.2",
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "pnpm": ">=11"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel run dev",
+    "dev": "pnpm --filter @agent-hub/shared build && pnpm -r --parallel run dev",
     "build": "pnpm -r run build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
