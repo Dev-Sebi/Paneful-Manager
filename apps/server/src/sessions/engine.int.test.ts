@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { existsSync, readFileSync } from 'node:fs'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -283,6 +284,15 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     const again = await fetch(`${baseUrl}${API_ROUTES.sessions}/${id}`, { method: 'DELETE', headers: mutationHeaders() })
     expect(again.status).toBe(404)
     watcher.close()
+  })
+
+  it('starts in a cwd containing tmux format characters without expanding them', async () => {
+    const cwd = join(dir, 'cwd-#{session_name}-#(true)')
+    const out = join(dir, 'format-pwd.txt')
+    await mkdir(cwd)
+    await createSession({ cwd, command: 'sh', args: ['-c', 'pwd > "$1"', 'sh', out] })
+    const written = await waitFor(() => (existsSync(out) ? readFileSync(out, 'utf8').trim() : undefined), 'pwd output')
+    expect(written).toBe(cwd)
   })
 
   it('rejects a cwd that is not a directory', async () => {
