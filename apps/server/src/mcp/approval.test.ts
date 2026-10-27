@@ -27,6 +27,9 @@ afterEach(() => {
   rmSync(base, { recursive: true, force: true })
 })
 
+const trust = (extra: Record<string, unknown> = {}): void =>
+  write(join(home, '.claude.json'), { projects: { [project]: { hasTrustDialogAccepted: true, ...extra } } })
+
 describe('MCP approval', () => {
   it('always allows user and local scope', async () => {
     const approval = createMcpApproval({ env: {}, home })
@@ -36,43 +39,67 @@ describe('MCP approval', () => {
 
   it('rejects project entries without any approval and with broken files', async () => {
     expect(await check()).toBe(false)
-    write(join(project, '.claude', 'settings.local.json'), { enableAllProjectMcpServers: 'yes' })
+    write(join(home, '.claude', 'settings.json'), { enableAllProjectMcpServers: 'yes' })
     writeFileSync(join(home, '.claude.json'), '{ nope')
     expect(await check()).toBe(false)
   })
 
-  it('approves through enableAllProjectMcpServers and enabledMcpjsonServers', async () => {
-    write(join(project, '.claude', 'settings.local.json'), { enableAllProjectMcpServers: true })
-    expect(await check('anything')).toBe(true)
-    write(join(project, '.claude', 'settings.local.json'), { enabledMcpjsonServers: ['srv'] })
-    expect(await check('srv')).toBe(true)
-    expect(await check('other')).toBe(false)
-    write(join(home, '.claude', 'settings.json'), { enabledMcpjsonServers: ['other'] })
-    expect(await check('other')).toBe(true)
-  })
-
-  it('reads the approval of the project in ~/.claude.json', async () => {
-    write(join(home, '.claude.json'), { projects: { [project]: { enabledMcpjsonServers: ['srv'] } } })
+  it('approves through the project entry in ~/.claude.json once the trust dialog was accepted', async () => {
+    trust({ enabledMcpjsonServers: ['srv'] })
     expect(await check()).toBe(true)
+    expect(await check('other')).toBe(false)
+    trust({ enableAllProjectMcpServers: true })
+    expect(await check('anything')).toBe(true)
   })
 
-  it('lets disabledMcpjsonServers win', async () => {
-    write(join(project, '.claude', 'settings.local.json'), { enableAllProjectMcpServers: true, disabledMcpjsonServers: ['srv'] })
-    expect(await check('srv')).toBe(false)
+  it('approves through user settings once the trust dialog was accepted', async () => {
+    trust()
+    write(join(home, '.claude', 'settings.json'), { enabledMcpjsonServers: ['srv'] })
+    expect(await check()).toBe(true)
+    expect(await check('other')).toBe(false)
+    write(join(home, '.claude', 'settings.json'), { enableAllProjectMcpServers: true })
     expect(await check('other')).toBe(true)
   })
 
-  it('ignores approvals in the committed settings but honors its disabled list', async () => {
+  it('needs the trust dialog: missing entry, missing flag or false is not approved', async () => {
+    write(join(home, '.claude', 'settings.json'), { enableAllProjectMcpServers: true })
+    expect(await check()).toBe(false)
+    write(join(home, '.claude.json'), { projects: { [project]: { enabledMcpjsonServers: ['srv'] } } })
+    expect(await check()).toBe(false)
+    write(join(home, '.claude.json'), { projects: { [project]: { hasTrustDialogAccepted: false, enabledMcpjsonServers: ['srv'] } } })
+    expect(await check()).toBe(false)
+    write(join(home, '.claude.json'), { projects: { [project]: { hasTrustDialogAccepted: 'true', enabledMcpjsonServers: ['srv'] } } })
+    expect(await check()).toBe(false)
+  })
+
+  it('does not take approvals from project files', async () => {
+    trust()
+    write(join(project, '.claude', 'settings.local.json'), { enableAllProjectMcpServers: true, enabledMcpjsonServers: ['srv'] })
     write(join(project, '.claude', 'settings.json'), { enableAllProjectMcpServers: true, enabledMcpjsonServers: ['srv'] })
     expect(await check()).toBe(false)
-    write(join(home, '.claude', 'settings.json'), { enableAllProjectMcpServers: true })
-    write(join(project, '.claude', 'settings.json'), { disabledMcpjsonServers: ['srv'] })
-    expect(await check()).toBe(false)
   })
 
-  it('uses CLAUDE_CONFIG_DIR for user settings', async () => {
+  it('lets disabledMcpjsonServers win from every file', async () => {
+    trust({ enableAllProjectMcpServers: true })
+    expect(await check('srv')).toBe(true)
+    write(join(project, '.claude', 'settings.local.json'), { disabledMcpjsonServers: ['srv'] })
+    expect(await check('srv')).toBe(false)
+    expect(await check('other')).toBe(true)
+    rmSync(join(project, '.claude'), { recursive: true })
+    write(join(project, '.claude', 'settings.json'), { disabledMcpjsonServers: ['srv'] })
+    expect(await check('srv')).toBe(false)
+    rmSync(join(project, '.claude'), { recursive: true })
+    write(join(home, '.claude', 'settings.json'), { disabledMcpjsonServers: ['srv'] })
+    expect(await check('srv')).toBe(false)
+    write(join(home, '.claude', 'settings.json'), {})
+    trust({ enableAllProjectMcpServers: true, disabledMcpjsonServers: ['srv'] })
+    expect(await check('srv')).toBe(false)
+  })
+
+  it('uses CLAUDE_CONFIG_DIR for user settings and the config file', async () => {
     const dir = join(base, 'cfg')
     write(join(dir, 'settings.json'), { enableAllProjectMcpServers: true })
+    write(join(dir, '.claude.json'), { projects: { [project]: { hasTrustDialogAccepted: true } } })
     expect(await createMcpApproval({ env: { CLAUDE_CONFIG_DIR: dir }, home }).isApproved(scope(), 'srv')).toBe(true)
   })
 })

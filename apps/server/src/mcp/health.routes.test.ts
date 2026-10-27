@@ -34,7 +34,11 @@ function send(options: InjectOptions, token = TOKEN) {
 }
 
 const marker = (name: string): string => join(box.base, `${name}.marker`)
-const approve = (value: unknown): void => {
+/** Approval as Claude Code stores it: the project's entry in `~/.claude.json`, trust dialog accepted. */
+const approve = (value: Record<string, unknown>): void => {
+  writeFileSync(join(box.home, '.claude.json'), JSON.stringify({ projects: { [box.project]: { hasTrustDialogAccepted: true, ...value } } }))
+}
+const writeLocalSettings = (value: unknown): void => {
   mkdirSync(join(box.project, '.claude'), { recursive: true })
   writeFileSync(join(box.project, '.claude', 'settings.local.json'), JSON.stringify(value))
 }
@@ -75,7 +79,7 @@ describe('MCP health routes', () => {
     expect(listed.servers.map(server => server.approved)).toEqual([false, false])
   })
 
-  it('runs entries approved through enableAllProjectMcpServers or enabledMcpjsonServers', async () => {
+  it('runs entries approved through enabledMcpjsonServers or enableAllProjectMcpServers', async () => {
     approve({ enabledMcpjsonServers: ['good'] })
     const ok = await send({ method: 'POST', url: API_ROUTES.mcpHealth, payload: { name: 'good', scope: scope() } })
     expect(McpHealthResultSchema.parse(ok.json())).toMatchObject({ name: 'good', status: 'ok', serverInfo: { name: 'fake-mcp' } })
@@ -92,9 +96,18 @@ describe('MCP health routes', () => {
   })
 
   it('does not run an entry in disabledMcpjsonServers', async () => {
-    approve({ enableAllProjectMcpServers: true, disabledMcpjsonServers: ['good'] })
+    approve({ enableAllProjectMcpServers: true })
+    writeLocalSettings({ disabledMcpjsonServers: ['good'] })
     const { results } = McpHealthListResponseSchema.parse((await send({ method: 'POST', url: API_ROUTES.mcpHealthAll, payload: { projectPath: box.project } })).json())
     expect(results.map(result => [result.name, result.status]).toSorted()).toEqual([['broken', 'error'], ['good', 'unsupported']])
+    expect(existsSync(marker('good'))).toBe(false)
+  })
+
+  it('does not take approvals from project settings or without the trust dialog', async () => {
+    writeLocalSettings({ enableAllProjectMcpServers: true, enabledMcpjsonServers: ['good'] })
+    expect((await send({ method: 'POST', url: API_ROUTES.mcpHealth, payload: { name: 'good', scope: scope() } })).json()).toMatchObject({ status: 'unsupported' })
+    writeFileSync(join(box.home, '.claude.json'), JSON.stringify({ projects: { [box.project]: { enabledMcpjsonServers: ['good'] } } }))
+    expect((await send({ method: 'POST', url: API_ROUTES.mcpHealth, payload: { name: 'good', scope: scope() } })).json()).toMatchObject({ status: 'unsupported' })
     expect(existsSync(marker('good'))).toBe(false)
   })
 

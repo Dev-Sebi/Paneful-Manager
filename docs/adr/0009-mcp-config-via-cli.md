@@ -21,9 +21,9 @@ Agent Hub lists and edits MCP servers in Claude Code's three scopes. Claude Code
 ## Amendment: health checks run only approved servers (2026-10-27)
 
 - `POST /api/mcp/health` and `POST /api/mcp/health/all` spawn stdio servers or contact remote ones, so both are POST and need the token; no GET variant exists.
-- A `.mcp.json` server is repository-controlled code. It is checked only when Claude Code approved it (`enableAllProjectMcpServers`, `enabledMcpjsonServers`; `disabledMcpjsonServers` wins). The committed `.claude/settings.json` can only disable. Unapproved: `unsupported`, nothing is spawned, requested or expanded. `user` and `local` entries need no approval.
+- A `.mcp.json` server is repository-controlled code. It is checked only when the user approved it at user level: the project's entry in `~/.claude.json` has `hasTrustDialogAccepted === true` and `enableAllProjectMcpServers` / `enabledMcpjsonServers` is set in `~/.claude/settings.json` (`$CLAUDE_CONFIG_DIR`) or in that entry. `<project>/.claude/settings.local.json` and `.claude/settings.json` can only disable (`disabledMcpjsonServers`, which wins from any file), because a repository could ship either file. Unapproved: `unsupported`, nothing is spawned, requested or expanded. `user` and `local` entries need no approval.
 - stdio env keys with a non-`^[A-Z_][A-Z0-9_]*$` name, `LD_*`, `DYLD_*`, `NODE_OPTIONS`, `BASH_ENV`, `ENV`, `PYTHONSTARTUP`, `PERL5OPT` and `RUBYOPT` are dropped before spawning.
-- Key names verified against the settings reference (scope "any file"); value types (boolean, string arrays), "disabled wins" and the `~/.claude.json` project entry as approval store are assumed.
+- Verified: the three approval key names (settings reference, scope "any file") and `hasTrustDialogAccepted`, `enabledMcpjsonServers`, `disabledMcpjsonServers` as keys of `projects[<path>]` in a real `~/.claude.json`. Assumed: value types (boolean, string arrays), "disabled wins", and that `hasTrustDialogAccepted` is the right trust flag for this purpose (not in the public docs).
 
 ## Verified vs. assumed
 

@@ -40,10 +40,9 @@ export interface McpApproval {
 }
 
 /**
- * Project `.mcp.json` servers come from the repository, so they run only when the user approved them:
- * `enableAllProjectMcpServers` / `enabledMcpjsonServers` in user settings, `.claude/settings.local.json` or the
- * project's entry in `~/.claude.json`; `disabledMcpjsonServers` from any of these or the shared `.claude/settings.json` wins.
- * The committed `.claude/settings.json` can only disable, because the repository must not approve itself.
+ * Project `.mcp.json` servers come from the repository, so they run only when the user approved them and trusted the project:
+ * `hasTrustDialogAccepted` in the project's entry of `~/.claude.json`, plus `enableAllProjectMcpServers` / `enabledMcpjsonServers`
+ * in user settings or in that entry. Project files (`.claude/settings.local.json`, `.claude/settings.json`) can only disable.
  */
 export function createMcpApproval({ env, home }: McpApprovalOptions): McpApproval {
   const configDir = env.CLAUDE_CONFIG_DIR?.trim() || join(home, '.claude')
@@ -60,11 +59,16 @@ export function createMcpApproval({ env, home }: McpApprovalOptions): McpApprova
         readJson(resolveClaudeJsonPath(env, home)),
       ])
       const projects = isRecord(global) && isRecord(global.projects) ? global.projects : {}
-      const trusted = [rulesOf(user), rulesOf(local), rulesOf(projects[projectPath])]
-      if ([...trusted, rulesOf(shared)].some(rules => rules.disabled.includes(name))) {
+      const entry = projects[projectPath]
+      const userLevel = [rulesOf(user), rulesOf(entry)]
+      if ([...userLevel, rulesOf(local), rulesOf(shared)].some(rules => rules.disabled.includes(name))) {
         return false
       }
-      return trusted.some(rules => rules.enableAll || rules.enabled.includes(name))
+      // A missing project entry or trust flag means the trust dialog was never accepted.
+      if (!isRecord(entry) || entry.hasTrustDialogAccepted !== true) {
+        return false
+      }
+      return userLevel.some(rules => rules.enableAll || rules.enabled.includes(name))
     },
   }
 }
