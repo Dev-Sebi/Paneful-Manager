@@ -13,6 +13,7 @@ import {
 } from '@agent-hub/shared'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { AppError } from './errors.js'
+import { registerScopes } from './scopes/routes.js'
 
 export const BODY_LIMIT_BYTES = 1024 * 1024
 
@@ -67,7 +68,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ logger }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -77,5 +78,6 @@ export function buildApp({ logger }: BuildAppOptions): FastifyInstance {
   })
   registerErrorHandlers(app)
   registerCore(app)
+  registerScopes(app, { config })
   return app
 }
