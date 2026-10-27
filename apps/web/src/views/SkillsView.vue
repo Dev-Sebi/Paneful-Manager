@@ -1,7 +1,7 @@
 <template>
-  <ScopeList icon="mdi-lightning-bolt-outline" message="No scopes found to manage skills in" />
+  <FilesWorkbench mode="skills" />
 </template>
 
 <script lang="ts" setup>
-  import ScopeList from '@/components/ScopeList.vue'
+  import FilesWorkbench from '@/components/files/FilesWorkbench.vue'
 </script>

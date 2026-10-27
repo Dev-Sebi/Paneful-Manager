@@ -2,7 +2,7 @@
   <section class="empty-state">
     <v-icon aria-hidden="true" class="empty-state__icon" :icon="icon" size="40" />
     <p class="empty-state__text">{{ message }}</p>
-    <AhButton variant="primary" @click="emit('action')">{{ actionLabel }}</AhButton>
+    <AhButton v-if="actionLabel" variant="primary" @click="emit('action')">{{ actionLabel }}</AhButton>
   </section>
 </template>
 
@@ -12,7 +12,7 @@
   defineProps<{
     icon: string
     message: string
-    actionLabel: string
+    actionLabel?: string
   }>()
 
   const emit = defineEmits<{ action: [] }>()
