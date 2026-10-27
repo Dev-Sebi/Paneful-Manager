@@ -15,6 +15,8 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { AppError } from './errors.js'
 import { registerFiles } from './files/routes.js'
 import type { FileService } from './files/service.js'
+import { registerMcp } from './mcp/routes.js'
+import type { McpService } from './mcp/service.js'
 import { registerScopes } from './scopes/routes.js'
 import { registerSecurity } from './security/register-security.js'
 import { createSessionToken } from './security/token.js'
@@ -32,6 +34,8 @@ export interface BuildAppOptions {
   dev?: boolean
   /** Managed-file service; the file routes are only registered when it is given. */
   files?: FileService
+  /** MCP config service; the MCP routes are only registered when it is given. */
+  mcp?: McpService
 }
 
 function registerCore(app: FastifyInstance): void {
@@ -79,7 +83,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, files }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, files, mcp }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -102,6 +106,9 @@ export function buildApp({ config, logger, sessionToken, dev, files }: BuildAppO
   if (files) {
     registerFiles(app, { service: files })
     app.addHook('onClose', async () => files.close())
+  }
+  if (mcp) {
+    registerMcp(app, { service: mcp })
   }
   return app
 }
