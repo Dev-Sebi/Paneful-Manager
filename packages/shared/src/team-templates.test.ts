@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { LaunchTeamTemplateResponseSchema } from './api.js'
 import {
+  buildLeadArgs,
   buildLeadPrompt,
+  leadCommandBytes,
+  MAX_LEAD_COMMAND_BYTES,
+  MAX_TEAM_GOAL_LENGTH,
+  MAX_TEAMMATE_PROMPT_LENGTH,
   compareVersions,
   MAX_TEAMMATES,
   parseClaudeVersion,
@@ -54,10 +59,10 @@ describe('TeamTemplateSchema', () => {
   })
 
   it('refuses lead args the launch sets itself', () => {
-    for (const arg of ['--settings', '--session-id=x', '--teammate-mode', '-p', '--print', '--resume', '--model']) {
+    for (const arg of ['--settings', '--session-id=x', '--teammate-mode', '-p', '--print', '--resume', '--resume=x', '--model', '--', '-cp', '-rX', '-r=x', '-dc']) {
       expect(TeamTemplateSchema.safeParse({ ...base, lead: { cwd: '/w', args: [arg] } }).success, arg).toBe(false)
     }
-    expect(TeamTemplateSchema.parse({ ...base, lead: { cwd: '/w', args: ['--add-dir', '/x'] } }).lead.args).toEqual(['--add-dir', '/x'])
+    expect(TeamTemplateSchema.parse({ ...base, lead: { cwd: '/w', args: ['--add-dir', '/x', '-d', '--verbose'] } }).lead.args).toEqual(['--add-dir', '/x', '-d', '--verbose'])
   })
 
   it('validates teammates: names, duplicates, count and prompt', () => {
@@ -71,6 +76,43 @@ describe('TeamTemplateSchema', () => {
     }
     expect(issuePaths(TeamTemplateSchema, { ...base, teammates: [{ name: 'a', prompt: '  ' }] })).toEqual(['teammates.0.prompt'])
     expect(issuePaths(TeamTemplateSchema, { ...base, teammates: [{ name: 'a', prompt: 'p', model: 'opus now' }] })).toEqual(['teammates.0.model'])
+  })
+
+  it('refuses control characters in prompt and goal and caps the description', () => {
+    const teammates = [{ name: 'a', prompt: 'line one\n\tline two' }]
+    expect(TeamTemplateSchema.parse({ ...base, teammates, goal: 'a\nb' }).teammates[0]?.prompt).toBe('line one\n\tline two')
+    for (const text of ['a\u001B[31mred', 'a\rb', 'a\u0000b', 'a\u007Fb']) {
+      expect(TeamTemplateSchema.safeParse({ ...base, teammates: [{ name: 'a', prompt: text }] }).success, JSON.stringify(text)).toBe(false)
+      expect(TeamTemplateSchema.safeParse({ ...base, goal: text }).success, JSON.stringify(text)).toBe(false)
+    }
+    expect(issuePaths(TeamTemplateSchema, { ...base, description: 'x'.repeat(501) })).toEqual(['description'])
+    expect(issuePaths(TeamTemplateSchema, { ...base, description: 'a\u0000b' })).toEqual(['description'])
+  })
+
+  it('caps the generated lead command below what tmux accepts', () => {
+    const worst = {
+      ...base,
+      goal: 'g'.repeat(MAX_TEAM_GOAL_LENGTH),
+      teammates: Array.from({ length: MAX_TEAMMATES }, (_, index) => ({ name: `t${index}`, prompt: 'p'.repeat(MAX_TEAMMATE_PROMPT_LENGTH) })),
+    }
+    const result = TeamTemplateSchema.safeParse(worst)
+    expect(result.error?.issues.map(issue => [issue.path.join('.'), issue.message])).toEqual([
+      ['', expect.stringMatching(/^the generated lead command is \d+ bytes, the limit is 12288/)],
+    ])
+    expect(MAX_LEAD_COMMAND_BYTES).toBeLessThan(16_000)
+  })
+
+  it('keeps the argv of the largest accepted template within the budget', () => {
+    const teammates = Array.from({ length: MAX_TEAMMATES }, (_, index) => ({ name: `t${index}`, prompt: 'p' }))
+    const small = TeamTemplateSchema.parse({ ...base, teammates })
+    const room = MAX_LEAD_COMMAND_BYTES - leadCommandBytes(small)
+    const filled = { ...base, teammates: teammates.map((teammate, index) => ({ ...teammate, prompt: 'p'.repeat(1 + Math.floor(room / MAX_TEAMMATES) + (index === 0 ? room % MAX_TEAMMATES : 0)) })) }
+    const template = TeamTemplateSchema.parse(filled)
+    const argv = [template.lead.cwd, template.lead.command, ...buildLeadArgs(template, '1a2b3c4d-0000-4000-8000-000000000000')]
+    const bytes = argv.reduce((sum, part) => sum + new TextEncoder().encode(part).length + 1, 0)
+    expect(bytes).toBe(MAX_LEAD_COMMAND_BYTES)
+    filled.teammates[0] = { name: 't0', prompt: `${filled.teammates[0]?.prompt ?? ''}p` }
+    expect(TeamTemplateSchema.safeParse(filled).success).toBe(false)
   })
 
   it('uses the preset name rules for the template name', () => {
@@ -92,6 +134,7 @@ describe('team helpers', () => {
     expect(compareVersions('3.0.0', '2.9.999')).toBe(1)
     expect(parseClaudeVersion('2.1.311 (Claude Code)\n')).toBe('2.1.311')
     expect(parseClaudeVersion('unknown')).toBeUndefined()
+    expect(parseClaudeVersion('note: 9.9.9 deprecated\n 2.1.311 (Claude Code)')).toBe('2.1.311')
   })
 
   it('builds a lead prompt that names every teammate with model, directory and goal', () => {

@@ -14,6 +14,7 @@ let alive: Set<string>
 let requests: CreateSessionRequest[]
 let killed: string[]
 let failCreate: boolean
+let exited: Set<string>
 let versionOutput: string
 const logger = { info: vi.fn(), warn: vi.fn() }
 
@@ -31,14 +32,14 @@ const engine = {
     killed.push(id)
     alive.delete(id)
   },
-  get: (id: string): Session | undefined => (alive.has(id) ? ({ id, lifecycle: 'running' } as Session) : undefined),
+  get: (id: string): Session | undefined => (alive.has(id) ? ({ id, lifecycle: exited.has(id) ? 'exited' : 'running' } as Session) : undefined),
 }
 
 const alpha = TeamTemplateSchema.parse({
   name: 'alpha',
   experimental: true,
   goal: 'Ship the parser',
-  lead: { cwd: '/work', args: ['--add-dir', '/extra'], model: 'opus' },
+  lead: { cwd: tmpdir(), args: ['--add-dir', '/extra'], model: 'opus' },
   teammates: [{ name: 'tester', prompt: 'Write tests', model: 'sonnet' }, { name: 'docs', prompt: 'Write docs', cwd: '/work/docs' }],
   env: { CLAUDE_CODE_SUBAGENT_MODEL: 'sonnet' },
 })
@@ -73,6 +74,7 @@ beforeEach(async () => {
   requests = []
   killed = []
   failCreate = false
+  exited = new Set()
   versionOutput = '2.1.311 (Claude Code)\n'
   logger.info.mockReset()
   logger.warn.mockReset()
@@ -92,7 +94,7 @@ describe('team template launch', () => {
       untestedVersion: false,
     })
     const request = requests[0]
-    expect(request).toMatchObject({ cwd: '/work', command: 'claude', title: 'alpha' })
+    expect(request).toMatchObject({ cwd: tmpdir(), command: 'claude', title: 'alpha' })
     const args = request?.args ?? []
     expect(args.slice(0, 6)).toEqual(['--add-dir', '/extra', '--teammate-mode', 'tmux', '--session-id', CLAUDE_SESSION_ID])
     expect(JSON.parse(args[7] ?? '')).toEqual({
@@ -121,6 +123,26 @@ describe('team template launch', () => {
     expect(launcher.launches()).toEqual([])
     await launcher.forget('alpha')
     expect(JSON.parse(await readFile(join(stateDir, TEAM_LAUNCHES_FILE_NAME), 'utf8'))).toEqual([])
+  })
+
+  it('does not list a launch whose lead has exited', async () => {
+    const { launcher, version } = setup()
+    await launcher.launch('alpha')
+    expect(version).toHaveBeenCalledWith('claude', tmpdir())
+    exited.add('s1')
+    expect(launcher.launches()).toEqual([])
+  })
+
+  it('reads the version from noisy output', async () => {
+    versionOutput = 'warning: config 9.9.9 is deprecated\n  2.1.310 (Claude Code)\n'
+    expect((await setup().launcher.launch('alpha')).claudeVersion).toBe('2.1.310')
+  })
+
+  it('answers 400 when the lead cwd is not a directory', async () => {
+    const missing = TeamTemplateSchema.parse({ ...alpha, name: 'missing', lead: { cwd: join(stateDir, 'nope') } })
+    const { launcher, version } = setup([missing])
+    await expect(launcher.launch('missing')).rejects.toMatchObject({ statusCode: 400 })
+    expect(version).not.toHaveBeenCalled()
   })
 
   it('refuses old or unparsable versions before any session starts', async () => {

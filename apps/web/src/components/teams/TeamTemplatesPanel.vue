@@ -61,7 +61,7 @@
 
             <span v-else class="team-templates__waiting">Waiting for the team to appear</span>
 
-            <AhButton size="sm" variant="ghost" @click="openTab(item)">Open lead</AhButton>
+            <AhButton :ariaLabel="`Open lead of ${item.team}`" size="sm" variant="ghost" @click="openTab(item)">Open lead</AhButton>
           </li>
         </ul>
       </li>

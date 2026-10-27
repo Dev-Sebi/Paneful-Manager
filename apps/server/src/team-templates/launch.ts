@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
+import { stat } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import {
-  buildLeadPrompt,
+  buildLeadArgs,
   compareVersions,
   CreateSessionRequestSchema,
   LAST_TESTED_AGENT_TEAMS_VERSION,
@@ -10,7 +12,6 @@ import {
   teamNameFor,
   type LaunchTeamTemplateResponse,
   type TeamLaunch,
-  type TeamTemplate,
 } from '@agent-hub/shared'
 import type { BaseLogger } from 'pino'
 import { AppError } from '../errors.js'
@@ -23,18 +24,9 @@ import type { TeamTemplateStore } from './store.js'
 export const VERSION_TIMEOUT_MS = 10_000
 export const VERSION_MAX_BUFFER_BYTES = 64 * 1024
 
-/** Env the launch always sets for the team; template env cannot override these keys. */
-export function teamSettingsEnv(team: string): Record<string, string> {
-  return {
-    CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
-    CLAUDE_CODE_ENABLE_TODO_TOOLS: '1',
-    CLAUDE_CODE_TASK_LIST_ID: team,
-  }
-}
-
-/** Default version probe: `<command> --version` without a shell. */
-export async function probeVersion(command: string): Promise<string> {
-  const { stdout } = await run(command, ['--version'], { timeoutMs: VERSION_TIMEOUT_MS, maxBuffer: VERSION_MAX_BUFFER_BYTES })
+/** Default version probe: `<command> --version` without a shell, in the lead's cwd so relative commands resolve like in the session. */
+export async function probeVersion(command: string, cwd: string): Promise<string> {
+  const { stdout } = await run(command, ['--version'], { cwd, timeoutMs: VERSION_TIMEOUT_MS, maxBuffer: VERSION_MAX_BUFFER_BYTES })
   return stdout
 }
 
@@ -44,7 +36,7 @@ export interface TeamTemplateLauncherOptions {
   ledger: TeamLaunchLedger
   logger: Pick<BaseLogger, 'info' | 'warn'>
   /** Returns the raw `--version` output of the lead command. */
-  version?: (command: string) => Promise<string>
+  version?: (command: string, cwd: string) => Promise<string>
   /** Claude session id for the lead; must be a UUID (`--session-id`). */
   newClaudeSessionId?: () => string
   now?: () => Date
@@ -59,22 +51,6 @@ export interface TeamTemplateLauncher {
   forget: (name: string) => Promise<void>
 }
 
-/** Lead argv: template args first, so the launch's own flags end any option list before the prompt. */
-export function leadArgs(template: TeamTemplate, claudeSessionId: string, team: string): string[] {
-  const settings = { env: { ...template.env, ...teamSettingsEnv(team) } }
-  const prompt = buildLeadPrompt(template, path => expandHome(path))
-  return [
-    ...template.lead.args,
-    '--teammate-mode',
-    'tmux',
-    '--session-id',
-    claudeSessionId,
-    '--settings',
-    JSON.stringify(settings),
-    ...(template.lead.model === undefined ? [] : ['--model', template.lead.model]),
-    prompt,
-  ]
-}
 
 export function createTeamTemplateLauncher(options: TeamTemplateLauncherOptions): TeamTemplateLauncher {
   const { store, engine, ledger, logger } = options
@@ -87,8 +63,12 @@ export function createTeamTemplateLauncher(options: TeamTemplateLauncherOptions)
     return session !== undefined && session.lifecycle !== 'exited'
   }
 
-  async function checkVersion(command: string): Promise<{ claudeVersion: string, untestedVersion: boolean }> {
-    const output = await version(command).catch((error: unknown) => {
+  async function checkVersion(command: string, cwd: string): Promise<{ claudeVersion: string, untestedVersion: boolean }> {
+    const isDir = await stat(cwd).then(info => info.isDirectory(), () => false)
+    if (!isDir) {
+      throw new AppError(`cwd ${cwd} is not a directory`, 400, 'bad_request')
+    }
+    const output = await version(command, cwd).catch((error: unknown) => {
       throw new AppError(`Could not run ${command} --version: ${(error as Error).message}`, 409, 'conflict')
     })
     const found = parseClaudeVersion(output)
@@ -110,10 +90,10 @@ export function createTeamTemplateLauncher(options: TeamTemplateLauncherOptions)
       const request = CreateSessionRequestSchema.parse({
         cwd: template.lead.cwd,
         command: template.lead.command,
-        args: leadArgs(template, claudeSessionId, team),
+        args: buildLeadArgs(template, claudeSessionId, path => expandHome(path)),
         title: template.name,
       })
-      const versionInfo = await checkVersion(template.lead.command)
+      const versionInfo = await checkVersion(template.lead.command, resolve(expandHome(template.lead.cwd)))
       const session = await engine.create(request)
       let launch: TeamLaunch
       try {

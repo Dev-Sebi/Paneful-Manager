@@ -23,7 +23,7 @@ import { createTeamTemplateStore } from './store.js'
 
 const TOKEN = 'test-token'
 const local = { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, [SESSION_TOKEN_HEADER]: TOKEN }
-const template = { name: 'alpha', experimental: true, lead: { cwd: '/work' }, teammates: [{ name: 'tester', prompt: 'Test it' }] }
+const template = { name: 'alpha', experimental: true, lead: { cwd: tmpdir() }, teammates: [{ name: 'tester', prompt: 'Test it' }] }
 const body = { template }
 let root: string
 let app: FastifyInstance

@@ -16,6 +16,14 @@ export const MAX_TEAMMATE_NAME_LENGTH = 32
 
 export const MAX_TEAM_ENV_VALUE_LENGTH = 256
 
+export const MAX_TEAM_DESCRIPTION_LENGTH = 500
+
+/**
+ * Budget for the generated lead command (cwd, command, args, settings JSON, first prompt) in bytes.
+ * tmux refuses commands above about 16 KB; the rest is headroom for the session env and tmux flags.
+ */
+export const MAX_LEAD_COMMAND_BYTES = 12 * 1024
+
 /** Lowest Claude Code version agent teams were tested with (ADR 0010). */
 export const MIN_AGENT_TEAMS_VERSION = '2.1.309'
 
@@ -65,7 +73,21 @@ export const TeamModelSchema = z.string().regex(/^[A-Za-z0-9._:[\]-]+$/, 'model 
 
 const NoNulSchema = z.string().regex(/^[^\0]*$/, 'must not contain NUL')
 
+/** Free text for the lead's prompt: no control characters except tab and newline. */
+// eslint-disable-next-line no-control-regex
+const PromptTextSchema = z.string().trim().regex(/^[^\0-\x08\v-\x1F\x7F]*$/, 'must not contain control characters other than tab and newline')
+
+/** Short options that resume a session or print instead of running interactively. */
+const RESERVED_SHORT_LETTERS = /[pcr]/
+
 function isReservedArg(arg: string): boolean {
+  if (arg === '--') {
+    return true
+  }
+  if (/^-[^-]/.test(arg)) {
+    const cluster = /^-([A-Za-z]*)/.exec(arg)?.[1] ?? ''
+    return RESERVED_SHORT_LETTERS.test(cluster)
+  }
   return RESERVED_LEAD_ARGS.some(flag => arg === flag || arg.startsWith(`${flag}=`))
 }
 
@@ -75,7 +97,7 @@ export const TeamLeadSchema = z.looseObject({
   args: z
     .array(NoNulSchema)
     .default(() => [])
-    .refine(args => !args.some(isReservedArg), `args must not contain ${RESERVED_LEAD_ARGS.join(', ')}; the launch sets them`),
+    .refine(args => !args.some(isReservedArg), `args must not contain --, ${RESERVED_LEAD_ARGS.join(', ')} or short option groups with p, c or r; the launch sets them`),
   model: TeamModelSchema.optional(),
 })
 export type TeamLead = z.infer<typeof TeamLeadSchema>
@@ -83,7 +105,7 @@ export type TeamLead = z.infer<typeof TeamLeadSchema>
 export const TeammateSchema = z.looseObject({
   name: TeammateNameSchema,
   /** Role and instructions; handed to the lead, who spawns the teammate with it. */
-  prompt: NoNulSchema.trim().min(1, 'prompt must not be empty').max(MAX_TEAMMATE_PROMPT_LENGTH),
+  prompt: PromptTextSchema.min(1, 'prompt must not be empty').max(MAX_TEAMMATE_PROMPT_LENGTH),
   /** Only passed on as an instruction: Claude Code spawns teammates in the lead's directory. */
   cwd: PathSchema.optional(),
   model: TeamModelSchema.optional(),
@@ -99,11 +121,11 @@ export type TeamEnv = z.infer<typeof TeamEnvSchema>
 export const TeamTemplateSchema = z
   .looseObject({
     name: TeamTemplateNameSchema,
-    description: z.string().optional(),
+    description: NoNulSchema.max(MAX_TEAM_DESCRIPTION_LENGTH).optional(),
     /** Marks the file as depending on the experimental agent teams feature. */
     experimental: z.literal(true, 'experimental must be true: team templates depend on an experimental Claude Code feature'),
     /** What the team should work on; added to the lead's first prompt. */
-    goal: NoNulSchema.trim().max(MAX_TEAM_GOAL_LENGTH).optional(),
+    goal: PromptTextSchema.max(MAX_TEAM_GOAL_LENGTH).optional(),
     lead: TeamLeadSchema,
     teammates: z
       .array(TeammateSchema)
@@ -118,6 +140,14 @@ export const TeamTemplateSchema = z
         ctx.addIssue({ code: 'custom', path: ['teammates', index, 'name'], message: `duplicate teammate name ${teammate.name}` })
       }
       seen.add(teammate.name)
+    }
+    const bytes = leadCommandBytes(template)
+    if (bytes > MAX_LEAD_COMMAND_BYTES) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [],
+        message: `the generated lead command is ${bytes} bytes, the limit is ${MAX_LEAD_COMMAND_BYTES} (tmux refuses longer commands); shorten the prompts, goal or args`,
+      })
     }
   })
 export type TeamTemplate = z.infer<typeof TeamTemplateSchema>
@@ -151,9 +181,9 @@ export function compareVersions(a: string, b: string): number {
   return 0
 }
 
-/** Extracts `x.y.z` from `claude --version` output, e.g. `2.1.311 (Claude Code)`. */
+/** Extracts `x.y.z` from the first line of `claude --version` output that starts with one, e.g. `2.1.311 (Claude Code)`. */
 export function parseClaudeVersion(output: string): string | undefined {
-  return /\b(\d+\.\d+\.\d+)\b/.exec(output)?.[1]
+  return /^\s*(\d+\.\d+\.\d+)\b/m.exec(output)?.[1]
 }
 
 /**
@@ -177,4 +207,45 @@ export function buildLeadPrompt(template: Pick<TeamTemplate, 'goal' | 'teammates
   }
   lines.push('', 'Track the work as tasks in the shared task list.')
   return lines.join('\n')
+}
+
+/** Env the launch always sets for the team; template env cannot override these keys. */
+export function teamSettingsEnv(team: string): Record<string, string> {
+  return {
+    CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
+    CLAUDE_CODE_ENABLE_TODO_TOOLS: '1',
+    CLAUDE_CODE_TASK_LIST_ID: team,
+  }
+}
+
+type LeadArgsTemplate = Pick<TeamTemplate, 'goal' | 'teammates' | 'env'> & { lead: Pick<TeamLead, 'args' | 'model'> }
+
+/**
+ * Lead argv. Template args come first and the launch's flags follow, so a variadic template option
+ * ends at `--teammate-mode`. A trailing template flag that expects a value would swallow
+ * `--teammate-mode` instead; that is a documented limit (ADR 0012).
+ */
+export function buildLeadArgs(template: LeadArgsTemplate, claudeSessionId: string, resolveCwd: (path: string) => string = path => path): string[] {
+  const settings = { env: { ...template.env, ...teamSettingsEnv(teamNameFor(claudeSessionId)) } }
+  return [
+    ...template.lead.args,
+    '--teammate-mode',
+    'tmux',
+    '--session-id',
+    claudeSessionId,
+    '--settings',
+    JSON.stringify(settings),
+    ...(template.lead.model === undefined ? [] : ['--model', template.lead.model]),
+    buildLeadPrompt(template, resolveCwd),
+  ]
+}
+
+/** Same length as a real `randomUUID()`, so the budget check matches the launch. */
+const PLACEHOLDER_SESSION_ID = '00000000-0000-4000-8000-000000000000'
+
+/** UTF-8 size of the lead's cwd, command and argv, one separator per entry. */
+export function leadCommandBytes(template: LeadArgsTemplate & { lead: Pick<TeamLead, 'cwd' | 'command'> }): number {
+  const encoder = new TextEncoder()
+  const parts = [template.lead.cwd, template.lead.command, ...buildLeadArgs(template, PLACEHOLDER_SESSION_ID)]
+  return parts.reduce((sum, part) => sum + encoder.encode(part).length + 1, 0)
 }
