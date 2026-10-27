@@ -1,11 +1,18 @@
-import { BIND_HOST, type AppConfig } from '@agent-hub/shared'
+import { join } from 'node:path'
+import { BIND_HOST, resolveStateDir, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
 import { createBackupStore } from './files/backups.js'
 import { createFileService } from './files/service.js'
-import { assertBackupDirOutsideScopes, resolveBackupDir } from './files/state-dir.js'
+import { assertBackupDirOutsideScopes } from './files/state-dir.js'
+import { expandHome } from './paths.js'
 import { discoverScopes } from './scopes/discover.js'
 import { assertLoopbackAddress } from './security/origin.js'
+import { SessionEngine } from './sessions/engine.js'
+import type { Tmux } from './tmux/tmux.js'
+
+/** Backups live in `<stateDir>/backups` (see the file-write policy). */
+export const BACKUPS_DIR_NAME = 'backups'
 
 export const SHUTDOWN_TIMEOUT_MS = 5000
 
@@ -18,15 +25,25 @@ export interface RunningServer {
 
 export interface StartOptions {
   env?: Record<string, string | undefined>
+  /** tmux wrapper for the session engine; tests pass one with a private socket. */
+  tmux?: Tmux
 }
 
-export async function startServer(config: AppConfig, logger: FastifyBaseLogger, { env = process.env }: StartOptions = {}): Promise<RunningServer> {
+export async function startServer(config: AppConfig, logger: FastifyBaseLogger, { env = process.env, tmux }: StartOptions = {}): Promise<RunningServer> {
   const getScopes = () => discoverScopes({ config, env, logger })
-  const backupDir = resolveBackupDir(env)
+  const stateDir = expandHome(resolveStateDir(env))
+  const backupDir = join(stateDir, BACKUPS_DIR_NAME)
   assertBackupDirOutsideScopes(backupDir, await getScopes())
+  const engine = new SessionEngine({ stateDir, logger, ...(tmux === undefined ? {} : { tmux }) })
+  await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
-  const app = buildApp({ config, logger, files, worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) } })
-  await app.listen({ host: BIND_HOST, port: config.port })
+  const app = buildApp({ config, logger, files, engine, worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) } })
+  try {
+    await app.listen({ host: BIND_HOST, port: config.port })
+  } catch (error) {
+    await app.close()
+    throw error
+  }
   const address = app.server.address()
   try {
     assertLoopbackAddress(address)

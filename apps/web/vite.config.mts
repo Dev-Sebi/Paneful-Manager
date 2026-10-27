@@ -3,6 +3,8 @@ import Vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 
+const apiTarget = `http://127.0.0.1:${process.env.AGENT_HUB_PORT ?? '7337'}`
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -34,5 +36,9 @@ export default defineConfig({
   server: {
     port: 3000,
     strictPort: true,
+    proxy: {
+      '/api': { target: apiTarget, changeOrigin: true },
+      '/ws': { target: apiTarget, changeOrigin: true, ws: true },
+    },
   },
 })

@@ -1,3 +1,4 @@
+export { z } from 'zod'
 export const APP_NAME = 'Agent Hub'
 
 export * from './api.js'
