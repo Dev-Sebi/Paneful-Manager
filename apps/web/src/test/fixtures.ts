@@ -1,4 +1,4 @@
-import type { AppTab, FileContent, FileEntry, Scope, Session } from '@agent-hub/shared'
+import type { AppTab, FileContent, FileEntry, McpServerEntryMasked, Scope, Session } from '@agent-hub/shared'
 
 export function makeSession (id: string, overrides: Partial<Session> = {}): Session {
   return {
@@ -55,4 +55,14 @@ export function makeClaudeMdEntry (scope: Scope = GLOBAL_SCOPE, kind: 'claude-md
 
 export function withContent (entry: FileEntry, content: string): FileContent {
   return { ...entry, content }
+}
+
+export function makeMcpEntry (name: string, overrides: Partial<McpServerEntryMasked> = {}): McpServerEntryMasked {
+  return {
+    name,
+    scope: { kind: 'user' },
+    source: 'cli',
+    config: { transport: 'stdio', command: 'npx', args: ['-y', 'server'], env: { API_KEY: { masked: true, set: true }, PATH: '/usr/bin' } },
+    ...overrides,
+  }
 }
