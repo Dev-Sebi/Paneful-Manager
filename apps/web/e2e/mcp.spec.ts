@@ -11,12 +11,14 @@ function initialServers (): Json[] {
       name: 'files',
       scope: { kind: 'user' },
       source: 'cli',
+      approved: true,
       config: { transport: 'stdio', command: 'npx', args: ['-y', 'files-server'], env: { API_KEY: { masked: true, set: true } } },
     },
     {
       name: 'docs',
       scope: { kind: 'project', projectPath: PROJECT },
       source: 'file',
+      approved: true,
       config: { transport: 'http', url: 'https://docs.example.com/mcp', headers: { Authorization: { masked: true, set: true } } },
     },
   ]
@@ -43,7 +45,7 @@ async function mockMcp (page: Page, failUpsert?: { status: number, message: stri
       const config = body.config as Json
       const keys = Object.entries((config.env ?? config.headers ?? {}) as Json)
       const masked = Object.fromEntries(keys.map(([key]) => [key, { masked: true, set: true }]))
-      const stored = { ...body, source: 'cli', config: { ...config, ...(config.transport === 'stdio' ? { env: masked, args: config.args ?? [] } : { headers: masked }) } }
+      const stored = { ...body, source: 'cli', approved: true, config: { ...config, ...(config.transport === 'stdio' ? { env: masked, args: config.args ?? [] } : { headers: masked }) } }
       const index = servers.findIndex(item => item.name === body.name && JSON.stringify(item.scope) === JSON.stringify(body.scope))
       if (index === -1) {
         servers.push(stored)
