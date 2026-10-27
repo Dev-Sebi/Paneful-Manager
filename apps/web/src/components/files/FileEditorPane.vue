@@ -1,5 +1,5 @@
 <template>
-  <section class="file-pane">
+  <section :aria-labelledby="titleId" class="file-pane">
     <EmptyState v-if="!file" :icon="emptyIcon" :message="emptyMessage" />
 
     <template v-else>
@@ -13,7 +13,7 @@
             title="Unsaved changes"
           />
 
-          <code class="file-pane__path" :title="file.path">{{ file.relPath }}</code>
+          <code :id="titleId" class="file-pane__path" :title="file.path">{{ file.relPath }}</code>
           <span class="file-pane__chip">{{ scopeLabel(file.scope) }}</span>
 
           <AhStatusBadge
@@ -35,14 +35,15 @@
             Save
           </AhButton>
 
-          <AhButton variant="danger" @click="emit('delete')">Delete</AhButton>
+          <AhButton :disabled="files.saving" variant="danger" @click="emit('delete')">Delete</AhButton>
         </div>
       </header>
 
-      <p v-if="files.error" class="file-pane__error" role="alert">{{ files.error }}</p>
+      <p v-if="files.fileError" class="file-pane__error" role="alert">{{ files.fileError }}</p>
 
       <ConflictBanner
         v-if="banner"
+        :busy="files.saving"
         :kind="banner"
         @overwrite="files.overwrite()"
         @reload="files.reload()"
@@ -76,7 +77,7 @@
 
 <script lang="ts" setup>
   import type { EditorLanguage } from '@/components/editor/AhCodeEditor.vue'
-  import { computed } from 'vue'
+  import { computed, useId } from 'vue'
   import { AhButton, AhStatusBadge } from '@/components/ah'
   import AhCodeEditor from '@/components/editor/AhCodeEditor.vue'
   import { parseFrontmatter } from '@/components/editor/frontmatter'
@@ -93,6 +94,7 @@
 
   const emit = defineEmits<{ delete: [] }>()
 
+  const titleId = `file-pane-${useId()}`
   const files = useFilesStore()
   const ui = useUiStore()
 

@@ -176,6 +176,27 @@ describe('FileEditorPane', () => {
     expect(wrapper.find('.conflict-banner').exists()).toBe(false)
   })
 
+  it('disables Delete and the banner actions while saving', async () => {
+    const { wrapper, files } = await mountPane()
+    await edit(wrapper, 'mine')
+    files.diskChange = { removed: false, hash: HASH_C }
+    files.saving = true
+    await flushPromises()
+    expect(button(wrapper, 'Delete').attributes('disabled')).toBeDefined()
+    expect(button(wrapper, 'Reload from disk').attributes('disabled')).toBeDefined()
+    expect(button(wrapper, 'Overwrite').attributes('disabled')).toBeDefined()
+  })
+
+  it('labels the section with the file path and shows only file-level errors', async () => {
+    const { wrapper, files } = await mountPane()
+    const section = wrapper.find('section.file-pane')
+    expect(wrapper.find(`#${section.attributes('aria-labelledby')}`).text()).toBe(entry.relPath)
+    files.error = 'list failed'
+    files.fileError = 'save failed'
+    await flushPromises()
+    expect(wrapper.find('.file-pane__error').text()).toBe('save failed')
+  })
+
   it('emits delete', async () => {
     const { wrapper } = await mountPane()
     await button(wrapper, 'Delete').trigger('click')

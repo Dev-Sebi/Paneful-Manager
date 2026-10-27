@@ -59,6 +59,8 @@
 
               <AhButton
                 :ariaLabel="`Create ${item.fileName} in ${scopeLabel(scope)}`"
+                :disabled="busy"
+                :loading="busy"
                 size="sm"
                 @click="emit('create', scope, item.kind)"
               >
@@ -83,6 +85,7 @@
     entries: FileEntry[]
     mode: FilesMode
     selectedPath?: string
+    busy?: boolean
   }>()
 
   const emit = defineEmits<{
@@ -176,6 +179,7 @@
 .scope-tree__none,
 .scope-tree__missing {
   margin: 0;
+  padding: var(--ah-space-1) var(--ah-space-2);
   color: var(--ah-color-fg-muted);
   font-size: var(--ah-font-size-sm);
 }

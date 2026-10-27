@@ -130,6 +130,13 @@ describe('FilesWorkbench unsaved guard', () => {
     expect(router.currentRoute.value.path).toBe('/other')
   })
 
+  it('shows list and open errors in a strip outside the editor', async () => {
+    const { wrapper } = await setup()
+    useFilesStore().error = 'Could not load files'
+    await flushPromises()
+    expect(wrapper.find('.workbench__error').text()).toBe('Could not load files')
+  })
+
   it('leaves without a prompt when clean', async () => {
     const { router } = await setup()
     await router.push('/other')

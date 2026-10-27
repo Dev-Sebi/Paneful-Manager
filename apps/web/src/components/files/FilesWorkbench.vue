@@ -12,7 +12,7 @@
       </div>
     </header>
 
-    <p v-if="actionError" class="workbench__error" role="alert">{{ actionError }}</p>
+    <p v-if="shownError" class="workbench__error" role="alert">{{ shownError }}</p>
 
     <EmptyState
       v-if="scopes.scopes.length === 0"
@@ -24,6 +24,7 @@
 
     <div v-else class="workbench__body">
       <ScopeTree
+        :busy="creatingFile"
         class="workbench__tree"
         :entries="files.entries"
         :mode="mode"
@@ -67,7 +68,7 @@
 <script lang="ts" setup>
   import type { FilesMode } from './scopeLabel'
   import type { CreateFileRequest, FileEntry, ManagedFileKind, Scope } from '@agent-hub/shared'
-  import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+  import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { onBeforeRouteLeave } from 'vue-router'
   import { ApiClientError } from '@/api/client'
   import { wsClient } from '@/api/ws'
@@ -98,8 +99,11 @@
   const deleting = ref(false)
   const removing = ref(false)
   const leaveOpen = ref(false)
+  const creatingFile = ref(false)
+  const shownError = computed(() => actionError.value ?? files.error ?? scopes.error)
 
   let resolveLeave: ((ok: boolean) => void) | undefined
+  let leavePending: Promise<boolean> | undefined
   let unbind: (() => void) | undefined
 
   /** The skill folder when the open file is its SKILL.md, otherwise just the file. */
@@ -121,16 +125,18 @@
     if (!files.dirty) {
       return Promise.resolve(true)
     }
-    leaveOpen.value = true
-    return new Promise(resolve => {
+    leavePending ??= new Promise(resolve => {
       resolveLeave = resolve
     })
+    leaveOpen.value = true
+    return leavePending
   }
 
   function settle (ok: boolean) {
     leaveOpen.value = false
     resolveLeave?.(ok)
     resolveLeave = undefined
+    leavePending = undefined
   }
 
   function onLeaveToggle (open: boolean) {
@@ -151,8 +157,15 @@
     await Promise.all([scopes.load(), files.load()])
   }
 
+  watch(() => files.dirty, dirty => {
+    if (dirty) {
+      window.addEventListener('beforeunload', onBeforeUnload)
+    } else {
+      window.removeEventListener('beforeunload', onBeforeUnload)
+    }
+  })
+
   onMounted(() => {
-    window.addEventListener('beforeunload', onBeforeUnload)
     unbind = files.bind(wsClient)
     void refresh()
   })
@@ -202,10 +215,13 @@
     if (!(await confirmDiscard())) {
       return
     }
+    creatingFile.value = true
     try {
       await files.create({ scopePath: scope.path, kind, template: 'empty' }, CLAUDE_MD_STARTER)
     } catch (error) {
       actionError.value = createError(error, 'This file already exists')
+    } finally {
+      creatingFile.value = false
     }
   }
 
@@ -261,6 +277,7 @@
   flex: 1;
   grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
   gap: var(--ah-space-4);
+  align-content: start;
   min-height: 0;
 }
 

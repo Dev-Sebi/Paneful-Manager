@@ -4,8 +4,8 @@
     <p class="conflict-banner__text">{{ text }}</p>
 
     <div class="conflict-banner__actions">
-      <AhButton size="sm" @click="emit('reload')">Reload from disk</AhButton>
-      <AhButton size="sm" variant="danger" @click="confirming = true">Overwrite</AhButton>
+      <AhButton :disabled="busy" size="sm" @click="emit('reload')">Reload from disk</AhButton>
+      <AhButton :disabled="busy" size="sm" variant="danger" @click="confirming = true">Overwrite</AhButton>
     </div>
 
     <AhDialog
@@ -26,6 +26,7 @@
 
   const props = defineProps<{
     kind: 'conflict' | 'changed' | 'removed'
+    busy?: boolean
   }>()
 
   const emit = defineEmits<{

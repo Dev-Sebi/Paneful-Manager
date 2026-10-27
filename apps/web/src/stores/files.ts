@@ -1,5 +1,5 @@
 import type { WsEvents } from '@/api/ws'
-import type { CreateFileRequest, FileContent, FileEntry, ManagedFileKind } from '@agent-hub/shared'
+import type { CreateFileRequest, FileContent, FileEntry } from '@agent-hub/shared'
 import { FileConflictDetailsSchema, SkillDeleteBlockedDetailsSchema } from '@agent-hub/shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
@@ -23,7 +23,10 @@ function messageOf (error: unknown, fallback: string): string {
 export const useFilesStore = defineStore('files', () => {
   const entries = ref<FileEntry[]>([])
   const loading = ref(false)
+  /** Failures of listing, opening and reloading; shown outside the editor. */
   const error = ref<string>()
+  /** Failures of saving and deleting the open file. */
+  const fileError = ref<string>()
 
   const current = ref<FileContent>()
   const buffer = ref('')
@@ -36,18 +39,6 @@ export const useFilesStore = defineStore('files', () => {
   let listAgain = false
 
   const dirty = computed(() => current.value !== undefined && buffer.value !== current.value.content)
-
-  const byScope = computed(() => {
-    const map = new Map<string, FileEntry[]>()
-    for (const entry of entries.value) {
-      map.set(entry.scope.path, [...(map.get(entry.scope.path) ?? []), entry])
-    }
-    return map
-  })
-
-  function filesOf (scopePath: string, kind?: ManagedFileKind): FileEntry[] {
-    return (byScope.value.get(scopePath) ?? []).filter(entry => kind === undefined || entry.kind === kind)
-  }
 
   /** Loads the list; calls arriving while a load runs are coalesced into one follow-up load. */
   async function load () {
@@ -78,6 +69,7 @@ export const useFilesStore = defineStore('files', () => {
     buffer.value = file.content
     conflict.value = undefined
     diskChange.value = undefined
+    fileError.value = undefined
   }
 
   async function open (path: string): Promise<boolean> {
@@ -103,6 +95,7 @@ export const useFilesStore = defineStore('files', () => {
     buffer.value = ''
     conflict.value = undefined
     diskChange.value = undefined
+    fileError.value = undefined
   }
 
   function setBuffer (value: string) {
@@ -141,15 +134,16 @@ export const useFilesStore = defineStore('files', () => {
         conflict.value = undefined
         diskChange.value = undefined
       }
-      error.value = undefined
+      fileError.value = undefined
       void load()
       return true
     } catch (error_) {
       if (error_ instanceof ApiClientError && error_.code === 'conflict') {
         const details = FileConflictDetailsSchema.safeParse(error_.details)
         conflict.value = { currentHash: details.success ? details.data.currentHash : null }
+        diskChange.value = undefined
       } else {
-        error.value = messageOf(error_, 'Could not save the file')
+        fileError.value = messageOf(error_, 'Could not save the file')
       }
       return false
     } finally {
@@ -163,14 +157,14 @@ export const useFilesStore = defineStore('files', () => {
   }
 
   async function diskHash (): Promise<string | undefined> {
-    if (conflict.value) {
-      return conflict.value.currentHash ?? undefined
-    }
     if (diskChange.value?.removed) {
       return undefined
     }
     if (diskChange.value?.hash) {
       return diskChange.value.hash
+    }
+    if (conflict.value) {
+      return conflict.value.currentHash ?? undefined
     }
     const path = current.value?.path
     return path ? (await api.readFile(path)).file.hash : undefined
@@ -181,7 +175,7 @@ export const useFilesStore = defineStore('files', () => {
     try {
       return await write(await diskHash())
     } catch (error_) {
-      error.value = messageOf(error_, 'Could not save the file')
+      fileError.value = messageOf(error_, 'Could not save the file')
       return false
     }
   }
@@ -205,7 +199,7 @@ export const useFilesStore = defineStore('files', () => {
       const blocked = error_ instanceof ApiClientError && error_.code === 'conflict'
         ? SkillDeleteBlockedDetailsSchema.safeParse(error_.details)
         : undefined
-      error.value = blocked?.success
+      fileError.value = blocked?.success
         ? `The skill folder contains other entries: ${blocked.data.blocked.join(', ')}`
         : messageOf(error_, 'Could not delete')
       return false
@@ -227,9 +221,17 @@ export const useFilesStore = defineStore('files', () => {
         return
       }
       if (message.event === 'unlink') {
-        diskChange.value = { removed: true }
+        if (dirty.value) {
+          diskChange.value = { removed: true }
+        } else {
+          close()
+        }
       } else if (message.hash !== file.hash) {
-        diskChange.value = { removed: false, hash: message.hash }
+        if (dirty.value) {
+          diskChange.value = { removed: false, hash: message.hash }
+        } else {
+          void reload()
+        }
       }
     })
   }
@@ -244,8 +246,7 @@ export const useFilesStore = defineStore('files', () => {
     conflict,
     diskChange,
     dirty,
-    byScope,
-    filesOf,
+    fileError,
     load,
     open,
     close,

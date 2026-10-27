@@ -63,12 +63,10 @@ describe('files store', () => {
     api.listFiles.mockResolvedValue({ files: [entry] })
   })
 
-  it('lists entries and groups them by scope', async () => {
+  it('lists entries', async () => {
     const store = useFilesStore()
     await store.load()
     expect(store.entries).toEqual([entry])
-    expect(store.filesOf(entry.scope.path, 'skill')).toEqual([entry])
-    expect(store.filesOf(entry.scope.path, 'claude-md')).toEqual([])
   })
 
   it('records a list error', async () => {
@@ -119,6 +117,17 @@ describe('files store', () => {
     expect(store.conflict).toBeUndefined()
   })
 
+  it('overwrites with the newest hash from a later disk change', async () => {
+    const store = await openFile()
+    store.setBuffer('mine')
+    api.writeFile.mockRejectedValueOnce(new ApiClientError(409, 'conflict', 'changed', { currentHash: HASH_C }))
+    await store.save()
+    store.diskChange = { removed: false, hash: HASH_B }
+    api.writeFile.mockResolvedValue({ file: { ...entry, hash: HASH_A } })
+    await store.overwrite()
+    expect(api.writeFile).toHaveBeenLastCalledWith({ path: entry.path, content: 'mine', expectedHash: HASH_B })
+  })
+
   it('overwrites a missing file without an expected hash', async () => {
     const store = await openFile()
     store.setBuffer('mine')
@@ -138,7 +147,25 @@ describe('files store', () => {
     expect(store.current?.hash).toBe(HASH_B)
   })
 
-  it('marks the open file as changed on disk without touching the buffer', async () => {
+  it('reloads silently when the file changes on disk while the buffer is clean', async () => {
+    const store = await openFile()
+    api.readFile.mockResolvedValue({ file: { ...file, content: 'disk', hash: HASH_B } })
+    const { events, emit } = fakeEvents()
+    store.bind(events)
+    emit({ type: 'file.changed', path: entry.path, event: 'change', hash: HASH_B })
+    await vi.waitFor(() => expect(store.buffer).toBe('disk'))
+    expect(store.diskChange).toBeUndefined()
+  })
+
+  it('closes a clean file that was removed on disk', async () => {
+    const store = await openFile()
+    const { events, emit } = fakeEvents()
+    store.bind(events)
+    emit({ type: 'file.changed', path: entry.path, event: 'unlink' })
+    expect(store.current).toBeUndefined()
+  })
+
+  it('marks the open file as changed on disk without touching a dirty buffer', async () => {
     const store = await openFile()
     store.setBuffer('mine')
     const { events, emit } = fakeEvents()
@@ -151,6 +178,7 @@ describe('files store', () => {
 
   it('ignores the echo of its own save and other files', async () => {
     const store = await openFile()
+    store.setBuffer('mine')
     const { events, emit } = fakeEvents()
     store.bind(events)
     emit({ type: 'file.changed', path: entry.path, event: 'change', hash: HASH_A })
@@ -158,8 +186,9 @@ describe('files store', () => {
     expect(store.diskChange).toBeUndefined()
   })
 
-  it('flags a file removed on disk', async () => {
+  it('flags a dirty file removed on disk', async () => {
     const store = await openFile()
+    store.setBuffer('mine')
     const { events, emit } = fakeEvents()
     store.bind(events)
     emit({ type: 'file.changed', path: entry.path, event: 'unlink' })
@@ -195,7 +224,7 @@ describe('files store', () => {
     const store = await openFile()
     api.deleteFile.mockRejectedValue(new ApiClientError(409, 'conflict', 'blocked', { blocked: ['notes.bin'] }))
     expect(await store.remove(entry.path)).toBe(false)
-    expect(store.error).toContain('notes.bin')
+    expect(store.fileError).toContain('notes.bin')
     expect(store.current).toBeDefined()
   })
 })
