@@ -1,9 +1,10 @@
+import type * as ClientModule from './client'
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { jsonResponse } from '@/test/fixtures'
 
-type Client = typeof import('./client')
+type Client = typeof ClientModule
 
 const schema = z.strictObject({ ok: z.literal(true) })
 const fetchMock = vi.fn<typeof fetch>()

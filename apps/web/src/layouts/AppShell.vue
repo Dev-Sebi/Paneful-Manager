@@ -34,6 +34,7 @@
       <span class="shell__name">Agent Hub</span>
       <v-spacer />
       <AhStatusBadge :label="connectionLabel" :state="connectionState" />
+
       <div aria-label="Theme" class="shell__theme" role="group">
         <AhButton
           v-for="option in themeOptions"
@@ -66,8 +67,8 @@
 </template>
 
 <script lang="ts" setup>
-  import type { Theme } from '@agent-hub/shared'
   import type { AhStatusBadgeState } from '@/components/ah'
+  import type { Theme } from '@agent-hub/shared'
   import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { useTheme } from 'vuetify'

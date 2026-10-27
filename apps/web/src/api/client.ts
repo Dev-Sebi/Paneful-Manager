@@ -1,3 +1,4 @@
+import type { ApiError, ApiErrorCode, CreateSessionRequestInput, PatchConfigRequest } from '@agent-hub/shared'
 import type { z } from 'zod'
 import {
   API_ROUTES,
@@ -11,7 +12,6 @@ import {
   ScopesResponseSchema,
   SESSION_TOKEN_HEADER,
 } from '@agent-hub/shared'
-import type { ApiError, ApiErrorCode, CreateSessionRequestInput, PatchConfigRequest } from '@agent-hub/shared'
 import { connection } from './connection'
 import { getToken, refreshToken } from './token'
 

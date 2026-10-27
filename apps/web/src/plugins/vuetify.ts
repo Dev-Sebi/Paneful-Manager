@@ -6,8 +6,8 @@
 
 // Composables
 import { createVuetify } from 'vuetify'
-import { darkTheme, lightTheme } from '@/styles/generated/theme'
 import { loadUiPrefs } from '@/stores/ui'
+import { darkTheme, lightTheme } from '@/styles/generated/theme'
 // Styles
 import '@mdi/font/css/materialdesignicons.css'
 import 'vuetify/styles'

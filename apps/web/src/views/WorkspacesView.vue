@@ -2,9 +2,9 @@
   <div class="workspaces">
     <template v-if="tabs.tabs.length > 0">
       <AhTabs
-        :model-value="tabs.activeId ?? undefined"
         ariaLabel="Workspace tabs"
         closable
+        :model-value="tabs.activeId ?? undefined"
         reorderable
         @add="ui.notify('New tab is not available yet')"
         @close="requestClose"
@@ -22,7 +22,7 @@
       </AhTabs>
 
       <AhTabPanel v-for="tab in tabs.tabs" :key="tab.id" class="workspaces__panel" :value="tab.id">
-        <p class="workspaces__pane" v-for="pane in tab.panes" :key="pane.sessionId">
+        <p v-for="pane in tab.panes" :key="pane.sessionId" class="workspaces__pane">
           Session {{ sessions.byId.get(pane.sessionId)?.title ?? pane.sessionId }}
         </p>
       </AhTabPanel>
@@ -50,8 +50,8 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AppTab } from '@agent-hub/shared'
   import type { AhStatusBadgeState } from '@/components/ah'
+  import type { AppTab } from '@agent-hub/shared'
   import { ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { AhDialog, AhTab, AhTabPanel, AhTabs } from '@/components/ah'

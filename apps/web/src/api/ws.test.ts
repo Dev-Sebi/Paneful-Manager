@@ -64,7 +64,7 @@ describe('ws client', () => {
   afterEach(() => vi.useRealTimers())
 
   it('computes a capped exponential backoff', () => {
-    expect([0, 1, 2, 3, 4, 5, 6].map(backoffDelay)).toEqual([500, 1000, 2000, 4000, 8000, 10_000, 10_000])
+    expect([0, 1, 2, 3, 4, 5, 6].map(attempt => backoffDelay(attempt))).toEqual([500, 1000, 2000, 4000, 8000, 10_000, 10_000])
   })
 
   it('connects with the version query and subprotocols', async () => {

@@ -1,7 +1,7 @@
+import type { WsEvents } from '@/api/ws'
 import type { Session } from '@agent-hub/shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { WsEvents } from '@/api/ws'
 import { api } from '@/api/client'
 
 export const useSessionsStore = defineStore('sessions', () => {
