@@ -1,12 +1,10 @@
-import { execFile } from 'node:child_process'
+import { run } from '../process/exec.js'
 
 export const GIT_TIMEOUT_MS = 5000
 export const GIT_MAX_BUFFER_BYTES = 1024 * 1024
 
-function gitEnv(): NodeJS.ProcessEnv {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')))
-  return { ...env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' }
-}
+/** `run()` inherits no `GIT_*` variables (only `BASE_ENV_KEYS`); this pins prompts off and a stable locale. */
+export const GIT_ENV = { GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' } as const
 
 export interface RunOptions {
   timeoutMs?: number
@@ -15,19 +13,10 @@ export interface RunOptions {
 
 export type RunFn = (file: string, args: readonly string[], opts?: RunOptions) => Promise<{ stdout: string }>
 
-/** Thin `execFile` wrapper (no shell); swappable with the shared exec helper. */
+/** Default runner for scope discovery, backed by the shared `run()` helper (no shell). */
 export const runFile: RunFn = (file, args, opts = {}) =>
-  new Promise((resolve, reject) => {
-    execFile(
-      file,
-      [...args],
-      { timeout: opts.timeoutMs ?? GIT_TIMEOUT_MS, maxBuffer: opts.maxBuffer ?? GIT_MAX_BUFFER_BYTES, encoding: 'utf8', env: gitEnv() },
-      (error, stdout) => {
-        if (error) {
-          reject(error)
-        } else {
-          resolve({ stdout })
-        }
-      },
-    )
+  run(file, args, {
+    timeoutMs: opts.timeoutMs ?? GIT_TIMEOUT_MS,
+    maxBuffer: opts.maxBuffer ?? GIT_MAX_BUFFER_BYTES,
+    env: GIT_ENV,
   })

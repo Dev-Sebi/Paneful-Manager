@@ -1,14 +1,16 @@
 import { BIND_HOST } from '@agent-hub/shared'
 import { describe, expect, it } from 'vitest'
-import { assertLoopbackBind, isAllowedHost, isAllowedOrigin } from './origin.js'
+import { assertLoopbackAddress, isAllowedHost, isAllowedOrigin } from './origin.js'
 import { createSessionToken, tokenMatches } from './token.js'
 
-describe('assertLoopbackBind', () => {
-  it('accepts only the loopback bind host', () => {
-    expect(() => assertLoopbackBind(BIND_HOST)).not.toThrow()
-    for (const host of ['0.0.0.0', '::', 'localhost', '192.168.1.10', '']) {
-      expect(() => assertLoopbackBind(host)).toThrow(/Refusing to bind/)
+describe('assertLoopbackAddress', () => {
+  it('accepts only the loopback bind address', () => {
+    expect(() => assertLoopbackAddress({ address: BIND_HOST, family: 'IPv4', port: 1 })).not.toThrow()
+    for (const address of ['0.0.0.0', '::', '::1', '192.168.1.10']) {
+      expect(() => assertLoopbackAddress({ address, family: 'IPv4', port: 1 })).toThrow(/Refusing to serve/)
     }
+    expect(() => assertLoopbackAddress('/tmp/agent-hub.sock')).toThrow(/Refusing to serve/)
+    expect(() => assertLoopbackAddress(null)).toThrow(/Refusing to serve/)
   })
 })
 

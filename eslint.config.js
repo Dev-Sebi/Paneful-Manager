@@ -55,7 +55,7 @@ export default [
         paths: ['child_process', 'node:child_process'].map(name => ({
           name,
           importNames: ['exec', 'execSync'],
-          message: 'Use run() from src/process/exec.ts (execFile, no shell).',
+          message: 'Use run() from src/process/exec.ts (argument array, no shell).',
         })),
       }],
       'no-restricted-syntax': ['error',
@@ -68,8 +68,12 @@ export default [
           message: 'Import child_process statically so the exec ban stays enforceable.',
         },
         {
-          selector: 'Property[key.name="shell"]:not([value.value=false])',
+          selector: 'CallExpression[callee.name=/^(spawn|spawnSync|execFile|execFileSync|fork)$/] Property:matches([key.name="shell"], [key.value="shell"]):not([value.value=false])',
           message: 'Never run processes through a shell.',
+        },
+        {
+          selector: 'CallExpression[callee.name=/^(spawn|spawnSync|execFile|execFileSync|fork)$/][arguments.2.type!="ObjectExpression"][arguments.length>2], CallExpression[callee.name=/^(spawn|spawnSync|execFile|execFileSync|fork)$/] > ObjectExpression > SpreadElement',
+          message: 'Pass process options as an inline object literal so the shell ban stays checkable.',
         },
       ],
     },

@@ -1,14 +1,16 @@
 import { BIND_HOST } from '@agent-hub/shared'
+import type { AddressInfo } from 'node:net'
 
 /** Vite dev server port, allowed as an Origin only in development. */
 export const DEV_ORIGIN_PORT = 3000
 
 const LOOPBACK_NAMES = ['localhost', '127.0.0.1', '[::1]'] as const
 
-/** Defense in depth: refuses to bind anything but loopback. */
-export function assertLoopbackBind(host: string): void {
-  if (host !== BIND_HOST) {
-    throw new Error(`Refusing to bind to ${host}: Agent Hub only listens on ${BIND_HOST}`)
+/** Defense in depth: checks the address the server actually bound to (`server.address()`). */
+export function assertLoopbackAddress(address: AddressInfo | string | null): void {
+  const bound = typeof address === 'object' && address !== null ? address.address : String(address)
+  if (bound !== BIND_HOST) {
+    throw new Error(`Refusing to serve on ${bound}: Agent Hub only listens on ${BIND_HOST}`)
   }
 }
 

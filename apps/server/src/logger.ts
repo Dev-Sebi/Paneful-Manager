@@ -2,11 +2,9 @@ import { pino, type Logger } from 'pino'
 import type { LogLevel } from '@agent-hub/shared'
 
 /** Headers that carry credentials; never written to logs. */
-export const REDACTED_PATHS = [
-  'req.headers.authorization',
-  'req.headers["x-agent-hub-token"]',
-  'req.headers["sec-websocket-protocol"]',
-]
+const SECRET_HEADERS = ['authorization', 'x-agent-hub-token', 'x-agent-hub-hook-token', 'sec-websocket-protocol']
+
+export const REDACTED_PATHS = SECRET_HEADERS.flatMap(name => [`req.headers["${name}"]`, `*.headers["${name}"]`])
 
 /** Pretty output only in development, where `pino-pretty` is installed. */
 export function createLogger(

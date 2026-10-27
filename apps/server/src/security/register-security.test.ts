@@ -15,6 +15,7 @@ function build(dev = false): FastifyInstance {
   app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, dev })
   app.post('/api/test-mutation', () => ({ done: true }))
   app.post(API_ROUTES.hooks, () => ({ received: true }))
+  app.delete(API_ROUTES.hooks, () => ({ deleted: true }))
   return app
 }
 
@@ -91,19 +92,22 @@ describe('per-boot token', () => {
   it('rejects mutating requests with a missing or wrong token', async () => {
     const target = build()
     for (const method of ['POST', 'PUT', 'PATCH', 'DELETE'] as const) {
-      await expectError(await send(target, method, '/api/test-mutation', {}), 401, 'unauthorized')
+      await expectError(await send(target, method, '/api/test-mutation', { origin: ORIGIN }), 401, 'unauthorized')
     }
-    await expectError(await send(target, 'POST', '/api/test-mutation', { 'x-agent-hub-token': 'wrong' }), 401, 'unauthorized')
-    await expectError(await send(target, 'POST', '/api/test-mutation', { 'x-agent-hub-token': `${TOKEN}x` }), 401, 'unauthorized')
+    for (const candidate of ['wrong', `${TOKEN}x`]) {
+      const headers = { origin: ORIGIN, 'x-agent-hub-token': candidate }
+      await expectError(await send(target, 'POST', '/api/test-mutation', headers), 401, 'unauthorized')
+    }
   })
 
-  it('passes with the correct token, with or without an allowed Origin', async () => {
-    const target = build()
-    for (const headers of [{ 'x-agent-hub-token': TOKEN }, { 'x-agent-hub-token': TOKEN, origin: ORIGIN }]) {
-      const response = await send(target, 'POST', '/api/test-mutation', headers)
-      expect(response.statusCode).toBe(200)
-      expect(response.json()).toEqual({ done: true })
-    }
+  it('rejects mutating requests without Origin even with the correct token', async () => {
+    await expectError(await send(build(), 'POST', '/api/test-mutation', { 'x-agent-hub-token': TOKEN }), 401, 'unauthorized')
+  })
+
+  it('passes with the correct token and an allowed Origin', async () => {
+    const response = await send(build(), 'POST', '/api/test-mutation', { 'x-agent-hub-token': TOKEN, origin: ORIGIN })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ done: true })
   })
 
   it('keeps health token-free', async () => {
@@ -120,7 +124,7 @@ describe('per-boot token', () => {
 describe('session token endpoint', () => {
   it('returns the token to same-origin requests', async () => {
     const target = build()
-    for (const headers of [{}, { origin: ORIGIN }]) {
+    for (const headers of [{}, { origin: ORIGIN }, { 'sec-fetch-site': 'same-origin' }, { 'sec-fetch-site': 'none' }]) {
       const response = await send(target, 'GET', API_ROUTES.sessionToken, headers)
       expect(response.statusCode).toBe(200)
       expect(SessionTokenResponseSchema.parse(response.json())).toEqual({ token: TOKEN })
@@ -128,9 +132,9 @@ describe('session token endpoint', () => {
     }
   })
 
-  it('rejects a bad Host or Origin without leaking the token', async () => {
+  it('rejects a bad Host, Origin or cross-site fetch without leaking the token', async () => {
     const target = build()
-    for (const headers of [{ host: 'attacker.example' }, { origin: 'https://attacker.example' }]) {
+    for (const headers of [{ host: 'attacker.example' }, { origin: 'https://attacker.example' }, { 'sec-fetch-site': 'cross-site' }]) {
       const response = await send(target, 'GET', API_ROUTES.sessionToken, headers)
       await expectError(response, 403, 'forbidden')
       expect(response.body).not.toContain(TOKEN)
@@ -139,9 +143,16 @@ describe('session token endpoint', () => {
 })
 
 describe('hook route', () => {
-  it('needs no per-boot token', async () => {
+  it('needs no per-boot token and no Origin for POST', async () => {
     const response = await send(build(), 'POST', API_ROUTES.hooks, {})
     expect(response.statusCode).toBe(200)
+  })
+
+  it('exempts only POST from the per-boot token', async () => {
+    const target = build()
+    await expectError(await send(target, 'DELETE', API_ROUTES.hooks, {}), 401, 'unauthorized')
+    const headers = { origin: ORIGIN, 'x-agent-hub-token': TOKEN }
+    expect((await send(target, 'DELETE', API_ROUTES.hooks, headers)).statusCode).toBe(200)
   })
 
   it('rejects any request with an Origin, even an allowed one', async () => {

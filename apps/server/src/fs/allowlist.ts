@@ -5,7 +5,12 @@ import { PathSchema } from '@agent-hub/shared'
 import { AppError } from '../errors.js'
 
 export interface Allowlist {
-  /** Real path of `candidate` if it lies inside a root; throws `AppError(403, 'forbidden')` otherwise. */
+  /**
+   * Real path of `candidate` if it lies inside a root; throws `AppError(403, 'forbidden')` otherwise.
+   * Callers must use the returned path, never the candidate. The check is not atomic with later I/O (TOCTOU):
+   * a link swapped afterwards is not caught, so writers create a temp file in the resolved directory, `rename`
+   * it over the target, and open files with `O_NOFOLLOW` where possible.
+   */
   resolveInside: (candidate: string) => string
 }
 

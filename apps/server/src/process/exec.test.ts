@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RunError, run } from './exec.js'
 
 const opts = { timeoutMs: 5000, maxBuffer: 1024 * 1024 }
@@ -14,6 +14,19 @@ async function failure(promise: Promise<unknown>): Promise<RunError> {
   return error
 }
 
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
 describe('run', () => {
   it('captures stdout and stderr', async () => {
     const result = await run('sh', ['-c', 'printf out; printf err >&2'], opts)
@@ -25,9 +38,12 @@ describe('run', () => {
     expect(result.stdout).toBe('$HOME; echo injected')
   })
 
-  it('uses cwd and a replaced environment', async () => {
-    const result = await run('sh', ['-c', 'pwd; printf "$ONLY"'], { ...opts, cwd: '/', env: { ONLY: 'set', PATH: '/usr/bin:/bin' } })
-    expect(result.stdout).toBe('/\nset')
+  it('uses cwd and merges the caller env over a minimal base env', async () => {
+    vi.stubEnv('AGENT_HUB_LEAK_CHECK', 'leaked')
+    vi.stubEnv('HOME', '/home/base')
+    const script = 'pwd; printf "%s|%s|%s|%s" "$HOME" "$EXTRA" "$AGENT_HUB_LEAK_CHECK" "$LC_ALL"'
+    const result = await run('sh', ['-c', script], { ...opts, cwd: '/', env: { EXTRA: 'set', LC_ALL: 'C' } })
+    expect(result.stdout).toBe('/\n/home/base|set||C')
   })
 
   it('rejects on a non-zero exit with stderr in the error', async () => {
@@ -43,6 +59,20 @@ describe('run', () => {
     const error = await failure(run('sleep', ['5'], { ...opts, timeoutMs: 100 }))
     expect(error.reason).toBe('timeout')
     expect(Date.now() - started).toBeLessThan(2000)
+  })
+
+  it('kills the whole process group on timeout', async () => {
+    const error = await failure(run('sh', ['-c', 'sleep 5 & echo $!; wait'], { ...opts, timeoutMs: 300 }))
+    expect(error.reason).toBe('timeout')
+    const grandchild = Number(error.stdout.trim())
+    expect(grandchild).toBeGreaterThan(0)
+    await vi.waitFor(() => expect(isAlive(grandchild)).toBe(false), { timeout: 2000 })
+  })
+
+  it('reports children killed by a foreign signal', async () => {
+    const error = await failure(run('sh', ['-c', 'kill -TERM $$'], opts))
+    expect(error.reason).toBe('signal')
+    expect(error.message).toContain('SIGTERM')
   })
 
   it('bounds the output', async () => {
