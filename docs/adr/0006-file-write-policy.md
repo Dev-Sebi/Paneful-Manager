@@ -1,0 +1,28 @@
+# ADR 0006: File-write policy
+
+- Status: accepted
+- Date: 2026-10-27
+
+## Context
+
+Agent Hub edits files that belong to the user and to Claude Code (settings, CLAUDE.md, skills, MCP config). Losing a user's edit or corrupting a settings file is worse than any missing feature.
+
+## Decision
+
+- The server writes only: its own config, presets and state; the `hooks` key of `~/.claude/settings.json` (merge, never replace foreign entries); CLAUDE.md and skills inside allowlisted scopes (global `~/.claude`, configured projects and their git worktrees). MCP servers change only through the `claude mcp` CLI via `execFile`.
+- Every write is atomic: temp file in the same directory, `fsync`, `rename`.
+- Every write carries the `{ mtimeMs, sha256 }` version it was based on; a mismatch returns `409 conflict`. There is no force overwrite.
+- Paths are resolved with `realpath`; symlinks are followed only if the target stays inside the allowlist, and the link is preserved.
+- Before overwriting or deleting a non-state file, the old content is backed up to `$STATE/backups/` (last 20 per file).
+
+## Consequences
+
+- Concurrent edits in an editor and in Agent Hub are detected instead of lost.
+- Claude Code file formats stay owned by Claude Code where a CLI exists.
+- Backups cost a little disk space in the state directory.
+
+## Alternatives considered
+
+- Direct writes with last-writer-wins: simple, silently loses edits.
+- Editing `~/.claude.json` directly for MCP: undocumented internal format, high corruption risk.
+- File locking: not honored by editors, does not help.
