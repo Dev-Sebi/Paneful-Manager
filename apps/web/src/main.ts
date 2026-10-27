@@ -22,6 +22,7 @@ import '@/styles/generated/tokens.css'
 import '@/styles/base.css'
 import '@/styles/motion.css'
 
+// No beforeunload or visibilitychange handler may call the API: closing the browser or unfocusing a tab never kills sessions.
 const app = createApp(App)
 
 registerPlugins(app)

@@ -1,7 +1,9 @@
 import { join } from 'node:path'
-import { BIND_HOST, resolveStateDir, type AppConfig } from '@agent-hub/shared'
+import { BIND_HOST, resolveConfigDir, resolveStateDir, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
+import { CONFIG_FILE_NAME } from './config/load-config.js'
+import { createConfigStore } from './config/store.js'
 import { createFileService } from './files/service.js'
 import { assertBackupDirOutsideScopes } from './files/state-dir.js'
 import { expandHome } from './paths.js'
@@ -26,9 +28,11 @@ export interface StartOptions {
   env?: Record<string, string | undefined>
   /** tmux wrapper for the session engine; tests pass one with a private socket. */
   tmux?: Tmux
+  /** Config directory holding `config.yaml`; defaults to the XDG location. */
+  configDir?: string
 }
 
-export async function startServer(config: AppConfig, logger: FastifyBaseLogger, { env = process.env, tmux }: StartOptions = {}): Promise<RunningServer> {
+export async function startServer(config: AppConfig, logger: FastifyBaseLogger, { env = process.env, tmux, configDir }: StartOptions = {}): Promise<RunningServer> {
   const getScopes = () => discoverScopes({ config, env, logger })
   const stateDir = expandHome(resolveStateDir(env))
   const backupDir = join(stateDir, BACKUPS_DIR_NAME)
@@ -36,7 +40,8 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const engine = new SessionEngine({ stateDir, logger, ...(tmux === undefined ? {} : { tmux }) })
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
-  const app = buildApp({ config, logger, files, engine })
+  const configFile = join(expandHome(configDir ?? resolveConfigDir(env)), CONFIG_FILE_NAME)
+  const app = buildApp({ config, logger, files, engine, configStore: createConfigStore(config, configFile) })
   try {
     await app.listen({ host: BIND_HOST, port: config.port })
   } catch (error) {

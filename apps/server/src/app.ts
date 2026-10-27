@@ -12,6 +12,8 @@ import {
   type HealthResponse,
 } from '@agent-hub/shared'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
+import { registerConfig } from './config/routes.js'
+import { createConfigStore, type ConfigStore } from './config/store.js'
 import { AppError } from './errors.js'
 import { registerFiles } from './files/routes.js'
 import type { FileService } from './files/service.js'
@@ -38,6 +40,8 @@ export interface BuildAppOptions {
   engine?: SessionEngine
   /** Managed-file service; the file routes are only registered when it is given. */
   files?: FileService
+  /** Live config store; defaults to an in-memory store seeded from `config`. */
+  configStore?: ConfigStore
 }
 
 function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): void {
@@ -87,7 +91,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, engine, files }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, engine, files, configStore }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -104,7 +108,9 @@ export function buildApp({ config, logger, sessionToken, dev, engine, files }: B
   const isDev = dev ?? process.env.NODE_ENV === 'development'
   registerSecurity(app, { getPort, token, dev: isDev })
   registerCore(app, engine)
-  registerScopes(app, { getConfig: () => config })
+  const store = configStore ?? createConfigStore(config)
+  registerConfig(app, { store })
+  registerScopes(app, { getConfig: store.get })
   if (files) {
     registerFiles(app, { service: files })
     app.addHook('onClose', async () => files.close())
