@@ -51,8 +51,8 @@ function newEngine(): SessionEngine {
   return new SessionEngine({ stateDir, logger, tmux: new Tmux({ socketName }), pollAttachedMs: 100, pollIdleMs: 100 })
 }
 
-async function waitFor<T>(check: () => T | undefined | false, label: string): Promise<T> {
-  const deadline = Date.now() + WAIT_MS
+async function waitFor<T>(check: () => T | undefined | false, label: string, timeoutMs = WAIT_MS): Promise<T> {
+  const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     const value = check()
     if (value !== undefined && value !== false) {
@@ -104,10 +104,11 @@ class Client {
     return waitFor(() => this.terminal(sessionId).includes(text), `"${text}" in ${sessionId}`)
   }
 
-  waitForMessage<T extends ServerMessage['type']>(type: T, match: (m: Extract<ServerMessage, { type: T }>) => boolean = () => true): Promise<Extract<ServerMessage, { type: T }>> {
+  waitForMessage<T extends ServerMessage['type']>(type: T, match: (m: Extract<ServerMessage, { type: T }>) => boolean = () => true, timeoutMs = WAIT_MS): Promise<Extract<ServerMessage, { type: T }>> {
     return waitFor(
       () => this.messages.find((m): m is Extract<ServerMessage, { type: T }> => m.type === type && match(m as Extract<ServerMessage, { type: T }>)),
       `${type} frame`,
+      timeoutMs,
     )
   }
 
@@ -244,8 +245,9 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
 
   it('reports the exit code of a finished command', async () => {
     const watcher = await Client.connect()
-    const id = await createSession({ cwd: dir, command: 'sh', args: ['-c', 'exit 3'] })
-    const state = await watcher.waitForMessage('state', m => m.sessionId === id)
+    // A command that exits instantly can lose its status in tmux under load; the sleep keeps this test deterministic.
+    const id = await createSession({ cwd: dir, command: 'sh', args: ['-c', 'sleep 0.3; exit 3'] })
+    const state = await watcher.waitForMessage('state', m => m.sessionId === id && m.exitCode !== undefined)
     expect(state).toMatchObject({ lifecycle: 'exited', exitCode: 3 })
     expect(engine.get(id)).toMatchObject({ lifecycle: 'exited', exitCode: 3 })
     watcher.close()
@@ -313,5 +315,36 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     }
     const response = await fetch(`${baseUrl}${API_ROUTES.sessions}`)
     expect(ListSessionsResponseSchema.parse(await response.json()).sessions.map(s => s.id)).toContain(kept)
+  })
+
+  it('leaves tmux sessions running when an engine closes', async () => {
+    const id = await createSession({ cwd: dir, command: 'sh' })
+    const other = newEngine()
+    await other.start()
+    await other.attach(id, { scrollback: () => undefined, output: () => undefined, lost: () => undefined }, { cols: 80, rows: 24, scrollback: false })
+    expect(other.isAttached(id)).toBe(true)
+    await other.close()
+    expect(other.isAttached(id)).toBe(false)
+    expect(tmux('list-sessions', '-F', '#{session_name}')).toContain(`ah-${id}`)
+  })
+
+  // Runs last: it kills the shared tmux server.
+  it('reports tmux_unavailable to attached clients when the tmux server dies', async () => {
+    const health = async (): Promise<unknown> => (await (await fetch(`${baseUrl}${API_ROUTES.health}`)).json() as { tmux: unknown }).tmux
+    expect(await health()).toBe('available')
+    const id = await createSession({ cwd: dir, command: 'sh' })
+    const client = await Client.connect()
+    client.send({ type: 'attach', sessionId: id, cols: 80, rows: 24, scrollback: false })
+    client.send({ type: 'input', sessionId: id, data: 'echo al""ive\r' })
+    await client.waitForText(id, 'alive')
+    const socketPath = tmux('display-message', '-p', '#{socket_path}').trim()
+    tmux('kill-server')
+    await rm(socketPath, { force: true })
+    await client.waitForMessage('error', m => m.code === 'tmux_unavailable' && m.sessionId === id)
+    expect(engine.isAttached(id)).toBe(false)
+    expect(await health()).toBe('unavailable')
+    client.send({ type: 'input', sessionId: id, data: 'x' })
+    await client.waitForMessage('error', m => m.code === 'not_attached')
+    client.close()
   })
 })

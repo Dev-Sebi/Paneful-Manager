@@ -73,7 +73,7 @@ describe('OutputQueue', () => {
   })
 
   it('closes slow consumers with 4008 and stops sending', () => {
-    socket.bufferedAmount = 500
+    socket.bufferedAmount = 100
     queue.output('s1', 'x'.repeat(600))
     expect(socket.closed).toBeUndefined()
     queue.output('s1', 'x'.repeat(600))
@@ -82,6 +82,15 @@ describe('OutputQueue', () => {
     queue.output('s1', 'late')
     vi.advanceTimersByTime(50)
     expect(socket.sent).toEqual([])
+  })
+
+  it('counts every frame, including scrollback, against the limit', () => {
+    socket.bufferedAmount = 900
+    queue.send({ type: 'pong' })
+    expect(socket.sent).toHaveLength(1)
+    queue.send({ type: 'scrollback', sessionId: 's1', data: 'x'.repeat(200) })
+    expect(socket.closed?.code).toBe(CLOSE_SLOW_CONSUMER)
+    expect(socket.sent).toHaveLength(1)
   })
 
   it('counts bytes, not characters', () => {

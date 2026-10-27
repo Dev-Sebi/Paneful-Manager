@@ -41,6 +41,7 @@ const serverMessages = [
   { type: 'session.removed', sessionId: 's1' },
   { type: 'error', code: 'bad_message', message: 'frame is not valid JSON' },
   { type: 'error', sessionId: 's1', code: 'unknown_session', message: 'No such session' },
+  { type: 'error', sessionId: 's1', code: 'tmux_unavailable', message: 'tmux server is not running' },
   { type: 'pong' },
 ]
 

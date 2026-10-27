@@ -33,6 +33,7 @@ describe('buildApp', () => {
     expect(response.statusCode).toBe(200)
     const body = HealthResponseSchema.parse(response.json())
     expect(body.version).toMatch(/^\d+\.\d+\.\d+/)
+    expect(body.tmux).toBe('unavailable')
   })
 
   it('answers unknown routes with not_found', async () => {

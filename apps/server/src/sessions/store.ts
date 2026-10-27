@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { mkdir, open, readdir, readFile, rename, rm } from 'node:fs/promises'
+import { chmod, mkdir, open, readdir, readFile, rename, rm } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { SessionIdSchema, SessionSchema, type Session } from '@agent-hub/shared'
 import type { BaseLogger } from 'pino'
@@ -22,6 +22,17 @@ export async function writeFileAtomic(file: string, data: string, mode = 0o600):
     await rm(temp, { force: true })
     throw error
   }
+  await syncDir(dirname(file))
+}
+
+/** Persists a rename or unlink in the directory entry itself. */
+async function syncDir(dir: string): Promise<void> {
+  const handle = await open(dir, 'r')
+  try {
+    await handle.sync()
+  } finally {
+    await handle.close()
+  }
 }
 
 /** `$STATE/sessions/<id>.json`, one `Session` per file; writes per id are serialized. */
@@ -37,8 +48,10 @@ export class SessionStore {
   }
 
   async init(): Promise<void> {
-    await mkdir(dirname(this.dir), { recursive: true, mode: 0o700 })
-    await mkdir(this.dir, { recursive: true, mode: 0o700 })
+    for (const dir of [dirname(this.dir), this.dir]) {
+      await mkdir(dir, { recursive: true, mode: 0o700 })
+      await chmod(dir, 0o700)
+    }
   }
 
   save(session: Session): Promise<void> {

@@ -4,7 +4,6 @@ import {
   idFromTmuxName,
   type RunFn,
   paneTarget,
-  parsePaneList,
   parseSessionList,
   sessionTarget,
   Tmux,
@@ -47,9 +46,9 @@ describe('targets and names', () => {
 describe('parseSessionList', () => {
   it('parses live, dead and foreign sessions', () => {
     const stdout = [
-      'ah-a1\t1793090986\t/tmp\t1\t3\tsh -c "exit 3"',
-      'ah-a2\t1793090987\t/home/dev/git/p1\t0\t\tenv -- claude',
-      'scratch\t1793090988\t/home/dev\t0\t\tbash',
+      'ah-a1\t1793090986\t/tmp\t1\t3\t\tsh -c "exit 3"',
+      'ah-a2\t1793090987\t/home/dev/git/p1\t0\t\t\tenv -- claude',
+      'scratch\t1793090988\t/home/dev\t0\t\t\tbash',
       '',
     ].join('\n')
     const [dead, live, foreign] = parseSessionList(stdout)
@@ -59,20 +58,16 @@ describe('parseSessionList', () => {
     expect(foreign?.id).toBeUndefined()
   })
 
+  it('maps signals to 128 + n and leaves an uncollected status undefined', () => {
+    const [killed, pending] = parseSessionList('ah-k1\t1\t/tmp\t1\t\t9\tsh\nah-p1\t1\t/tmp\t1\t\t\tsh\n')
+    expect(killed).toMatchObject({ dead: true, exitStatus: 137 })
+    expect(pending).toMatchObject({ dead: true, exitStatus: undefined })
+  })
+
   it('keeps tabs inside the start command and skips malformed lines', () => {
-    const [info, ...rest] = parseSessionList('ah-a1\t1\t/tmp\t0\t\tprintf "a\tb"\nbroken\n')
+    const [info, ...rest] = parseSessionList('ah-a1\t1\t/tmp\t0\t\t\tprintf "a\tb"\nbroken\n')
     expect(info?.startCommand).toBe('printf "a\tb"')
     expect(rest).toEqual([])
-  })
-})
-
-describe('parsePaneList', () => {
-  it('parses dead status only for dead panes', () => {
-    expect(parsePaneList('1\t3\n0\t\n1\t\n')).toEqual([
-      { dead: true, exitStatus: 3 },
-      { dead: false, exitStatus: undefined },
-      { dead: true, exitStatus: undefined },
-    ])
   })
 })
 
@@ -133,18 +128,14 @@ describe('Tmux', () => {
     expect(calls[2]).toEqual(['-N', '-L', 'agent-hub', 'capture-pane', '-p', '-e', '-J', '-S', '-42', '-E', '-1', '-t', '=ah-a1:'])
   })
 
-  it('lists client ttys and panes with exact targets', async () => {
-    const { run, calls } = fakeRun(args => (args.includes('list-clients') ? '/dev/pts/3\n' : '1\t0\n'))
+  it('lists client ttys with exact targets', async () => {
+    const { run, calls } = fakeRun(() => '/dev/pts/3\n')
     const tmux = new Tmux({ run })
     await expect(tmux.listClients('a1')).resolves.toEqual(['/dev/pts/3'])
-    await expect(tmux.listPanes('a1')).resolves.toEqual([{ dead: true, exitStatus: 0 }])
     await tmux.refreshClient('/dev/pts/3')
-    await tmux.resizeWindow('a1', 100, 40)
     expect(calls.map(call => call.slice(3))).toEqual([
       ['list-clients', '-t', '=ah-a1:', '-F', '#{client_tty}'],
-      ['list-panes', '-t', '=ah-a1:', '-F', '#{pane_dead}\t#{pane_dead_status}'],
       ['refresh-client', '-t', '/dev/pts/3'],
-      ['resize-window', '-t', '=ah-a1:', '-x', '100', '-y', '40'],
     ])
   })
 })

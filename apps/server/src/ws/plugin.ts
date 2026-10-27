@@ -41,6 +41,7 @@ class Connection implements EngineClient {
   readonly queue: OutputQueue
   readonly attached = new Set<string>()
   alive = true
+  private disposed = false
   private chain: Promise<void> = Promise.resolve()
 
   constructor(
@@ -60,6 +61,11 @@ class Connection implements EngineClient {
     this.queue.output(sessionId, data)
   }
 
+  lost(sessionId: string, code: 'tmux_unavailable' | 'internal'): void {
+    this.forget(sessionId)
+    this.error(code, code === 'tmux_unavailable' ? 'tmux server is not running' : 'Terminal connection lost', sessionId)
+  }
+
   error(code: WsErrorCode, message: string, sessionId?: string): void {
     this.queue.send({ type: 'error', code, message, ...(sessionId === undefined ? {} : { sessionId }) })
   }
@@ -68,6 +74,9 @@ class Connection implements EngineClient {
   handle(raw: string): Promise<void> {
     this.chain = this.chain
       .then(async () => {
+        if (this.disposed) {
+          return
+        }
         const parsed = parseClientMessage(raw)
         if (!parsed.success) {
           this.error('bad_message', parsed.error)
@@ -95,6 +104,7 @@ class Connection implements EngineClient {
   }
 
   dispose(): void {
+    this.disposed = true
     for (const sessionId of [...this.attached]) {
       this.detach(sessionId)
     }
@@ -117,6 +127,9 @@ class Connection implements EngineClient {
         this.attached.add(sessionId)
         try {
           await this.engine.attach(sessionId, this, { cols, rows, scrollback })
+          if (this.disposed) {
+            this.engine.detach(sessionId, this)
+          }
         } catch (error) {
           this.attached.delete(sessionId)
           this.engine.detach(sessionId, this)

@@ -17,9 +17,9 @@ const SESSION_FORMAT = [
   '#{session_path}',
   '#{pane_dead}',
   '#{pane_dead_status}',
+  '#{pane_dead_signal}',
   '#{pane_start_command}',
 ].join('\t')
-const PANE_FORMAT = '#{pane_dead}\t#{pane_dead_status}'
 
 /** Subset of `run()` the wrapper needs; swappable in tests. */
 export type RunFn = (file: string, args: readonly string[], options: RunOptions) => Promise<{ stdout: string }>
@@ -31,13 +31,9 @@ export interface TmuxSessionInfo {
   createdAt: Date
   path: string
   dead: boolean
+  /** Exit code, `128 + signal` for a killed command; undefined while tmux has not collected it yet. */
   exitStatus: number | undefined
   startCommand: string
-}
-
-export interface TmuxPaneInfo {
-  dead: boolean
-  exitStatus: number | undefined
 }
 
 export interface NewSessionOptions {
@@ -88,11 +84,14 @@ export function idFromTmuxName(name: string): string | undefined {
   return SessionIdSchema.safeParse(id).success ? id : undefined
 }
 
-function parseExitStatus(dead: boolean, raw: string | undefined): number | undefined {
-  if (!dead || raw === undefined || !/^-?\d+$/.test(raw)) {
+function parseExitStatus(dead: boolean, status: string | undefined, signal: string | undefined): number | undefined {
+  if (!dead) {
     return undefined
   }
-  return Number(raw)
+  if (status !== undefined && /^\d+$/.test(status)) {
+    return Number(status)
+  }
+  return signal !== undefined && /^\d+$/.test(signal) ? 128 + Number(signal) : undefined
 }
 
 /** Parses `list-sessions -F SESSION_FORMAT` output; the start command is last because it may contain tabs. */
@@ -101,7 +100,7 @@ export function parseSessionList(stdout: string): TmuxSessionInfo[] {
     .split('\n')
     .filter(line => line.length > 0)
     .flatMap(line => {
-      const [name, created, path, deadRaw, status, ...command] = line.split('\t')
+      const [name, created, path, deadRaw, status, signal, ...command] = line.split('\t')
       if (name === undefined || created === undefined || path === undefined || deadRaw === undefined) {
         return []
       }
@@ -113,21 +112,9 @@ export function parseSessionList(stdout: string): TmuxSessionInfo[] {
         createdAt: new Date(Number.isFinite(seconds) ? seconds * 1000 : 0),
         path,
         dead,
-        exitStatus: parseExitStatus(dead, status),
+        exitStatus: parseExitStatus(dead, status, signal),
         startCommand: command.join('\t'),
       }]
-    })
-}
-
-/** Parses `list-panes -F PANE_FORMAT` output. */
-export function parsePaneList(stdout: string): TmuxPaneInfo[] {
-  return stdout
-    .split('\n')
-    .filter(line => line.length > 0)
-    .map(line => {
-      const [deadRaw, status] = line.split('\t')
-      const dead = deadRaw === '1'
-      return { dead, exitStatus: parseExitStatus(dead, status) }
     })
 }
 
@@ -213,14 +200,6 @@ export class Tmux {
       return ''
     }
     return this.exec(['capture-pane', '-p', '-e', '-J', '-S', `-${depth}`, '-E', '-1', '-t', paneTarget(id)])
-  }
-
-  async listPanes(id: string): Promise<TmuxPaneInfo[]> {
-    return parsePaneList(await this.exec(['list-panes', '-t', paneTarget(id), '-F', PANE_FORMAT]))
-  }
-
-  async resizeWindow(id: string, cols: number, rows: number): Promise<void> {
-    await this.exec(['resize-window', '-t', paneTarget(id), '-x', String(cols), '-y', String(rows)])
   }
 
   async refreshClient(tty: string): Promise<void> {

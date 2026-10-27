@@ -54,6 +54,8 @@ class FakeTmuxServer {
   capture = ''
   calls: string[][] = []
   onCapture: (() => void) | undefined
+  /** When set, list-sessions waits for it before answering. */
+  listGate: Promise<void> | undefined
 
   run: RunFn = async (_file, rawArgs) => {
     const args = rawArgs.slice(3)
@@ -64,7 +66,9 @@ class FakeTmuxServer {
     const target = args[args.indexOf('-t') + 1]?.replace(/^=/, '').replace(/:$/, '')
     switch (args[0]) {
       case 'list-sessions': {
-        return { stdout: [...this.sessions].map(([name, s]) => `${name}\t1793090986\t${s.path}\t${s.dead ? 1 : 0}\t${s.status ?? ''}\tsh`).join('\n'), stderr: '' }
+        const snapshot = [...this.sessions]
+        await this.listGate
+        return { stdout: snapshot.map(([name, s]) => `${name}\t1793090986\t${s.path}\t${s.dead ? 1 : 0}\t${s.status ?? ''}\t\tsh`).join('\n'), stderr: '' }
       }
       case 'new-session': {
         this.sessions.set(args[args.indexOf('-s') + 1] ?? '', { dead: false, path: args[args.indexOf('-c') + 1] ?? '/' })
@@ -98,8 +102,12 @@ let dir: string
 let server: FakeTmuxServer
 let ptys: FakePty[]
 let engine: SessionEngine
+let spawnFails = false
 
 const spawnPty: SpawnPty = (_file, _args, { cols, rows }) => {
+  if (spawnFails) {
+    throw new Error('forkpty failed')
+  }
   const pty = new FakePty(cols, rows)
   ptys.push(pty)
   return pty
@@ -115,6 +123,7 @@ function recorder(): EngineClient & { frames: string[] } {
     frames,
     scrollback: (id, data) => frames.push(`scrollback:${id}:${data}`),
     output: (id, data) => frames.push(`output:${id}:${data}`),
+    lost: (id, code) => frames.push(`lost:${id}:${code}`),
   }
 }
 
@@ -138,6 +147,7 @@ beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'agent-hub-engine-'))
   server = new FakeTmuxServer()
   ptys = []
+  spawnFails = false
   engine = newEngine()
 })
 
@@ -202,13 +212,18 @@ describe('SessionEngine', () => {
     const removed: string[] = []
     engine.on('state', change => states.push(change))
     engine.on('session.removed', id => removed.push(id))
-    server.sessions.set(`ah-${a.id}`, { dead: true, status: 3, path: dir })
+    server.sessions.set(`ah-${a.id}`, { dead: true, path: dir })
     server.sessions.delete(`ah-${b.id}`)
     await engine.poll()
-    expect(states).toEqual([{ sessionId: a.id, state: 'idle', lifecycle: 'exited', exitCode: 3 }])
+    server.sessions.set(`ah-${a.id}`, { dead: true, status: 3, path: dir })
+    await engine.poll()
+    expect(states).toEqual([
+      { sessionId: a.id, state: 'idle', lifecycle: 'exited' },
+      { sessionId: a.id, state: 'idle', lifecycle: 'exited', exitCode: 3 },
+    ])
     expect(removed).toEqual([b.id])
     await engine.poll()
-    expect(states).toHaveLength(1)
+    expect(states).toHaveLength(2)
   })
 
   it('sends scrollback before buffered output and shares one pty between clients', async () => {
@@ -251,6 +266,56 @@ describe('SessionEngine', () => {
     ptys[0]?.dataListener?.(bytes.slice(0, 1))
     ptys[0]?.dataListener?.(bytes.slice(1))
     expect(client.frames).toEqual([`output:${id}:€`])
+  })
+
+  it('does not drop a session created while a listing was in flight', async () => {
+    await engine.start()
+    let release = (): void => undefined
+    server.listGate = new Promise(resolve => {
+      release = resolve
+    })
+    const polling = engine.poll()
+    const session = await engine.create({ cwd: dir, command: 'sh', args: [], cols: 80, rows: 24 })
+    release()
+    await polling
+    expect(engine.get(session.id)?.lifecycle).toBe('running')
+    server.listGate = undefined
+    await engine.poll()
+    expect(engine.get(session.id)?.lifecycle).toBe('running')
+  })
+
+  it('rejects an attach whose pty cannot be spawned and keeps no attachment', async () => {
+    await engine.start()
+    const { id } = await engine.create({ cwd: dir, command: 'sh', args: [], cols: 80, rows: 24 })
+    spawnFails = true
+    await expect(engine.attach(id, recorder(), { cols: 80, rows: 24, scrollback: true })).rejects.toThrow('forkpty failed')
+    expect(engine.isAttached(id)).toBe(false)
+  })
+
+  it('tells attached clients when the pty dies because tmux is gone', async () => {
+    await engine.start()
+    const { id } = await engine.create({ cwd: dir, command: 'sh', args: [], cols: 80, rows: 24 })
+    const client = recorder()
+    await engine.attach(id, client, { cols: 80, rows: 24, scrollback: false })
+    server.running = false
+    ptys[0]?.exitListener?.({ exitCode: 1 })
+    await expect.poll(() => client.frames).toContain(`lost:${id}:tmux_unavailable`)
+    expect(engine.isAttached(id)).toBe(false)
+    expect(engine.available).toBe(false)
+    expect(engine.get(id)).toBeDefined()
+  })
+
+  it('removes the session instead when the pty died with it', async () => {
+    await engine.start()
+    const { id } = await engine.create({ cwd: dir, command: 'sh', args: [], cols: 80, rows: 24 })
+    const client = recorder()
+    const removed: string[] = []
+    engine.on('session.removed', sessionId => removed.push(sessionId))
+    await engine.attach(id, client, { cols: 80, rows: 24, scrollback: false })
+    server.sessions.clear()
+    ptys[0]?.exitListener?.({ exitCode: 0 })
+    await expect.poll(() => removed).toEqual([id])
+    expect(client.frames.some(frame => frame.startsWith('lost:'))).toBe(false)
   })
 
   it('kills sessions, tolerates already-gone tmux sessions and rejects unknown ids', async () => {

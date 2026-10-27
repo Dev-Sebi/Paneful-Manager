@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Session } from '@agent-hub/shared'
@@ -57,6 +57,14 @@ describe('SessionStore', () => {
   it('creates the state dirs with mode 0700', async () => {
     expect((await stat(store.dir)).mode & 0o777).toBe(0o700)
     expect((await stat(join(dir, 'state'))).mode & 0o777).toBe(0o700)
+  })
+
+  it('tightens an existing state dir to 0700', async () => {
+    await chmod(join(dir, 'state'), 0o755)
+    await chmod(store.dir, 0o777)
+    await store.init()
+    expect((await stat(join(dir, 'state'))).mode & 0o777).toBe(0o700)
+    expect((await stat(store.dir)).mode & 0o777).toBe(0o700)
   })
 
   it('saves, loads and removes records', async () => {

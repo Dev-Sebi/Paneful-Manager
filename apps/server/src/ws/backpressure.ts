@@ -2,7 +2,7 @@ import type { ServerMessage } from '@agent-hub/shared'
 
 /** At or above this `bufferedAmount`, output is coalesced per session. */
 export const COALESCE_THRESHOLD_BYTES = 1024 * 1024
-/** Pending output above this closes the connection as a slow consumer. */
+/** Socket buffer plus pending output above this closes the connection as a slow consumer. */
 export const SLOW_CONSUMER_LIMIT_BYTES = 8 * 1024 * 1024
 export const FLUSH_INTERVAL_MS = 25
 export const CLOSE_SLOW_CONSUMER = 4008
@@ -42,11 +42,17 @@ export class OutputQueue {
     return this.pendingBytes
   }
 
-  /** Sends a non-output frame right away. */
+  /** Sends a frame right away; every frame counts against the slow-consumer limit. */
   send(message: ServerMessage): void {
-    if (!this.closed) {
-      this.socket.send(JSON.stringify(message))
+    if (this.closed) {
+      return
     }
+    const frame = JSON.stringify(message)
+    if (this.isOverLimit(Buffer.byteLength(frame))) {
+      this.closeSlow()
+      return
+    }
+    this.socket.send(frame)
   }
 
   output(sessionId: string, data: string): void {
@@ -64,9 +70,8 @@ export class OutputQueue {
       chunks.push(data)
     }
     this.pendingBytes += Buffer.byteLength(data)
-    if (this.pendingBytes > this.slowConsumerLimit) {
-      this.dispose()
-      this.socket.close(CLOSE_SLOW_CONSUMER, 'slow consumer')
+    if (this.isOverLimit(0)) {
+      this.closeSlow()
       return
     }
     this.timer ??= setTimeout(() => this.flush(), this.flushIntervalMs)
@@ -105,5 +110,14 @@ export class OutputQueue {
     this.timer = undefined
     this.pending.clear()
     this.pendingBytes = 0
+  }
+
+  private isOverLimit(extraBytes: number): boolean {
+    return this.socket.bufferedAmount + this.pendingBytes + extraBytes > this.slowConsumerLimit
+  }
+
+  private closeSlow(): void {
+    this.dispose()
+    this.socket.close(CLOSE_SLOW_CONSUMER, 'slow consumer')
   }
 }

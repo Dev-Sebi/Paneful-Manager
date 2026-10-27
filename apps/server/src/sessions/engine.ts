@@ -45,6 +45,8 @@ export interface EngineEvents {
 export interface EngineClient {
   scrollback: (sessionId: string, data: string) => void
   output: (sessionId: string, data: string) => void
+  /** The shared pty died while the session still exists; the client is no longer attached. */
+  lost: (sessionId: string, code: 'tmux_unavailable' | 'internal') => void
 }
 
 export interface AttachOptions {
@@ -91,6 +93,7 @@ function stateOf(session: Session): StateChange {
   }
 }
 
+/** A dead pane is exited right away; tmux may collect the exit status later, which a later poll adds. */
 function withLifecycle(session: Session, info: Pick<TmuxSessionInfo, 'dead' | 'exitStatus'>): Session {
   const { exitCode: _exitCode, ...rest } = session
   if (!info.dead) {
@@ -112,6 +115,9 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
   private pollTimer: NodeJS.Timeout | undefined
   private polling: Promise<void> | undefined
   private closed = false
+  /** Creation counter: a listing only judges sessions that existed when it started. */
+  private generation = 0
+  private readonly born = new Map<string, number>()
 
   constructor(options: SessionEngineOptions) {
     super()
@@ -167,6 +173,7 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
       cols: input.cols,
       rows: input.rows,
     })
+    this.born.set(id, ++this.generation)
     this.sessions.set(id, starting)
     await this.store.save(starting)
     try {
@@ -181,6 +188,7 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
       })
     } catch (error) {
       this.sessions.delete(id)
+      this.born.delete(id)
       await this.store.remove(id)
       if (error instanceof TmuxUnavailableError) {
         this.tmuxAvailable = false
@@ -300,6 +308,7 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
   }
 
   private async pollOnce(): Promise<void> {
+    const generation = this.generation
     let listing: TmuxSessionInfo[]
     try {
       listing = await this.tmux.listSessions()
@@ -322,7 +331,7 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
     }
     this.tmuxAvailable = true
     if (this.reconciled) {
-      await this.applyListing(listing)
+      await this.applyListing(listing, generation)
     } else {
       await this.reconcile(listing)
       this.reconciled = true
@@ -367,10 +376,10 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
     }
   }
 
-  private async applyListing(listing: TmuxSessionInfo[]): Promise<void> {
+  private async applyListing(listing: TmuxSessionInfo[], generation: number): Promise<void> {
     const byId = new Map(listing.flatMap(info => (info.id === undefined ? [] : [[info.id, info] as const])))
     for (const session of [...this.sessions.values()]) {
-      if (session.lifecycle === 'starting') {
+      if (session.lifecycle === 'starting' || (this.born.get(session.id) ?? 0) > generation) {
         continue
       }
       const info = byId.get(session.id)
@@ -378,7 +387,7 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
         this.options.logger.info({ sessionId: session.id }, 'tmux session disappeared')
         this.closeAttachment(session.id)
         await this.forget(session.id)
-      } else if (info.dead && session.lifecycle === 'running') {
+      } else if (info.dead && (session.lifecycle === 'running' || (session.exitCode === undefined && info.exitStatus !== undefined))) {
         await this.setSession(withLifecycle(session, info))
       }
     }
@@ -407,6 +416,7 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
   }
 
   private async forget(id: string): Promise<void> {
+    this.born.delete(id)
     if (!this.sessions.delete(id)) {
       return
     }
@@ -452,13 +462,31 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
       if (this.attachments.get(id) !== attachment) {
         return
       }
+      const clients = [...attachment.clients.keys()]
       this.attachments.delete(id)
       this.options.logger.info({ sessionId: id, exitCode }, 'tmux client exited')
       if (!this.closed) {
-        this.poll().catch(() => undefined)
+        this.releaseClients(id, clients).catch((error: unknown) => {
+          this.options.logger.warn({ err: error, sessionId: id }, 'Handling a lost pty failed')
+        })
       }
     })
     return attachment
+  }
+
+  /** After an unexpected pty exit: a fresh listing decides between `session.removed` and telling clients why. */
+  private async releaseClients(id: string, clients: EngineClient[]): Promise<void> {
+    await this.polling?.catch(() => undefined)
+    await this.poll()
+    if (!this.sessions.has(id)) {
+      return
+    }
+    const code = this.tmuxAvailable ? 'internal' : 'tmux_unavailable'
+    for (const client of clients) {
+      if (this.attachments.get(id)?.clients.has(client) !== true) {
+        client.lost(id, code)
+      }
+    }
   }
 
   private closeAttachment(id: string): void {

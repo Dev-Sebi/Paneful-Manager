@@ -72,7 +72,7 @@ flowchart TB
 - **Requirements:** tmux 3.2 or later (`new-session -e`); the installer checks `tmux -V`. The installer runs `loginctl enable-linger` so user units run without a login session, and documents that WSL shuts the VM down when idle, which ends all sessions (assumed, verify in T60).
 - **One tmux session per Agent Hub session**, running exactly one command (default `claude`) in one window and pane. Agent Hub layouts (splits, tabs) are drawn in the browser, never with tmux panes.
 - **One pty per attached session.** When the first client attaches, the engine spawns `tmux -L agent-hub attach-session -t =ah-<id>` with node-pty and fans its output out to every attached WS client. When the last client detaches, the pty is closed; the tmux session keeps running. tmux therefore only ever sees one client per session, and the pty size is the session size.
-- **All other tmux calls** (`new-session`, `kill-session`, `list-sessions`, `list-panes`, `list-clients`, `capture-pane`, `refresh-client`) use `execFile` with argument arrays. Targets use the exact-match form because tmux otherwise prefix-matches names: `=ah-<id>` for session targets (`kill-session`, `attach-session`), `=ah-<id>:` for window and pane targets (`list-panes`, `capture-pane`, `list-clients`).
+- **All other tmux calls** (`new-session`, `kill-session`, `list-sessions`, `list-clients`, `display-message`, `capture-pane`, `refresh-client`, `show-options`, `set-option`) use `execFile` with argument arrays. Targets use the exact-match form because tmux otherwise prefix-matches names: `=ah-<id>` for session targets (`kill-session`, `attach-session`), `=ah-<id>:` for window and pane targets (`display-message`, `capture-pane`, `list-clients`).
 
 ### Lifecycle operations
 
@@ -84,11 +84,11 @@ flowchart TB
 | Command exits | Pane stays dead (`remain-on-exit`); engine sets `lifecycle: exited` with `exitCode` from `#{pane_dead_status}`. The session stays visible until the user closes it. |
 | Server restart | Re-adoption, see below. |
 
-Exit detection polls one `list-sessions` call (the re-adoption format below, which includes `pane_dead` and `pane_dead_status`) for all sessions: every 1 s while any session is attached, every 5 s otherwise; a session missing from the listing is removed (`session.removed`). `list-panes -t =ah-<id>: -F '#{pane_dead}\t#{pane_dead_status}'` is available for single checks; the `SessionEnd` hook is only a hint that triggers an early poll (`engine.poll()`). A tmux `pane-died` hook calling back into the server is an optional later optimization.
+Exit detection polls one `list-sessions` call (the re-adoption format below, which includes `pane_dead`, `pane_dead_status` and `pane_dead_signal`) for all sessions. A dead pane is `exited` at once; `exitCode` is the status, or `128 + signal` for a killed command, and is added by a later `state` frame when tmux reaps the process after marking the pane dead. Polling runs every 1 s while any session is attached, every 5 s otherwise; a session missing from the listing is removed (`session.removed`); sessions created after a listing started are left alone by it. If the shared pty exits unexpectedly, a fresh listing runs: a vanished session is removed, otherwise its clients get `error tmux_unavailable` (or `internal` when tmux is still up) and are detached. `GET /api/health` reports `tmux: available | unavailable`. The `SessionEnd` hook is only a hint that triggers an early poll (`engine.poll()`). A tmux `pane-died` hook calling back into the server is an optional later optimization.
 
 ### Re-adoption after restart
 
-On startup the engine runs `tmux -L agent-hub list-sessions -F '#{session_name}\t#{session_created}\t#{session_path}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_start_command}'` (no server running = `tmux_unavailable`) and reconciles it with `$STATE/sessions/*.json`:
+On startup the engine runs `tmux -L agent-hub list-sessions -F '#{session_name}\t#{session_created}\t#{session_path}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_dead_signal}\t#{pane_start_command}'` (no server running = `tmux_unavailable`) and reconciles it with `$STATE/sessions/*.json`:
 
 | tmux session | Metadata | Result |
 | --- | --- | --- |
@@ -443,7 +443,7 @@ All routes live under `/api` (`API_ROUTES`).
 
 | Method and route | Request | Response |
 | --- | --- | --- |
-| `GET /api/health` | - | `HealthResponseSchema` (`status`, `name`, `version`, `protocolVersion`, `uptimeSec`) |
+| `GET /api/health` | - | `HealthResponseSchema` (`status`, `name`, `version`, `protocolVersion`, `uptimeSec`, `tmux`) |
 | `GET /api/sessions` | - | `ListSessionsResponseSchema` |
 | `POST /api/sessions` | `CreateSessionRequestSchema` (`cwd`, `command`, `args`, `title?`, `cols`, `rows`) | `CreateSessionResponseSchema` |
 | `DELETE /api/sessions/:id` | `SessionParamsSchema` | `KillSessionResponseSchema` |
@@ -473,7 +473,7 @@ Terminal data (`input`, `output`, `scrollback`) is a plain UTF-8 string, not bas
 | server to client | `state` | `sessionId`, `state`, `lifecycle`, `exitCode?` | Activity or lifecycle changed. |
 | server to client | `session.created` | `session` | A session was created (by any client or a preset). |
 | server to client | `session.removed` | `sessionId` | A session was killed or cleaned up. |
-| server to client | `error` | `sessionId?`, `code`, `message` | `bad_message`, `protocol_mismatch`, `unknown_session`, `not_attached`, `internal`. |
+| server to client | `error` | `sessionId?`, `code`, `message` | `bad_message`, `protocol_mismatch`, `unknown_session`, `not_attached`, `tmux_unavailable`, `internal`. |
 | server to client | `pong` | - | Answer to `ping`. |
 
 `parseClientMessage` and `parseServerMessage` turn a raw text frame into a typed message or a readable error.

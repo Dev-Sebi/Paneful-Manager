@@ -77,14 +77,24 @@ describe('ApiErrorSchema', () => {
 
 describe('health', () => {
   it('parses and round-trips', () => {
-    roundTrip(HealthResponseSchema, { status: 'ok', name: 'Agent Hub', version: '0.0.0', protocolVersion: 1, uptimeSec: 3.5 })
-    expect(issuePaths(HealthResponseSchema, { status: 'down', name: 'a', version: '1', protocolVersion: 1, uptimeSec: 0 })).toEqual([
+    roundTrip(HealthResponseSchema, { status: 'ok', name: 'Agent Hub', version: '0.0.0', protocolVersion: 1, uptimeSec: 3.5, tmux: 'available' })
+    expect(issuePaths(HealthResponseSchema, { status: 'down', name: 'a', version: '1', protocolVersion: 1, uptimeSec: 0, tmux: 'gone' })).toEqual([
       'status',
+      'tmux',
     ])
   })
 })
 
 describe('sessions API', () => {
+  it('rejects NUL in command and args and = in command', () => {
+    const base = { cwd: '~/git/p1' }
+    expect(issuePaths(CreateSessionRequestSchema, { ...base, command: 'cla\0ude' })).toEqual(['command'])
+    expect(issuePaths(CreateSessionRequestSchema, { ...base, command: 'FOO=bar' })).toEqual(['command'])
+    expect(issuePaths(CreateSessionRequestSchema, { ...base, command: '' })).toEqual(['command'])
+    expect(issuePaths(CreateSessionRequestSchema, { ...base, args: ['ok', 'a\0b'] })).toEqual(['args.1'])
+    expect(CreateSessionRequestSchema.parse({ ...base, command: 'sh', args: ['-c', 'X=1 env'] }).args).toEqual(['-c', 'X=1 env'])
+  })
+
   it('applies create defaults', () => {
     expect(CreateSessionRequestSchema.parse({ cwd: '~/git/project1' })).toEqual({
       cwd: '~/git/project1',

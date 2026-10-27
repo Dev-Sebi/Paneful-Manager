@@ -36,13 +36,14 @@ export interface BuildAppOptions {
   engine?: SessionEngine
 }
 
-function registerCore(app: FastifyInstance): void {
+function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): void {
   app.get(API_ROUTES.health, (): HealthResponse => ({
     status: 'ok',
     name: APP_NAME,
     version,
     protocolVersion: WS_PROTOCOL_VERSION,
     uptimeSec: process.uptime(),
+    tmux: engine?.available === true ? 'available' : 'unavailable',
   }))
 }
 
@@ -98,7 +99,7 @@ export function buildApp({ config, logger, sessionToken, dev, engine }: BuildApp
   const token = sessionToken ?? createSessionToken()
   const isDev = dev ?? process.env.NODE_ENV === 'development'
   registerSecurity(app, { getPort, token, dev: isDev })
-  registerCore(app)
+  registerCore(app, engine)
   registerScopes(app, { getConfig: () => config })
   // Registered after registerSecurity: its onRequest hook guards these routes, and /ws uses the same checks.
   if (engine !== undefined) {

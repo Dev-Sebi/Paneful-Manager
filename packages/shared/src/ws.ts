@@ -93,6 +93,7 @@ export const WsErrorCodeSchema = z.enum([
   'protocol_mismatch',
   'unknown_session',
   'not_attached',
+  'tmux_unavailable',
   'internal',
 ])
 export type WsErrorCode = z.infer<typeof WsErrorCodeSchema>
