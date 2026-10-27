@@ -347,6 +347,28 @@ function stringList(value: Json | undefined): string[] | undefined {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : undefined
 }
 
+/** Events whose Agent Hub handler matches the current port exactly, and whether no handler points elsewhere. */
+function installedState(settings: JsonObject | undefined, port: number): { installedEvents: string[], portMatches: boolean } {
+  const installedEvents: string[] = []
+  let portMatches = true
+  const hooks = settings?.hooks
+  for (const [event, groups] of isObject(hooks) ? Object.entries(hooks) : []) {
+    for (const group of Array.isArray(groups) ? groups : []) {
+      if (!isObject(group) || !Array.isArray(group.hooks)) {
+        continue
+      }
+      for (const handler of group.hooks.filter(entry => isAgentHubHandler(entry))) {
+        if (!same(handler, hookHandler(port))) {
+          portMatches &&= isObject(handler) && handler.url === hookUrl(port)
+        } else if (same(group.matcher, matcherFor(event)) && !installedEvents.includes(event)) {
+          installedEvents.push(event)
+        }
+      }
+    }
+  }
+  return { installedEvents, portMatches }
+}
+
 /**
  * Installed state plus every setting found in the user and managed settings that would block the hook requests.
  * Project settings depend on the session's directory and are not checked.
@@ -355,33 +377,10 @@ export async function getHookStatus({ settingsPath, port, managedDir = MANAGED_S
   const url = hookUrl(port)
   const reasons: HookBlockReason[] = []
   const user = await readSettingsFile(settingsPath)
-  const installedEvents: string[] = []
-  let portMatches = true
   if (user.error !== undefined) {
     reasons.push({ code: 'settings_invalid', source: settingsPath, message: user.error })
   }
-  const hooks = user.settings?.hooks
-  if (isObject(hooks)) {
-    for (const [event, groups] of Object.entries(hooks)) {
-      if (!Array.isArray(groups)) {
-        continue
-      }
-      for (const group of groups) {
-        if (!isObject(group) || !Array.isArray(group.hooks)) {
-          continue
-        }
-        for (const handler of group.hooks.filter(entry => isAgentHubHandler(entry))) {
-          if (!same(handler, hookHandler(port))) {
-            portMatches &&= isObject(handler) && handler.url === url
-            continue
-          }
-          if (same(group.matcher, matcherFor(event)) && !installedEvents.includes(event)) {
-            installedEvents.push(event)
-          }
-        }
-      }
-    }
-  }
+  const { installedEvents, portMatches } = installedState(user.settings, port)
   const installed = HOOK_EVENTS.every(event => installedEvents.includes(event))
   if (!installed) {
     reasons.push(portMatches
