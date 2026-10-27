@@ -1,8 +1,10 @@
+export { z } from 'zod'
 export const APP_NAME = 'Agent Hub'
 
 export * from './api.js'
 export * from './config.js'
 export * from './defaults.js'
+export * from './files.js'
 export * from './layout.js'
 export * from './mcp.js'
 export * from './preset.js'

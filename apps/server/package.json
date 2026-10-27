@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@agent-hub/shared": "workspace:*",
+    "chokidar": "^5.0.0",
     "fastify": "^5.12.7",
     "node-pty": "^1.1.0",
     "pino": "^10.4.0",

@@ -87,3 +87,16 @@ describe('shutdown timeout', () => {
     }
   })
 })
+
+describe('file service wiring', () => {
+  it('serves the file routes and refuses a backup dir inside a scope', async () => {
+    const env = { CLAUDE_CONFIG_DIR: '/nonexistent/claude', XDG_STATE_HOME: '/nonexistent/state' }
+    const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env })
+    const response = await fetch(`${server.url}${API_ROUTES.files}`)
+    expect(response.status).toBe(200)
+    await server.shutdown()
+    await expect(startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), {
+      env: { CLAUDE_CONFIG_DIR: '/nonexistent/claude', XDG_STATE_HOME: '/nonexistent/claude/state' },
+    })).rejects.toThrow(/outside the scope/)
+  })
+})

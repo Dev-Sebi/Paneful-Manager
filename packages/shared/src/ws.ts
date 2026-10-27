@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { FileChangeEventSchema, FileHashSchema } from './files.js'
+import { PathSchema } from './scope.js'
 import { SessionIdSchema, SessionLifecycleSchema, SessionSchema, SessionStateSchema, TerminalSizeSchema } from './session.js'
 
 /** Bump on any breaking change; clients connect to `WS_PATH?v=<version>`. */
@@ -107,6 +109,20 @@ export const ErrorMessageSchema = z.strictObject({
 
 export const PongMessageSchema = z.strictObject({ type: z.literal('pong') })
 
+/** A managed file changed on disk; `hash` is set for `add`/`change` when the file could be read. */
+export const FileChangedMessageSchema = z
+  .strictObject({
+    type: z.literal('file.changed'),
+    path: PathSchema,
+    event: FileChangeEventSchema,
+    hash: FileHashSchema.optional(),
+  })
+  .refine(message => message.hash === undefined || message.event !== 'unlink', {
+    message: 'hash is not allowed for unlink',
+    path: ['hash'],
+  })
+export type FileChangedMessage = z.infer<typeof FileChangedMessageSchema>
+
 export const ServerMessageSchema = z.discriminatedUnion('type', [
   OutputMessageSchema,
   ScrollbackMessageSchema,
@@ -115,6 +131,7 @@ export const ServerMessageSchema = z.discriminatedUnion('type', [
   SessionRemovedMessageSchema,
   ErrorMessageSchema,
   PongMessageSchema,
+  FileChangedMessageSchema,
 ])
 export type ServerMessage = z.infer<typeof ServerMessageSchema>
 export type ServerMessageType = ServerMessage['type']

@@ -13,6 +13,8 @@ import {
 } from '@agent-hub/shared'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { AppError } from './errors.js'
+import { registerFiles } from './files/routes.js'
+import type { FileService } from './files/service.js'
 import { registerScopes } from './scopes/routes.js'
 import { registerSecurity } from './security/register-security.js'
 import { createSessionToken } from './security/token.js'
@@ -34,6 +36,8 @@ export interface BuildAppOptions {
   dev?: boolean
   /** Session engine for `/api/sessions` and `/ws`; closed (tmux sessions kept) when the app closes. */
   engine?: SessionEngine
+  /** Managed-file service; the file routes are only registered when it is given. */
+  files?: FileService
 }
 
 function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): void {
@@ -83,7 +87,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, engine }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, engine, files }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -101,6 +105,10 @@ export function buildApp({ config, logger, sessionToken, dev, engine }: BuildApp
   registerSecurity(app, { getPort, token, dev: isDev })
   registerCore(app, engine)
   registerScopes(app, { getConfig: () => config })
+  if (files) {
+    registerFiles(app, { service: files })
+    app.addHook('onClose', async () => files.close())
+  }
   // Registered after registerSecurity: its onRequest hook guards these routes, and /ws uses the same checks.
   if (engine !== undefined) {
     registerSessions(app, { engine })

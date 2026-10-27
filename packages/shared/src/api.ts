@@ -18,6 +18,8 @@ export const API_ROUTES = {
   sessionToken: `${API_PREFIX}/session-token`,
   hooks: `${API_PREFIX}/hooks`,
   scopes: `${API_PREFIX}/scopes`,
+  files: `${API_PREFIX}/files`,
+  fileContent: `${API_PREFIX}/files/content`,
 } as const
 
 // Security
