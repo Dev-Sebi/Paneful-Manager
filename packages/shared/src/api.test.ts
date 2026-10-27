@@ -5,6 +5,7 @@ import {
   ApiErrorSchema,
   CreateSessionRequestSchema,
   DeletePresetResponseSchema,
+  LaunchPresetResponseSchema,
   GetConfigResponseSchema,
   HealthResponseSchema,
   KillSessionResponseSchema,
@@ -123,6 +124,14 @@ describe('presets API', () => {
     roundTrip(UpsertPresetRequestSchema, { preset: EXAMPLE_PRESET })
     expect(issuePaths(UpsertPresetRequestSchema, { preset: EXAMPLE_PRESET, force: true })).toEqual([''])
     roundTrip(DeletePresetResponseSchema, { name: 'project1', deleted: true })
+  })
+
+  it('describes a launch as tabs without ids', () => {
+    const tab = { title: 'one', layout: { kind: 'row' }, panes: [{ sessionId: 'a' }, { sessionId: 'b', size: 2 }] }
+    roundTrip(LaunchPresetResponseSchema, { name: 'project1', tabs: [tab] })
+    expect(issuePaths(LaunchPresetResponseSchema, { name: 'project1', tabs: [] })).toEqual(['tabs'])
+    expect(issuePaths(LaunchPresetResponseSchema, { name: 'project1', tabs: [{ ...tab, id: 'x' }] })).toEqual(['tabs.0'])
+    expect(API_ROUTES.presetLaunch).toBe('/api/presets/:name/launch')
   })
 })
 
