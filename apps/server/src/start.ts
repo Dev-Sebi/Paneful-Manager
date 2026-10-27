@@ -1,11 +1,14 @@
 import { join } from 'node:path'
-import { BIND_HOST, resolveConfigDir, resolveStateDir, type AppConfig } from '@agent-hub/shared'
+import { BIND_HOST, resolveStateDir, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
-import { CONFIG_FILE_NAME } from './config/load-config.js'
+import { resolveConfigFile } from './config/load-config.js'
 import { createConfigStore } from './config/store.js'
+import { createBackupStore } from './files/backups.js'
 import { createFileService } from './files/service.js'
+import { AppError } from './errors.js'
 import { assertBackupDirOutsideScopes } from './files/state-dir.js'
+import { createMcpService } from './mcp/service.js'
 import { expandHome } from './paths.js'
 import { discoverScopes } from './scopes/discover.js'
 import { assertLoopbackAddress } from './security/origin.js'
@@ -33,15 +36,27 @@ export interface StartOptions {
 }
 
 export async function startServer(config: AppConfig, logger: FastifyBaseLogger, { env = process.env, tmux, configDir }: StartOptions = {}): Promise<RunningServer> {
-  const getScopes = () => discoverScopes({ config, env, logger })
   const stateDir = expandHome(resolveStateDir(env))
   const backupDir = join(stateDir, BACKUPS_DIR_NAME)
+  let listeningPort = config.port
+  const store = createConfigStore(config, {
+    file: resolveConfigFile(env, configDir),
+    getListeningPort: () => listeningPort,
+    validate: async next => {
+      try {
+        assertBackupDirOutsideScopes(backupDir, await discoverScopes({ config: next, env, logger }))
+      } catch (error) {
+        throw new AppError((error as Error).message, 400, 'bad_request')
+      }
+    },
+  })
+  const getScopes = () => discoverScopes({ config: store.get(), env, logger })
   assertBackupDirOutsideScopes(backupDir, await getScopes())
   const engine = new SessionEngine({ stateDir, logger, ...(tmux === undefined ? {} : { tmux }) })
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
-  const configFile = join(expandHome(configDir ?? resolveConfigDir(env)), CONFIG_FILE_NAME)
-  const app = buildApp({ config, logger, files, engine, configStore: createConfigStore(config, configFile) })
+  const mcp = createMcpService({ getScopes, env, backupDir, logger })
+  const app = buildApp({ config, logger, files, engine, worktrees: { getScopes, backups: createBackupStore({ dir: backupDir }) }, mcp, configStore: store })
   try {
     await app.listen({ host: BIND_HOST, port: config.port })
   } catch (error) {
@@ -56,6 +71,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     throw error
   }
   const port = typeof address === 'object' && address !== null ? address.port : config.port
+  listeningPort = port
   const shutdown = async (): Promise<boolean> => {
     let timer: NodeJS.Timeout | undefined
     const timeout = new Promise<false>(resolve => {
