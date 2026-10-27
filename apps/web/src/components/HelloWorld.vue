@@ -100,6 +100,8 @@
         Escape and scrim are blocked.
       </AhDialog>
     </section>
+
+    <EditorShowcase />
   </main>
 </template>
 
@@ -107,6 +109,7 @@
   import type { AhButtonSize, AhButtonVariant, AhStatusBadgeState, AhStatusBadgeVariant, AhTabsReorderPayload } from '@/components/ah'
   import { ref } from 'vue'
   import { AhButton, AhDialog, AhStatusBadge, AhTab, AhTabPanel, AhTabs } from '@/components/ah'
+  import EditorShowcase from '@/components/editor/EditorShowcase.vue'
 
   interface DemoTab {
     value: string
