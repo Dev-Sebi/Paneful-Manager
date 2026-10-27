@@ -46,7 +46,8 @@ export function createTeamsService(options: TeamsServiceOptions): TeamsService {
   let pollTimer: NodeJS.Timeout | undefined
   let signatures = new Map<string, string>()
   let chain: Promise<void> = Promise.resolve()
-  let pollChain: Promise<void> = Promise.resolve()
+  let pollRunning: Promise<void> | undefined
+  let pollQueued: Promise<void> | undefined
   let closed = false
 
   /** Reads the teams and, when link sources are given and any team has members, links them to sessions. */
@@ -69,15 +70,35 @@ export function createTeamsService(options: TeamsServiceOptions): TeamsService {
     return new Map(teams.map(team => [team.name, signatureOf(team)]))
   }
 
-  /** Serialized, so a refresh and the interval never broadcast the same change twice. */
+  const active = (): boolean => pollTimer !== undefined && !closed
+
+  /** Serialized and coalesced: one run at a time, at most one more queued behind it. */
   function poll(): Promise<void> {
-    pollChain = pollChain.then(pollOnce)
-    return pollChain
+    if (pollQueued) {
+      return pollQueued
+    }
+    if (pollRunning) {
+      pollQueued = pollRunning.then(() => {
+        pollQueued = undefined
+        return poll()
+      })
+      return pollQueued
+    }
+    pollRunning = pollOnce().finally(() => {
+      pollRunning = undefined
+    })
+    return pollRunning
   }
 
   async function pollOnce(): Promise<void> {
+    if (!active()) {
+      return
+    }
     try {
       const next = await snapshot()
+      if (!active()) {
+        return
+      }
       for (const name of new Set([...signatures.keys(), ...next.keys()])) {
         if (signatures.get(name) !== next.get(name)) {
           broadcast({ type: 'team.changed', team: name })

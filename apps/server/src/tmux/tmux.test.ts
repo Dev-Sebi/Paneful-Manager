@@ -46,7 +46,7 @@ describe('targets and names', () => {
 
 describe('parsePaneList', () => {
   it('maps panes to ah- session ids and drops malformed lines', () => {
-    const stdout = ['%1\tah-a1', '%2\tscratch', 'garbage', '%x\tah-a2', '%3\t', ''].join('\n')
+    const stdout = ['%1\tah-a1', '%2\tscratch', 'garbage', '%x\tah-a2', '%3\t', '%5\tah-a5\textra', ''].join('\n')
     expect(parsePaneList(stdout)).toEqual([
       { paneId: '%1', sessionName: 'ah-a1', sessionId: 'a1' },
       { paneId: '%2', sessionName: 'scratch', sessionId: undefined },

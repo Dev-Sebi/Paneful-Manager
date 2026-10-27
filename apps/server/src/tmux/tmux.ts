@@ -131,8 +131,9 @@ export function parsePaneList(stdout: string): TmuxPaneInfo[] {
   return stdout
     .split('\n')
     .flatMap(line => {
-      const [paneId, sessionName] = line.split('\t')
-      if (paneId === undefined || sessionName === undefined || !/^%\d+$/.test(paneId) || sessionName === '') {
+      const fields = line.split('\t')
+      const [paneId, sessionName] = fields
+      if (fields.length !== 2 || paneId === undefined || sessionName === undefined || !/^%\d+$/.test(paneId) || sessionName === '') {
         return []
       }
       return [{ paneId, sessionName, sessionId: idFromTmuxName(sessionName) }]

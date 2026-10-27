@@ -84,12 +84,19 @@ describe.skipIf(process.platform !== 'linux')('teams service', () => {
   it('links members to sessions and broadcasts team.changed when a link changes', { timeout: 30_000 }, async () => {
     writeJson(join(dir, 'teams', 'alpha', 'config.json'), { members: [{ name: 'lead', agentType: 'team-lead' }, { name: 'dev', tmuxPaneId: '%2' }] })
     let panes: TmuxPaneInfo[] = []
+    let paneCalls = 0
     service = createTeamsService({
       claudeDir: dir,
       getConfig: () => ({ experimental: { agentTeams: true } }),
       logger: pino({ level: 'silent' }),
       broadcast: message => messages.push(message),
-      links: { listPanes: async () => panes, sessions: () => [{ id: 's1', cwd: '/work' }] },
+      links: {
+        listPanes: async () => {
+          paneCalls += 1
+          return panes
+        },
+        sessions: () => [{ id: 's1', cwd: '/work' }],
+      },
       debounceMs: 60_000,
       pollIntervalMs: 60_000,
     })
@@ -107,9 +114,13 @@ describe.skipIf(process.platform !== 'linux')('teams service', () => {
     expect(messages).toEqual([{ type: 'team.changed', team: 'alpha' }])
     const after = await service.list()
     expect(after.teams[0]?.members.map(member => member.link?.status)).toEqual(['linked', 'linked'])
+
+    paneCalls = 0
+    await Promise.all([service.refresh(), service.refresh(), service.refresh(), service.refresh()])
+    expect(paneCalls).toBe(2)
   })
 
-  it('reports tmux-unavailable and never lists panes while the flag is off', { timeout: 30_000 }, async () => {
+  it('reports tmux-unavailable and never lists panes or broadcasts while the flag is off', { timeout: 30_000 }, async () => {
     writeJson(join(dir, 'teams', 'alpha', 'config.json'), { members: [{ name: 'dev', tmuxPaneId: '%2' }] })
     let enabled = false
     let calls = 0
@@ -135,5 +146,13 @@ describe.skipIf(process.platform !== 'linux')('teams service', () => {
     await service.sync()
     const body = await service.list()
     expect(body.teams[0]?.members[0]?.link).toEqual({ status: 'unlinked', reason: 'tmux-unavailable' })
+
+    enabled = false
+    await service.sync()
+    calls = 0
+    writeJson(join(dir, 'teams', 'alpha', 'config.json'), { members: [{ name: 'other', tmuxPaneId: '%3' }] })
+    await Promise.all([service.refresh(), service.refresh(), service.refresh()])
+    expect(calls).toBe(0)
+    expect(messages).toEqual([])
   })
 })

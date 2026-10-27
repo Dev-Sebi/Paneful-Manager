@@ -9,8 +9,11 @@ export interface LinkContext {
   sessions: ReadonlyMap<string, { cwd: string }>
 }
 
-/** True when `path` is `base` or below it (string comparison only, nothing is read from disk). */
+/** True when absolute `path` is `base` or below it (string comparison only, nothing is read from disk). */
 function isWithin(path: string, base: string): boolean {
+  if (!isAbsolute(path)) {
+    return false
+  }
   const rel = relative(resolve(base), resolve(path))
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
 }
@@ -35,8 +38,8 @@ function linkByPane(member: TeamMember, paneId: string, context: LinkContext): T
 
 /**
  * Links members to Agent Hub sessions: a member's `tmuxPaneId` must be a pane of an `ah-` session on
- * the Agent Hub tmux server whose cwd contains the member's cwd. A lead without a pane id inherits the
- * session when all linked teammates share one (they split the lead's window).
+ * the Agent Hub tmux server whose cwd contains the member's (absolute) cwd. A lead without a pane id
+ * inherits the session when all linked teammates share one (they split the lead's window) and its cwd fits.
  */
 export function linkMembers(members: readonly TeamMember[], context: LinkContext): TeamMember[] {
   const linked = members.map((member): TeamMember => {
@@ -54,9 +57,16 @@ export function linkMembers(members: readonly TeamMember[], context: LinkContext
   if (teammateSessions.size !== 1 || shared === undefined) {
     return linked
   }
-  return linked.map(member => isTeamLead(member) && member.tmuxPaneId === undefined
-    ? { ...member, link: { status: 'linked', sessionId: shared, via: 'lead-window' } }
-    : member)
+  const sharedCwd = context.sessions.get(shared)?.cwd
+  return linked.map((member): TeamMember => {
+    if (!isTeamLead(member) || member.tmuxPaneId !== undefined) {
+      return member
+    }
+    if (member.cwd !== undefined && (sharedCwd === undefined || !isWithin(member.cwd, sharedCwd))) {
+      return { ...member, link: { status: 'unlinked', reason: 'cwd-mismatch' } }
+    }
+    return { ...member, link: { status: 'linked', sessionId: shared, via: 'lead-window' } }
+  })
 }
 
 /** Applies `linkMembers` to every team. */

@@ -56,6 +56,14 @@ describe('linkMembers', () => {
     ])
   })
 
+  it('applies the cwd check to the inferred lead link and rejects relative cwds', () => {
+    const shared = context([pane('%2', 's1')])
+    const teammate: TeamMember = { name: 'dev', tmuxPaneId: '%2', cwd: '/work/app' }
+    expect(linkMembers([{ ...lead, cwd: '/other' }, teammate], shared)[0]?.link).toEqual({ status: 'unlinked', reason: 'cwd-mismatch' })
+    expect(linkMembers([{ ...lead, cwd: 'work/app' }, teammate], shared)[0]?.link).toEqual({ status: 'unlinked', reason: 'cwd-mismatch' })
+    expect(linkMembers([lead, { ...teammate, cwd: 'work/app' }], shared)[1]?.link).toEqual({ status: 'unlinked', reason: 'cwd-mismatch' })
+  })
+
   it('does not guess the lead session when teammates sit in different sessions', () => {
     const members = linkMembers([
       lead,
