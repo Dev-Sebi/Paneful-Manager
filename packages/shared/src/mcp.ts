@@ -14,6 +14,8 @@ const remote = {
   headers: z.record(z.string(), z.string()).optional(),
 }
 
+// Claude Code's native MCP config uses `type` and scopes user/project/local;
+// mapping between both shapes is done in T40.
 /** MCP server entry; stdio servers are spawned, http/sse servers are reached by URL. */
 export const McpServerSchema = z.discriminatedUnion('transport', [
   z.looseObject({

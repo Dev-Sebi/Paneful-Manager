@@ -33,6 +33,27 @@ describe('WorkspacePresetSchema', () => {
     expect(tab?.panes[3]?.args).toEqual(['--continue'])
   })
 
+  it('accepts layout string shorthands', () => {
+    for (const kind of ['single', 'row', 'column'] as const) {
+      const preset = WorkspacePresetSchema.parse({ name: 'p', tabs: [{ layout: kind, panes: [{ cwd: '~' }] }] })
+      expect(preset.tabs[0]?.layout).toEqual({ kind })
+    }
+    const grid = WorkspacePresetSchema.parse({
+      name: 'p',
+      tabs: [{ title: 'grid', layout: 'grid-2x2', panes: Array.from({ length: 4 }, () => ({ cwd: '~' })) }],
+    })
+    expect(grid.tabs[0]).toMatchObject({ title: 'grid', layout: { kind: 'grid-2x2' } })
+  })
+
+  it('rejects unknown and custom layout shorthands', () => {
+    expect(issuePaths(WorkspacePresetSchema, { name: 'p', tabs: [{ layout: 'diagonal', panes: [{ cwd: '~' }] }] })).toEqual([
+      'tabs.0.layout',
+    ])
+    expect(issuePaths(WorkspacePresetSchema, { name: 'p', tabs: [{ layout: 'custom', panes: [{ cwd: '~' }] }] })).toEqual([
+      'tabs.0.layout',
+    ])
+  })
+
   it('defaults the layout to row', () => {
     const preset = WorkspacePresetSchema.parse({ name: 'p', tabs: [{ panes: [{ cwd: '~' }] }] })
     expect(preset.tabs[0]?.layout).toEqual({ kind: 'row' })

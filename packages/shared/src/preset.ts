@@ -17,10 +17,18 @@ export const PresetPaneSchema = z.looseObject({
 })
 export type PresetPane = z.infer<typeof PresetPaneSchema>
 
+const LAYOUT_SHORTHANDS = new Set(['single', 'row', 'column', 'grid-2x2'])
+
+/** Accepts `layout: row` as shorthand for `layout: { kind: row }`; `custom` needs the object form. */
+export const PresetLayoutSchema = z.preprocess(
+  value => (typeof value === 'string' && LAYOUT_SHORTHANDS.has(value) ? { kind: value } : value),
+  LayoutSchema,
+)
+
 export const PresetTabSchema = z
   .looseObject({
     title: z.string().optional(),
-    layout: LayoutSchema.default(() => ({ kind: 'row' as const })),
+    layout: PresetLayoutSchema.default(() => ({ kind: 'row' as const })),
     panes: paneListSchema(PresetPaneSchema),
   })
   .superRefine((tab, ctx) => {

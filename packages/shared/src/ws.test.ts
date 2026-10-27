@@ -76,6 +76,12 @@ describe('WS protocol', () => {
     expect(issuePaths(ClientMessageSchema, { type: 'ping', extra: 1 })).toEqual([''])
   })
 
+  it('allows exitCode in state messages only for exited sessions', () => {
+    expect(
+      issuePaths(ServerMessageSchema, { type: 'state', sessionId: 's1', state: 'idle', lifecycle: 'running', exitCode: 1 }),
+    ).toEqual(['exitCode'])
+  })
+
   it('rejects invalid server messages', () => {
     expect(issuePaths(ServerMessageSchema, { type: 'output', sessionId: 's1', data: 42 })).toEqual(['data'])
     expect(issuePaths(ServerMessageSchema, { type: 'error', code: 'oops', message: 'x' })).toEqual(['code'])

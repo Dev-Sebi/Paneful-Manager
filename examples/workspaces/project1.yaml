@@ -2,7 +2,7 @@
 name: project1
 autostart: true
 tabs:
-  - name: project1
+  - title: project1
     layout: row
     panes:
       - cwd: ~/git/project1

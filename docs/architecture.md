@@ -23,7 +23,7 @@ All contracts live in `packages/shared` (`@agent-hub/shared`) as zod schemas. Ev
 | Where data comes from | Unknown keys | Why |
 | --- | --- | --- |
 | REST bodies, WS frames, sessions, runtime tabs | rejected (`z.strictObject`) | Typos and protocol drift fail loudly at the boundary. |
-| User files: `config.yaml`, preset YAML, MCP entries, layouts | kept (`z.looseObject`) | Users may add comments-as-keys or keys from newer versions; a load/save cycle must not lose them. |
+| User files: `config.yaml`, preset YAML, MCP entries, layouts | kept (`z.looseObject`) | Users may add keys from newer versions or their own notes; a load/save cycle must not lose them. |
 
 The REST wrappers around presets (`{ preset }`) are strict, but the preset itself stays loose, so `GET` then `PUT` keeps user-added keys. `ConfigPatchSchema` is strict because it is an API body, not a file.
 
@@ -31,7 +31,7 @@ The REST wrappers around presets (`{ preset }`) are strict, but the preset itsel
 
 | Constant | Value |
 | --- | --- |
-| `DEFAULT_PORT` | `7337` (env `AGENT_HUB_PORT` overrides, see `resolvePort`) |
+| `DEFAULT_PORT` | `7337` (env `AGENT_HUB_PORT` overrides: digits only, 1-65535, otherwise startup fails; see `resolvePort`) |
 | `BIND_HOST` | `127.0.0.1` (never configurable) |
 | `DEFAULT_HOST_ID` | `local` (single user in v1, field kept for multi-user later) |
 | `DEFAULT_COMMAND` | `claude` |
@@ -40,6 +40,7 @@ The REST wrappers around presets (`{ preset }`) are strict, but the preset itsel
 | `MAX_PANES_PER_TAB` | `6` |
 | `CONFIG_FILE` | `~/.config/agent-hub/config.yaml` |
 | `WORKSPACES_DIR` | `~/.config/agent-hub/workspaces/*.yaml` |
+| `resolveConfigDir(env)` | `$XDG_CONFIG_HOME/agent-hub` when set, otherwise `~/.config/agent-hub`; the constants above are the fallback |
 | `DEFAULT_CONFIG` | equals `AppConfigSchema.parse({})` |
 | `EXAMPLE_PRESET` | preset `project1`: 4 panes side by side in `~/git/project1` |
 
@@ -53,7 +54,7 @@ Paths may start with `~`; the server expands them.
 | | `ScopeKindSchema`, `ScopeSchema` | `{ kind: global \| project \| worktree, path, branch?, projectPath? }`; `branch`/`projectPath` only for worktrees. |
 | `config.ts` | `AppConfigSchema` | `config.yaml`: `port`, `experimental.agentTeams` (false), `confirmCloseTab` (true), `projects` (paths), `logLevel` (`info`), `theme` (`dark` \| `light` \| `system`, default `dark`). |
 | | `ConfigPatchSchema` | Partial update; nested objects merge, arrays replace (`applyConfigPatch`). |
-| | `PortSchema`, `LogLevelSchema`, `ThemeSchema` | Building blocks; `resolvePort(configPort, env)` applies `AGENT_HUB_PORT`. |
+| | `PortSchema`, `LogLevelSchema`, `ThemeSchema` | Building blocks; `resolvePort(configPort, env)` applies `AGENT_HUB_PORT`, `resolveConfigDir(env)` applies `XDG_CONFIG_HOME`. |
 | `session.ts` | `SessionSchema` | One session = one tmux session: `id`, `hostId`, `title?`, `cwd`, `command`, `args`, `tmuxSession`, `createdAt`, `state`, `lifecycle`, `exitCode?` (only when exited), `lastEventAt`, `cols`, `rows`. Timestamps are ISO 8601 strings. |
 | | `SessionStateSchema` | `working \| waiting \| error \| idle`, derived from Claude Code hooks. |
 | | `SessionLifecycleSchema` | `starting \| running \| exited`. |
@@ -61,18 +62,19 @@ Paths may start with `~`; the server expands them.
 | | `AppTabSchema`, `AppPaneSchema` | Runtime tab with 1-6 panes, each a `sessionId` plus optional `size`. |
 | | `validateLayoutPanes` | `single` = 1 pane, `grid-2x2` = 4, `custom` must reference each pane exactly once. |
 | `preset.ts` | `WorkspacePresetSchema` | Preset file: `name` (also the file name), `description?`, `autostart` (false), `tabs[]`. |
-| | `PresetTabSchema`, `PresetPaneSchema` | Tab: `title?`, `layout` (default `row`), 1-6 panes. Pane: `cwd`, `command` (`claude`), `args` (`[]`), `title?`, `size?`. |
+| | `PresetTabSchema`, `PresetPaneSchema` | Tab: `title?`, `layout` (default `row`; string shorthand `single \| row \| column \| grid-2x2` or the object form, `custom` needs the object), 1-6 panes. Pane: `cwd`, `command` (`claude`), `args` (`[]`), `title?`, `size?`. |
 | `mcp.ts` | `McpServerSchema` | Discriminated by `transport`: `stdio` (`command`, `args`, `env?`) or `http`/`sse` (`url`, `headers?`); `scope` is `global \| project \| worktree`. |
 | `api.ts` | `ApiErrorSchema` | Every non-2xx body: `{ code, message, details? }`; `validation_failed` requires `details: { path, message }[]` (`toValidationError`). |
 | | REST schemas | See table below. |
 | `ws.ts` | `ClientMessageSchema`, `ServerMessageSchema` | WebSocket protocol, see below. |
 
-Minimal preset (`~/.config/agent-hub/workspaces/project1.yaml`):
+Minimal preset (`~/.config/agent-hub/workspaces/project1.yaml`; full examples in `examples/`, validated by `examples.test.ts`):
 
 ```yaml
 name: project1
 tabs:
-  - layout: { kind: row }
+  - title: project1
+    layout: row # shorthand for { kind: row }
     panes:
       - cwd: ~/git/project1
       - cwd: ~/git/project1
@@ -141,3 +143,10 @@ sequenceDiagram
     C->>S: detach {sessionId}
     Note over S,T: tmux session keeps running
 ```
+
+### Known risks
+
+- **No WebSocket flow control in v1.** The server watches `bufferedAmount` per connection and drops or coalesces output for slow clients; `pause`/`resume` messages are reserved for protocol v2.
+- **Frame size.** The server must set the ws `maxPayload` option so a single oversized client frame cannot exhaust memory.
+- **Scrollback race.** While capturing scrollback after `attach`, the server buffers live output and sends it after the `scrollback` frame, so nothing is lost or duplicated.
+- **Multiple clients at different sizes.** A tmux session has one size; the last `attach` or `resize` wins and other attached clients render at that size.

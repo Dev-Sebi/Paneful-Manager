@@ -22,8 +22,10 @@ export const MAX_TERMINAL_SIZE = 1000
 
 export const MAX_PANES_PER_TAB = 6
 
-/** Config locations; `~` is expanded by the server. */
-export const CONFIG_DIR = '~/.config/agent-hub'
+export const CONFIG_DIR_NAME = 'agent-hub'
+
+/** Default locations without `XDG_CONFIG_HOME` (see `resolveConfigDir`); `~` is expanded by the server. */
+export const CONFIG_DIR = `~/.config/${CONFIG_DIR_NAME}`
 export const CONFIG_FILE = `${CONFIG_DIR}/config.yaml`
 export const WORKSPACES_DIR = `${CONFIG_DIR}/workspaces`
 

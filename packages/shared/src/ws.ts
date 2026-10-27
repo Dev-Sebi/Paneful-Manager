@@ -65,13 +65,18 @@ export const ScrollbackMessageSchema = z.strictObject({
   data: TerminalDataSchema,
 })
 
-export const StateMessageSchema = z.strictObject({
-  type: z.literal('state'),
-  sessionId: SessionIdSchema,
-  state: SessionStateSchema,
-  lifecycle: SessionLifecycleSchema,
-  exitCode: z.int().optional(),
-})
+export const StateMessageSchema = z
+  .strictObject({
+    type: z.literal('state'),
+    sessionId: SessionIdSchema,
+    state: SessionStateSchema,
+    lifecycle: SessionLifecycleSchema,
+    exitCode: z.int().optional(),
+  })
+  .refine(message => message.exitCode === undefined || message.lifecycle === 'exited', {
+    message: 'exitCode is only allowed when lifecycle is exited',
+    path: ['exitCode'],
+  })
 
 export const SessionCreatedMessageSchema = z.strictObject({
   type: z.literal('session.created'),

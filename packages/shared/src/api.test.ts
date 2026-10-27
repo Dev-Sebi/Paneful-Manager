@@ -38,7 +38,9 @@ const roundTrip = <T>(schema: { parse: (v: unknown) => T }, value: unknown) => {
 
 describe('API routes', () => {
   it('live under /api', () => {
-    for (const route of Object.values(API_ROUTES)) {expect(route.startsWith('/api/')).toBe(true)}
+    for (const route of Object.values(API_ROUTES)) {
+      expect(route.startsWith('/api/')).toBe(true)
+    }
   })
 })
 
@@ -57,7 +59,9 @@ describe('ApiErrorSchema', () => {
 
   it('is produced by toValidationError', () => {
     const result = CreateSessionRequestSchema.safeParse({ cwd: '', cols: 0 })
-    if (result.success) {throw new Error('expected failure')}
+    if (result.success) {
+      throw new Error('expected failure')
+    }
     const error = ApiErrorSchema.parse(toValidationError(result.error))
     expect(error.code === 'validation_failed' && error.details.map(d => d.path.join('.'))).toEqual(['cwd', 'cols'])
   })

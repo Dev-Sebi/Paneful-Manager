@@ -63,7 +63,9 @@ function collectLeaves(node: LayoutNode, out: number[]): void {
     out.push(node.pane)
     return
   }
-  for (const child of node.children) {collectLeaves(child, out)}
+  for (const child of node.children) {
+    collectLeaves(child, out)
+  }
 }
 
 /** Checks that a layout fits the number of panes in its tab. */

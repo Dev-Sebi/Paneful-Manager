@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parse, stringify } from 'yaml'
-import { AppConfigSchema, applyConfigPatch, ConfigPatchSchema, resolvePort } from './config.js'
+import { AppConfigSchema, applyConfigPatch, ConfigPatchSchema, resolveConfigDir, resolvePort } from './config.js'
 import { DEFAULT_CONFIG } from './defaults.js'
 import { issuePaths } from './test-utils.js'
 
@@ -77,8 +77,26 @@ describe('resolvePort', () => {
     expect(resolvePort(7337, '9000')).toBe(9000)
   })
 
-  it('throws on an invalid env value', () => {
-    expect(() => resolvePort(7337, 'abc')).toThrow('AGENT_HUB_PORT')
-    expect(() => resolvePort(7337, '0')).toThrow()
+  it('throws a clear error on invalid env values', () => {
+    for (const value of ['0', '70000', '80.5', '1e3', 'abc']) {
+      expect(() => resolvePort(7337, value)).toThrow(`Invalid AGENT_HUB_PORT "${value}": expected an integer between 1 and 65535`)
+    }
+  })
+
+  it('accepts the bounds', () => {
+    expect(resolvePort(7337, '1')).toBe(1)
+    expect(resolvePort(7337, '65535')).toBe(65535)
+  })
+})
+
+describe('resolveConfigDir', () => {
+  it('falls back to ~/.config without XDG_CONFIG_HOME', () => {
+    expect(resolveConfigDir({})).toBe('~/.config/agent-hub')
+    expect(resolveConfigDir({ XDG_CONFIG_HOME: '  ' })).toBe('~/.config/agent-hub')
+  })
+
+  it('respects XDG_CONFIG_HOME', () => {
+    expect(resolveConfigDir({ XDG_CONFIG_HOME: '/home/dev/.cfg' })).toBe('/home/dev/.cfg/agent-hub')
+    expect(resolveConfigDir({ XDG_CONFIG_HOME: '/home/dev/.cfg/' })).toBe('/home/dev/.cfg/agent-hub')
   })
 })

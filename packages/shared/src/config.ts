@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { DEFAULT_PORT } from './defaults.js'
+import { CONFIG_DIR_NAME, DEFAULT_PORT } from './defaults.js'
 import { PathSchema } from './scope.js'
 
 export const PortSchema = z.int().min(1).max(65535)
@@ -51,10 +51,22 @@ export function applyConfigPatch(config: AppConfig, patch: ConfigPatch): AppConf
   })
 }
 
-/** Effective port: a valid `AGENT_HUB_PORT` value wins over the config file. */
+/** Effective port: `AGENT_HUB_PORT` (digits only, 1-65535) wins over the config file. */
 export function resolvePort(configPort: number, envValue: string | undefined): number {
-  if (envValue === undefined || envValue.trim() === '') {return configPort}
-  const parsed = PortSchema.safeParse(Number(envValue))
-  if (!parsed.success) {throw new Error(`Invalid AGENT_HUB_PORT: ${envValue}`)}
-  return parsed.data
+  if (envValue === undefined || envValue.trim() === '') {
+    return configPort
+  }
+  const value = envValue.trim()
+  const port = /^\d+$/.test(value) ? Number(value) : Number.NaN
+  if (!PortSchema.safeParse(port).success) {
+    throw new Error(`Invalid AGENT_HUB_PORT "${envValue}": expected an integer between 1 and 65535`)
+  }
+  return port
+}
+
+/** Config directory: `$XDG_CONFIG_HOME/agent-hub`, falling back to `~/.config/agent-hub`. */
+export function resolveConfigDir(env: Record<string, string | undefined>): string {
+  const xdg = env.XDG_CONFIG_HOME?.trim()
+  const base = xdg ? xdg.replace(/\/+$/, '') : '~/.config'
+  return `${base}/${CONFIG_DIR_NAME}`
 }
