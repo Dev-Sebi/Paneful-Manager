@@ -3,6 +3,10 @@ import type { AhStatusBadgeState } from '../AhStatusBadge'
 /** Connection lifecycle of the underlying PTY. */
 export type AhTerminalConnection = 'connecting' | 'connected' | 'exited' | 'failed'
 
+/**
+ * 'vertical': vertical divider, new pane to the right (side by side).
+ * 'horizontal': horizontal divider, new pane below (stacked).
+ */
 export type AhTerminalSplitDirection = 'horizontal' | 'vertical'
 
 export type AhTerminalCursorStyle = 'block' | 'bar' | 'underline'
@@ -24,7 +28,7 @@ export interface AhTerminalPaneProps {
   focused?: boolean
   /** Pane fills the whole workspace. @default false */
   maximized?: boolean
-  /** Font size in px; defaults to the value of font.size.md. Allowed range 10..24. */
+  /** Font size as a px number (xterm needs a number). Default: numeric value of token font.size.md (13). Allowed range 10..24. */
   fontSize?: number
   /** @default 'block' */
   cursorStyle?: AhTerminalCursorStyle

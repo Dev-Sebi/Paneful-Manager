@@ -1,19 +1,24 @@
-# AhTabs / AhTab
+# AhTabs / AhTab / AhTabPanel
 
 Tab bar for terminal sessions and editors. Supports closable tabs, a dirty indicator, a status dot and keyboard reordering. Contract: `index.d.ts`.
 
 ## Anatomy
 
 ```
-AhTabs: [ tab | tab | tab ... ][ append: + ]
-AhTab:  [ status dot / icon | title | close (x) or dirty dot ]
-         ^ active indicator: 2px bar on the bottom edge
+AhTabs:      ul[role=tablist] > li[role=none] ... + append actions (outside the ul)
+AhTab:       li[role=none]
+             ├─ element[role=tab]  [ status dot / icon | title ]
+             └─ button.close       (x) or dirty dot   <- sibling, last in DOM
+                ^ active indicator: 2px bar on the bottom edge of the li
+AhTabPanel:  div[role=tabpanel]
 ```
 
+The close button is never inside the `role="tab"` element (a tab must not contain interactive children). It is the last child of the `li`, so DOM order equals visual order and focus order.
+
 - **Tablist**: `color.bg.surface`, bottom border `color.border.default`, height 32px (`density: compact` 28px).
-- **Tab**: padding x `space.3`, gap `space.2`, max width 240px, min width 96px.
+- **Tab wrapper (`li`)**: padding x `space.3`, gap `space.2`, max width 240px, min width 96px. Carries background, hover and indicator; the tab element fills it except the close button area.
 - **Active indicator**: 2px bar `color.accent.default`, moves on tab switch.
-- **Close button**: 16px icon button, `radius.sm`.
+- **Close button**: 16px icon button, `radius.sm`, `aria-label="Close <title>"`, `tabindex="-1"`.
 - **Dirty dot**: 8px circle `color.fg.primary`; replaced by the close button on hover or focus of the tab.
 - **Status dot**: `AhStatusBadge` with `variant="dot"`.
 
@@ -24,7 +29,7 @@ AhTab:  [ status dot / icon | title | close (x) or dirty dot ]
 | Inactive | `color.bg.surface` | `color.fg.muted` | |
 | Hover | `color.bg.hover` | `color.fg.primary` | close button visible |
 | Active | `color.bg.canvas` | `color.fg.primary` | indicator `color.accent.default`, `font.weight.medium` |
-| Focus-visible | unchanged | unchanged | 2px inset outline `color.border.focus` |
+| Focus-visible | unchanged | unchanged | 2px inset outline `color.border.focus` on the `li` (via `:focus-within` of the tab element) |
 | Dirty | unchanged | unchanged | dirty dot instead of close icon |
 | Disabled | `color.bg.surface` | `color.fg.disabled` | not focusable via arrows, not closable |
 | Dragging / moving | `color.bg.elevated` | `color.fg.primary` | `shadow.2` |
@@ -41,8 +46,11 @@ Inactive closable tabs show the close button only on hover or focus; the active 
 ## Accessibility
 
 - `AhTabs` → `role="tablist"`, `aria-label` from `ariaLabel`, `aria-orientation="horizontal"`.
-- `AhTab` → `role="tab"`, `aria-selected`, `aria-controls` = `panelId`, `aria-disabled` when disabled. The panel has `role="tabpanel"` and `aria-labelledby` the tab.
-- Roving tabindex: only the active tab has `tabindex="0"`; others `-1`. The close button has `tabindex="-1"` (keyboard closes via `Delete`).
+- `li` wrappers → `role="none"`, so the tablist owns the tabs directly.
+- Tab element → `role="tab"`, `id="ah-tab-<value>"`, `aria-selected`, `aria-controls="ah-tabpanel-<value>"`, `aria-disabled` when disabled.
+- `AhTabPanel` → `role="tabpanel"`, `id="ah-tabpanel-<value>"`, `aria-labelledby="ah-tab-<value>"`; `tabindex="0"` only when the panel has no focusable content. Inactive panels stay mounted (`keepAlive`) and get `hidden`.
+- Roving tabindex: only the active tab has `tabindex="0"`; others `-1`. The close button has `tabindex="-1"` and is reached by keyboard through `Delete` / `Backspace` on the focused tab.
+- Activation is automatic (arrow keys activate), because switching sessions is cheap and instant; no separate "focus without activate" mode.
 - Accessible name: title plus state, e.g. "api-server, waiting for input, unsaved changes".
 - Reorder and close announcements go to a polite live region: "Moved api-server to position 3 of 5", "Closed api-server".
 
@@ -53,14 +61,14 @@ Inactive closable tabs show the close button only on hover or focus; the active 
 | `ArrowLeft` / `ArrowRight` | Focus and activate previous / next tab (wraps) |
 | `Home` / `End` | First / last tab |
 | `Enter` / `Space` | Activate focused tab |
-| `Delete` | Close focused tab (if closable); focus moves to the next tab, else previous |
+| `Delete` or `Backspace` | Close focused tab (if closable); focus moves to the next tab, else previous |
 | `Ctrl+Shift+ArrowLeft` / `Ctrl+Shift+ArrowRight` | Move focused tab one slot (if `reorderable`) |
-| `Tab` | Leaves the tablist to the active tabpanel |
+| `Tab` | Leaves the tablist: append actions first, then the active tabpanel |
 | Middle click | Close (pointer only) |
 
 ### Focus order
 
-Tablist (active tab) → append actions → active tabpanel.
+Active tab (single tab stop for the whole tablist; close buttons are skipped) → append actions → active tabpanel content.
 
 ### Reduced motion
 

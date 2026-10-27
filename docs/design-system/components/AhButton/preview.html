@@ -14,7 +14,6 @@
   --ah-color-bg-selected: #152f63;
   --ah-color-fg-primary: #eef1f4;
   --ah-color-fg-muted: #9aa4b0;
-  --ah-color-fg-disabled: #59636f;
   --ah-color-fg-on-accent: #0b0d10;
   --ah-color-fg-on-danger: #0b0d10;
   --ah-color-accent-default: #6496f7;
@@ -36,6 +35,8 @@
   --ah-font-line-height-tight: 1.2;
   --ah-motion-duration-fast: 100ms;
   --ah-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ah-motion-duration-spinner: 800ms;
+  --ah-opacity-disabled: 0.4;
 }
 body { margin: 0; padding: var(--ah-space-6); background: var(--ah-color-bg-canvas); color: var(--ah-color-fg-primary); font-family: var(--ah-font-family-ui); font-size: var(--ah-font-size-md); }
 h2 { font-size: var(--ah-font-size-sm); color: var(--ah-color-fg-muted); font-weight: var(--ah-font-weight-medium); margin: var(--ah-space-6) 0 var(--ah-space-2); }
@@ -53,10 +54,10 @@ h2 { font-size: var(--ah-font-size-sm); color: var(--ah-color-fg-muted); font-we
 .danger:hover, .danger.is-hover { background: var(--ah-color-danger-hover); }
 .btn:focus-visible, .is-focus { outline: 2px solid var(--ah-color-border-focus); outline-offset: 2px; }
 .is-pressed { background: var(--ah-color-bg-selected); }
-.btn:disabled { opacity: 0.4; color: var(--ah-color-fg-disabled); cursor: not-allowed; }
-.spin { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: r 0.8s linear infinite; }
+.btn:disabled { opacity: var(--ah-opacity-disabled); cursor: not-allowed; }
+.ah-spinner { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: r var(--ah-motion-duration-spinner) linear infinite; }
 @keyframes r { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } } /* .ah-spinner is exempt */
 </style>
 </head>
 <body>
@@ -85,7 +86,7 @@ h2 { font-size: var(--ah-font-size-sm); color: var(--ah-color-fg-muted); font-we
   <button class="btn secondary is-focus">Focus</button>
   <button class="btn secondary is-pressed" aria-pressed="true">Pressed</button>
   <button class="btn secondary" disabled>Disabled</button>
-  <button class="btn secondary" aria-busy="true"><span class="spin"></span>Loading</button>
+  <button class="btn secondary" aria-busy="true"><span class="ah-spinner"></span>Loading</button>
 </div>
 
 <h2>States (primary / danger)</h2>

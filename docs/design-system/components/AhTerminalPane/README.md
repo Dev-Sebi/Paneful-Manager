@@ -17,8 +17,9 @@ One terminal session inside the split layout: header with title, status and acti
 
 - **Pane**: background `color.terminal.bg`, border 1px `color.border.default`, `radius.sm`. Panes are separated by `space.1` gutters on `color.bg.canvas`.
 - **Header**: height 28px, background `color.bg.surface`, padding x `space.2`, gap `space.2`. Title `font.size.sm`, `font.weight.medium`; cwd `font.size.xs` in `font.family.mono`, `color.fg.muted`, truncated from the start.
-- **Header actions**: `AhButton variant="ghost" size="sm"` icon buttons (split horizontal, split vertical, maximize, close).
-- **Viewport**: padding `space.2`, `font.family.mono`, `font.size.md` (or `fontSize` prop), `font.line-height.normal`.
+- **Header actions**: `AhButton variant="ghost" size="sm"` icon buttons in this DOM order: split vertical, split horizontal, maximize, close.
+- **Split direction**: `vertical` = vertical divider, panes side by side (new pane to the right); `horizontal` = horizontal divider, panes stacked (new pane below).
+- **Viewport**: padding `space.2`, `font.family.mono`, `font.size.md` (or `fontSize` prop, a px number because xterm takes numbers; the generator exposes the numeric value of `font.size.md` as its default), `font.line-height.normal`.
 - **Overlay**: centered card `color.bg.elevated`, `radius.md`, `shadow.2`, text `color.fg.primary`, action `AhButton`.
 
 ## Terminal colors
@@ -36,7 +37,7 @@ Used tokens: `color.terminal.fg`, `color.terminal.bg`, `color.terminal.cursor`, 
 | Connected | no overlay |
 | Exited | overlay "Process exited (code N)" + "Restart" (`AhButton secondary`); viewport kept for reading |
 | Failed | overlay in `color.status.error` text + "Retry" |
-| Maximized | pane covers the workspace at `z.sticky`; other panes stay mounted |
+| Maximized | pane covers the workspace at `z.overlay`; other panes stay mounted |
 | Readonly | header shows "Read-only" label in `color.fg.muted`; no cursor |
 
 ## Tokens
@@ -55,20 +56,20 @@ Used tokens: `color.terminal.fg`, `color.terminal.bg`, `color.terminal.cursor`, 
 
 ### Keyboard map
 
-All keys go to the PTY while the viewport has focus, except the app-reserved shortcuts below (configurable later).
+All keys go to the PTY while the viewport has focus, except the app-reserved shortcuts below. Defaults must avoid browser-reserved combos (e.g. `Ctrl+W`, `Ctrl+T`, `Ctrl+Shift+W`, `Ctrl+Shift+C`, `Alt+ArrowLeft/Right`, `F6`) and every shortcut must be user-configurable.
 
 | Key | Action |
 | --- | --- |
-| `Ctrl+Shift+C` / `Ctrl+Shift+V` | Copy selection / paste |
-| `Ctrl+Shift+D` / `Ctrl+Shift+E` | Split vertical / horizontal |
+| `Ctrl+Insert` / `Shift+Insert` | Copy selection / paste (plus context menu) |
+| `Alt+Shift+=` / `Alt+Shift+-` | Split vertical (side by side) / split horizontal (stacked) |
 | `Ctrl+Shift+Enter` | Toggle maximize |
-| `Alt+ArrowLeft/Right/Up/Down` | Move focus to the neighboring pane |
-| `Ctrl+Shift+W` | Close pane (emits `close`) |
-| `F6` | Leave the terminal: focus moves to the pane header (escape hatch, since `Tab` goes to the PTY) |
+| `Ctrl+Alt+ArrowLeft/Right/Up/Down` | Move focus to the neighboring pane |
+| `Ctrl+Shift+X` | Close pane (emits `close`) |
+| `Ctrl+Shift+F6` | Cycle focus viewport → pane header → viewport (escape hatch, since `Tab` goes to the PTY) |
 
 ### Focus order
 
-Pane header actions → viewport → next pane (in layout reading order: left to right, top to bottom).
+Within a pane: header actions (split vertical, split horizontal, maximize, close) → viewport. Then the next pane in layout reading order (left to right, top to bottom). Inside the viewport `Tab` goes to the PTY, so leaving it uses `Ctrl+Shift+F6` or `Ctrl+Alt+Arrow`.
 
 ### Reduced motion
 
@@ -80,5 +81,5 @@ Cursor blink is off; focus border change is instant.
 | --- | --- |
 | Generate the xterm theme from tokens | Hard-code ANSI colors in the component |
 | Keep the scrollback visible after exit | Clear the viewport when the process exits |
-| Provide `F6` as a keyboard escape from the terminal | Trap keyboard users inside the viewport |
+| Provide `Ctrl+Shift+F6` as a keyboard escape from the terminal | Trap keyboard users inside the viewport |
 | Confirm closing a working/waiting session with `AhDialog tone="danger"` | Kill the session on a single click |

@@ -17,6 +17,7 @@
   --ah-color-status-working: #6496f7;
   --ah-color-status-waiting: #e3b341;
   --ah-color-status-error: #f47067;
+  --ah-color-status-idle: #9aa4b0;
   --ah-color-terminal-black: #2b313a;
   --ah-color-terminal-red: #f47067;
   --ah-color-terminal-green: #57c26b;
@@ -62,7 +63,10 @@ body { margin: 0; padding: var(--ah-space-6); background: var(--ah-color-bg-canv
 .focused .hd { color: var(--ah-color-fg-primary); }
 .cwd { flex: 1; font-family: var(--ah-font-family-mono); font-size: var(--ah-font-size-xs); color: var(--ah-color-fg-muted); font-weight: normal; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; direction: rtl; text-align: left; }
 .act { width: 24px; height: 24px; background: none; border: 0; color: var(--ah-color-fg-muted); cursor: pointer; border-radius: var(--ah-radius-sm); }
-.dot { width: 8px; height: 8px; border-radius: var(--ah-radius-full); }
+.m { --c: var(--ah-color-status-idle); width: 8px; height: 8px; border-radius: var(--ah-radius-full); background: var(--c); flex: none; box-sizing: border-box; }
+.working { --c: var(--ah-color-status-working); }
+.waiting { --c: var(--ah-color-status-waiting); box-shadow: 0 0 0 2px var(--ah-color-bg-surface), 0 0 0 3px var(--c); }
+.idle { background: transparent; border: 1.5px solid var(--c); }
 .vp { position: relative; flex: 1; padding: var(--ah-space-2); font-family: var(--ah-font-family-mono); font-size: var(--ah-font-size-md); line-height: var(--ah-font-line-height-normal); color: var(--ah-color-terminal-fg); white-space: pre; overflow: hidden; }
 .cur { background: var(--ah-color-terminal-cursor); color: var(--ah-color-terminal-bg); }
 .unfocused-cur { outline: 1px solid var(--ah-color-terminal-cursor); }
@@ -76,7 +80,7 @@ body { margin: 0; padding: var(--ah-space-6); background: var(--ah-color-bg-canv
 <h1 style="font-size: var(--ah-font-size-md)">AhTerminalPane (spec preview)</h1>
 <div class="layout">
   <section class="pane focused" role="group" aria-label="Terminal: api-server">
-    <div class="hd"><span class="dot" style="background: var(--ah-color-status-working)" role="img" aria-label="Working"></span>api-server<span class="cwd">~/projects/api</span><button class="act" aria-label="Split vertical">&#8646;</button><button class="act" aria-label="Split horizontal">&#8645;</button><button class="act" aria-label="Maximize">&#10530;</button><button class="act" aria-label="Close pane">&times;</button></div>
+    <div class="hd"><span class="m working" role="img" aria-label="Working"></span>api-server<span class="cwd">~/projects/api</span><button class="act" aria-label="Split vertical">&#8646;</button><button class="act" aria-label="Split horizontal">&#8645;</button><button class="act" aria-label="Maximize">&#10530;</button><button class="act" aria-label="Close pane">&times;</button></div>
     <div class="vp">$ npm test
 <span style="color: var(--ah-color-terminal-green)">PASS</span>  src/session.test.ts
 <span style="color: var(--ah-color-terminal-red)">FAIL</span>  src/layout.test.ts
@@ -89,11 +93,11 @@ $ <span class="cur"> </span>
   </section>
   <div class="right">
     <section class="pane" role="group" aria-label="Terminal: frontend">
-      <div class="hd"><span class="dot" style="background: var(--ah-color-status-waiting)" role="img" aria-label="Waiting for input"></span>frontend<span class="cwd">~/projects/web</span><button class="act" aria-label="Close pane">&times;</button></div>
+      <div class="hd"><span class="m waiting" role="img" aria-label="Waiting for input"></span>frontend<span class="cwd">~/projects/web</span><button class="act" aria-label="Close pane">&times;</button></div>
       <div class="vp">Proceed with edit? (y/n) <span class="unfocused-cur"> </span></div>
     </section>
     <section class="pane" role="group" aria-label="Terminal: docs">
-      <div class="hd">docs<span class="cwd">~/projects/docs</span><button class="act" aria-label="Close pane">&times;</button></div>
+      <div class="hd"><span class="m idle" role="img" aria-label="Idle"></span>docs<span class="cwd">~/projects/docs</span><button class="act" aria-label="Close pane">&times;</button></div>
       <div class="vp">$ exit
 <div class="ov"><div class="card">Process exited (code 0)<br><span style="color: var(--ah-color-status-error); font-size: var(--ah-font-size-sm)">failed state uses status.error text</span></div></div></div>
     </section>

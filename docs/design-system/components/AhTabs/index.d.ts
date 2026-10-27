@@ -1,5 +1,12 @@
 import type { AhStatusBadgeState } from '../AhStatusBadge'
 
+/*
+ * Id convention (wired by the components, never passed by hand):
+ *   tab element:      id="ah-tab-<value>"       aria-controls="ah-tabpanel-<value>"
+ *   AhTabPanel:       id="ah-tabpanel-<value>"  aria-labelledby="ah-tab-<value>"
+ * `value` must be unique per page and contain only [A-Za-z0-9_-].
+ */
+
 /* ---------- AhTabs (tablist container) ---------- */
 
 export type AhTabsDensity = 'compact' | 'default'
@@ -37,14 +44,14 @@ export interface AhTabsEmits {
 export interface AhTabsSlots {
   /** AhTab children. */
   default?: () => unknown
-  /** Actions after the last tab (new tab, overflow menu). */
+  /** Actions after the last tab (new tab, overflow menu); outside the tablist element. */
   append?: () => unknown
 }
 
-/* ---------- AhTab (single tab) ---------- */
+/* ---------- AhTab (one tab: wrapper li > tab element + close button) ---------- */
 
 export interface AhTabProps {
-  /** Unique id within the tablist. */
+  /** Unique id; drives `ah-tab-<value>` / `ah-tabpanel-<value>`. */
   value: string
   /** Visible label; truncated with ellipsis, full text in tooltip. */
   title: string
@@ -58,8 +65,6 @@ export interface AhTabProps {
   disabled?: boolean
   /** Icon name before the title (ignored when `status` is set). */
   icon?: string
-  /** id of the controlled tabpanel; generated when omitted. */
-  panelId?: string
 }
 
 export interface AhTabEmits {
@@ -70,5 +75,18 @@ export interface AhTabSlots {
   /** Replaces icon / status badge. */
   prepend?: () => unknown
   /** Replaces the title text. */
+  default?: () => unknown
+}
+
+/* ---------- AhTabPanel (content controlled by a tab) ---------- */
+
+export interface AhTabPanelProps {
+  /** Same value as the controlling AhTab. */
+  value: string
+  /** Keep the panel mounted while inactive (terminal panes must stay mounted). @default true */
+  keepAlive?: boolean
+}
+
+export interface AhTabPanelSlots {
   default?: () => unknown
 }

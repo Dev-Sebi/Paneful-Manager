@@ -37,8 +37,8 @@ Triggers an action. Wraps `v-btn` with Agent Hub variants and sizes. Contract: `
 | Hover | primary: `color.accent.hover`; secondary and ghost: `color.bg.hover`; danger: `color.danger.hover` |
 | Focus-visible | 2px outline `color.border.focus`, offset 2px |
 | Pressed (`pressed: true`) | secondary/ghost fill `color.bg.selected` |
-| Disabled | fill unchanged at 40% opacity, text `color.fg.disabled`, cursor not-allowed |
-| Loading | spinner, `aria-busy="true"`, clicks ignored |
+| Disabled | whole button at `opacity.disabled`, colors unchanged (no extra `color.fg.disabled`, to avoid double dimming), cursor not-allowed |
+| Loading | `.ah-spinner` (one rotation per `motion.duration.spinner`), `aria-busy="true"`, clicks ignored |
 
 ## Tokens
 
@@ -46,6 +46,7 @@ Triggers an action. Wraps `v-btn` with Agent Hub variants and sizes. Contract: `
 - Font: `font.family.ui`, `font.weight.medium`, `font.line-height.tight`.
 - Transition: background and border color, `motion.duration.fast`, `motion.easing.standard`.
 - Elevation: `shadow.0` (buttons are flat).
+- Disabled: `opacity.disabled`. Spinner: `motion.duration.spinner`.
 
 ## Accessibility
 
@@ -55,7 +56,7 @@ Triggers an action. Wraps `v-btn` with Agent Hub variants and sizes. Contract: `
 - Disabled uses the native `disabled` attribute. If the button must stay discoverable (explained by tooltip), use `aria-disabled="true"` and keep it focusable instead.
 - Keyboard: `Enter` and `Space` activate. Focus order follows DOM order.
 - Minimum hit area 24x24px (WCAG 2.5.8), satisfied by `sm`.
-- Reduced motion: color transitions are instant; spinner remains (indeterminate progress is allowed).
+- Reduced motion: color transitions are instant; the spinner keeps rotating (explicit exemption in `Motion.md`, essential progress feedback).
 
 ## Do / Don't
 

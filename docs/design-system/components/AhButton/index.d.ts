@@ -25,7 +25,7 @@ export interface AhButtonProps {
   icon?: string
   /** Accessible name; required when `icon` is set. */
   ariaLabel?: string
-  /** Keyboard shortcut hint shown in the tooltip and exposed via aria-keyshortcuts, e.g. 'Control+Shift+T'. */
+  /** Keyboard shortcut hint shown in the tooltip and exposed via aria-keyshortcuts, e.g. 'Alt+Shift+N' (avoid browser-reserved combos such as Ctrl+T, Ctrl+W, Ctrl+Shift+T). */
   shortcut?: string
   /** Stretch to container width. @default false */
   block?: boolean

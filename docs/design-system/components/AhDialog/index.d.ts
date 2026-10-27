@@ -13,8 +13,10 @@ export interface AhDialogProps {
   tone?: AhDialogTone
   /** @default 'md' */
   size?: AhDialogSize
-  /** Scrim click and Escape do not close; a headShake plays instead. @default false */
+  /** Scrim click and Escape do not close; the blocked-close helper line shows and a headShake plays. @default false */
   persistent?: boolean
+  /** Helper line shown under the title when a close is blocked. @default 'Finish or cancel the running action first' */
+  blockedMessage?: string
   /** Confirm button label; omit to hide the default actions. */
   confirmText?: string
   /** @default 'Cancel' */

@@ -7,14 +7,18 @@ Modal dialog for confirmations and short forms (close dirty session, delete pres
 ```
 scrim
 └─ panel
-   ├─ header:  [ tone icon (danger) | title | close (x) ]
+   ├─ header:  [ tone icon (danger) | title ]  + blocked-close helper line (when shown)
    ├─ body:    default slot, scrolls when too tall
-   └─ actions: [ cancel (secondary) | confirm (primary or danger) ]  right-aligned
+   ├─ actions: [ cancel (secondary) | confirm (primary or danger) ]  right-aligned
+   └─ close (x): last in DOM, positioned top-right with CSS
 ```
 
-- **Scrim**: `color.bg.scrim` at 60% opacity, layer `z.overlay`.
+The close (x) button is the last element in the DOM so that DOM order, focus order and the documented focus order match; it is placed visually in the header corner.
+
+- **Scrim**: `color.bg.scrim` at `opacity.scrim`, layer `z.overlay`.
 - **Panel**: `color.bg.elevated`, border 1px `color.border.default`, `radius.lg`, `shadow.3`, layer `z.modal`, max height 80vh, max width per `size`.
 - **Header**: padding `space.4` `space.4` `space.2`, title `font.size.lg`, `font.weight.semibold`, `color.fg.primary`.
+- **Blocked-close helper**: one line under the title, `font.size.sm`, `color.fg.muted`, text from `blockedMessage` (default "Finish or cancel the running action first"), `role="status"`.
 - **Body**: padding x `space.4`, text `font.size.md`, `font.line-height.normal`, secondary text `color.fg.muted`.
 - **Actions**: padding `space.4`, gap `space.2`, `AhButton` size `md`.
 
@@ -24,14 +28,15 @@ scrim
 | --- | --- |
 | `tone: default` | Confirm is `AhButton variant="primary"` |
 | `tone: danger` | Header icon in `color.danger.default`; confirm is `AhButton variant="danger"`; initial focus on cancel |
-| `persistent` | Escape and scrim click emit `close-blocked` and play `headShake` once on the panel; close (x) hidden |
+| `persistent` / `loading` close attempt | Escape and scrim click emit `close-blocked`, show the blocked-close helper line (static, stays until the dialog closes) and play `headShake` once on the panel; close (x) hidden when persistent |
 | `loading` | Confirm shows spinner, all close paths blocked, body `aria-busy="true"` |
 | Body overflow | Body scrolls; header and actions stay fixed; divider `color.border.default` appears |
 
 ## Tokens
 
 - Colors: `color.bg.elevated`, `color.fg.primary`, `color.fg.muted`, `color.border.default`, `color.border.focus`, `color.danger.default`, `color.bg.scrim`.
-- Spacing and shape: `space.2`, `space.4`, `radius.lg`, `shadow.3`.
+- Spacing and shape: `space.2`, `space.4`, `radius.lg`, `shadow.3`, `opacity.scrim`.
+- Helper text: `font.size.sm`, `color.fg.muted`.
 - Layers: `z.overlay` (scrim), `z.modal` (panel).
 - Font: `font.family.ui`, `font.size.md`, `font.size.lg`, `font.weight.semibold`, `font.line-height.normal`.
 - Motion: enter `motion.duration.slow` + `motion.easing.decelerate` (scrim `fadeIn`, panel `fadeInDown` 8px); leave `motion.duration.fast` + `motion.easing.accelerate` (`fadeOut`). See `Motion.md`.
@@ -55,11 +60,11 @@ scrim
 
 ### Focus order
 
-Body fields → cancel → confirm → close (x).
+Body fields → cancel → confirm → close (x), identical to DOM order. `Tab` from the close button wraps to the first body field.
 
 ### Reduced motion
 
-No fade or shake; dialog appears and disappears instantly. `close-blocked` still fires; the blocked close is communicated by the unchanged dialog only.
+No fade or shake; dialog appears and disappears instantly. `close-blocked` still fires and the static blocked-close helper line is the cue.
 
 ## Do / Don't
 
