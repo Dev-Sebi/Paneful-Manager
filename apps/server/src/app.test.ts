@@ -33,6 +33,7 @@ describe('buildApp', () => {
     expect(response.statusCode).toBe(200)
     const body = HealthResponseSchema.parse(response.json())
     expect(body.version).toMatch(/^\d+\.\d+\.\d+/)
+    expect(body.tmux).toBe('unavailable')
   })
 
   it('answers unknown routes with not_found', async () => {
@@ -88,6 +89,15 @@ describe('buildApp', () => {
     const response = await app.inject({ method: 'GET', url: '/boom' })
     expect(response.statusCode).toBe(409)
     expect(response.json()).toEqual({ code: 'conflict', message: 'Name taken' })
+  })
+
+  it('keeps the code and message of server-side AppErrors', async () => {
+    build().get('/boom', () => {
+      throw new AppError('tmux server is not running', 503, 'tmux_unavailable', { detail: 'no server' })
+    })
+    const response = await app.inject({ method: 'GET', url: '/boom' })
+    expect(response.statusCode).toBe(503)
+    expect(response.json()).toEqual({ code: 'tmux_unavailable', message: 'tmux server is not running', details: { detail: 'no server' } })
   })
 
   it('maps status codes to error codes', async () => {

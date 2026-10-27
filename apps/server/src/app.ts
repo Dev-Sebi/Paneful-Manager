@@ -18,6 +18,10 @@ import type { FileService } from './files/service.js'
 import { registerScopes } from './scopes/routes.js'
 import { registerSecurity } from './security/register-security.js'
 import { createSessionToken } from './security/token.js'
+import { authorizeUpgrade } from './security/upgrade.js'
+import type { SessionEngine } from './sessions/engine.js'
+import { registerSessions } from './sessions/routes.js'
+import { registerWs } from './ws/plugin.js'
 
 export const BODY_LIMIT_BYTES = 1024 * 1024
 
@@ -30,17 +34,20 @@ export interface BuildAppOptions {
   sessionToken?: string
   /** Allows the Vite dev origins; defaults to `NODE_ENV === 'development'`. */
   dev?: boolean
+  /** Session engine for `/api/sessions` and `/ws`; closed (tmux sessions kept) when the app closes. */
+  engine?: SessionEngine
   /** Managed-file service; the file routes are only registered when it is given. */
   files?: FileService
 }
 
-function registerCore(app: FastifyInstance): void {
+function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): void {
   app.get(API_ROUTES.health, (): HealthResponse => ({
     status: 'ok',
     name: APP_NAME,
     version,
     protocolVersion: WS_PROTOCOL_VERSION,
     uptimeSec: process.uptime(),
+    tmux: engine?.available === true ? 'available' : 'unavailable',
   }))
 }
 
@@ -71,15 +78,16 @@ function registerErrorHandlers(app: FastifyInstance): void {
     if (status >= 500) {
       request.log.error({ err: error }, 'Unhandled error')
     }
-    const code = error instanceof AppError && status < 500 ? error.code : codeForStatus(status)
-    const message = status < 500 && isClientSafe(error) ? (error as Error).message : status < 500 ? 'Bad request' : 'Internal server error'
+    const code = error instanceof AppError ? error.code : codeForStatus(status)
+    const safe = error instanceof AppError || (status < 500 && isClientSafe(error))
+    const message = safe ? (error as Error).message : status < 500 ? 'Bad request' : 'Internal server error'
     const details = error instanceof AppError ? error.details : undefined
     const body = { code, message, ...(details === undefined ? {} : { details }) } as ApiError
     return reply.code(status).send(body)
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, files }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, engine, files }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -92,16 +100,22 @@ export function buildApp({ config, logger, sessionToken, dev, files }: BuildAppO
     const address = app.server.address()
     return typeof address === 'object' && address !== null ? address.port : config.port
   }
-  registerSecurity(app, {
-    getPort,
-    token: sessionToken ?? createSessionToken(),
-    dev: dev ?? process.env.NODE_ENV === 'development',
-  })
-  registerCore(app)
+  const token = sessionToken ?? createSessionToken()
+  const isDev = dev ?? process.env.NODE_ENV === 'development'
+  registerSecurity(app, { getPort, token, dev: isDev })
+  registerCore(app, engine)
   registerScopes(app, { getConfig: () => config })
   if (files) {
     registerFiles(app, { service: files })
     app.addHook('onClose', async () => files.close())
+  }
+  // Registered after registerSecurity: its onRequest hook guards these routes, and /ws uses the same checks.
+  if (engine !== undefined) {
+    registerSessions(app, { engine })
+    registerWs(app, { engine, authorizeUpgrade: request => authorizeUpgrade(request, { port: getPort(), token, dev: isDev }) })
+    app.addHook('onClose', async () => {
+      await engine.close()
+    })
   }
   return app
 }
