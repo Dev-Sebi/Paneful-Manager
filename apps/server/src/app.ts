@@ -26,6 +26,7 @@ import { createSessionToken } from './security/token.js'
 import { authorizeUpgrade } from './security/upgrade.js'
 import type { SessionEngine } from './sessions/engine.js'
 import { registerSessions } from './sessions/routes.js'
+import { registerStatic } from './static.js'
 import { registerTeams } from './teams/routes.js'
 import { createTeamsService } from './teams/service.js'
 import { registerWorktrees, type WorktreeDeps } from './worktrees/routes.js'
@@ -56,6 +57,8 @@ export interface BuildAppOptions {
   mcp?: McpService
   /** Agent teams board; its route is only registered when `claudeDir` is given and reads nothing while the flag is off. */
   teams?: { claudeDir: string }
+  /** Built web app to serve with SPA fallback; API only when omitted. */
+  webDist?: string
 }
 
 function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): void {
@@ -105,7 +108,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], engine, files, worktrees, mcp, configStore, teams }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], engine, files, worktrees, mcp, configStore, teams, webDist }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -155,6 +158,9 @@ export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], e
     registerTeams(app, { service })
     app.addHook('onClose', async () => service.close())
     app.addHook('onReady', async () => service.sync())
+  }
+  if (webDist !== undefined) {
+    registerStatic(app, webDist)
   }
   return app
 }

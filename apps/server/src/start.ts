@@ -13,6 +13,7 @@ import { expandHome } from './paths.js'
 import { discoverScopes } from './scopes/discover.js'
 import { assertLoopbackAddress, DEV_ORIGINS_ENV_VAR, parseDevOrigins } from './security/origin.js'
 import { SessionEngine } from './sessions/engine.js'
+import { resolveWebDist } from './static.js'
 import { resolveClaudeDir } from './teams/reader.js'
 import type { Tmux } from './tmux/tmux.js'
 
@@ -56,6 +57,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const engine = new SessionEngine({ stateDir, logger, ...(tmux === undefined ? {} : { tmux }) })
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
+  const webDist = resolveWebDist(env)
   const mcp = createMcpService({ getScopes, env, backupDir, logger })
   const devOrigins = parseDevOrigins(env[DEV_ORIGINS_ENV_VAR], message => logger.warn(message))
   const app = buildApp({
@@ -68,6 +70,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     mcp,
     configStore: store,
     teams: { claudeDir: resolveClaudeDir(env) },
+    ...(webDist === undefined ? {} : { webDist }),
   })
   try {
     await app.listen({ host: BIND_HOST, port: config.port })
