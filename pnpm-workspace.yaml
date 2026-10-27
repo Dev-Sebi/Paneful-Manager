@@ -4,3 +4,4 @@ packages:
 allowBuilds:
   '@parcel/watcher': false
   esbuild: true
+  node-pty: true

@@ -16,11 +16,14 @@
   "dependencies": {
     "@agent-hub/shared": "workspace:*",
     "fastify": "^5.12.7",
+    "node-pty": "^1.1.0",
     "pino": "^10.4.0",
+    "ws": "^8.22.0",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.2",
     "pino-pretty": "^13.2.0",
     "tsx": "^4.20.0",
     "vitest": "^3.2.0"
