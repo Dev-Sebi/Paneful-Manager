@@ -26,7 +26,7 @@ Agent teams build on an experimental Claude Code feature (Claude Code 2.1.309 or
 Inside WSL2 with systemd, Node.js 22 or later and tmux 3.2 or later (the installer adds pnpm if it is missing):
 
 ```bash
-curl -fsSL https://github.com/agent-hub/agent-hub/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/Dev-Sebi/Paneful-Manager/releases/latest/download/install.sh | sh
 ```
 
 The installer shows a plan and asks before it changes anything. It sets up the systemd user services `agent-hub-tmux.service` and `agent-hub.service`. Then open `http://127.0.0.1:7337/` in your Windows browser.
