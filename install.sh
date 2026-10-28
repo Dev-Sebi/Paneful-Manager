@@ -515,7 +515,7 @@ resolve_release_api() {
   [ -n "$TARBALL_URL" ] || die "Release '$TAG' of $AGENT_HUB_REPO has no asset agent-hub-$TAG.tar.gz"
   for asset_url in "$TARBALL_URL" "$SHA_URL"; do
     case "$asset_url" in
-      ''|"https://api.github.com/repos/$AGENT_HUB_REPO/releases/assets/"[0-9]*) ;;
+      ''|https://api.github.com/repos/*/*/releases/assets/[0-9]*) ;;
       *) die "Unexpected asset URL in the GitHub API answer: $asset_url" ;;
     esac
     case "${asset_url##*/}" in *[!0-9]*) die "Unexpected asset URL in the GitHub API answer: $asset_url" ;; esac

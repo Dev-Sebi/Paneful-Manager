@@ -362,7 +362,8 @@ api_release() {
     "$1" "$1" "$API" "$2" "$1" "$API" "$3"
 }
 api_release v1.0.0 101 102 "$V1" >"$STUB_DIR/api/latest.json"
-api_release v1.1.0 201 202 "$V2" >"$STUB_DIR/api/tag-v1.1.0.json"
+# Asset URLs carry the canonical name of a renamed repository.
+api_release v1.1.0 201 202 "$V2" | sed 's|/Paneful-Manager/|/Panefull-Manager/|g' >"$STUB_DIR/api/tag-v1.1.0.json"
 touch "$STUB_DIR/private"
 token_never_leaked() {
   not_contains "$STUB_LOG" "$TOKEN" && not_contains "$OUT" "$TOKEN" && not_contains "$STUB_LOG" "saw a token" &&
@@ -397,7 +398,7 @@ export GH_TOKEN="$TOKEN"
 install_sh --yes --no-systemd --no-windows-task --prefix "$HOME/tok" --version v1.1.0
 unset GH_TOKEN
 check "tag: looked up by tag" contains "$STUB_LOG" "releases/tags/v1.1.0"
-check "tag: tag assets downloaded" contains "$STUB_LOG" "$API/201"
+check "tag: assets of a renamed repo downloaded" contains "$STUB_LOG" "Panefull-Manager/releases/assets/201"
 check "tag: release installed" test "$(readlink "$HOME/tok/current")" = releases/v1.1.0
 check "GH_TOKEN is used" contains "$OUT" "token from GH_TOKEN"
 check "GH_TOKEN never leaked" token_never_leaked
