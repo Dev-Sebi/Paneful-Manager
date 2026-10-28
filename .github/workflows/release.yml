@@ -48,18 +48,18 @@ jobs:
       - name: Pack the release
         run: sh scripts/release-pack.sh --tag "$TAG" --out dist/release
       - name: Smoke-test the tarball
-        run: sh scripts/release-smoke.sh "dist/release/agent-hub-$TAG.tar.gz" 17337
+        run: sh scripts/release-smoke.sh "dist/release/paneful-manager-$TAG.tar.gz" 17337
       - name: Collect the release assets
         run: |
           cp install.sh dist/release/install.sh
           ls -l dist/release
-          cat "dist/release/agent-hub-$TAG.tar.gz.sha256"
+          cat "dist/release/paneful-manager-$TAG.tar.gz.sha256"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-${{ env.TAG }}
           path: |
-            dist/release/agent-hub-${{ env.TAG }}.tar.gz
-            dist/release/agent-hub-${{ env.TAG }}.tar.gz.sha256
+            dist/release/paneful-manager-${{ env.TAG }}.tar.gz
+            dist/release/paneful-manager-${{ env.TAG }}.tar.gz.sha256
             dist/release/install.sh
           if-no-files-found: error
           retention-days: 7
@@ -83,8 +83,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          sha256sum -c "agent-hub-$TAG.tar.gz.sha256"
+          sha256sum -c "paneful-manager-$TAG.tar.gz.sha256"
           set --
           case "$TAG" in *-*) set -- --prerelease ;; esac
-          gh release create "$TAG" --verify-tag --title "Agent Hub $TAG" --generate-notes "$@" \
-            "agent-hub-$TAG.tar.gz" "agent-hub-$TAG.tar.gz.sha256" install.sh
+          gh release create "$TAG" --verify-tag --title "Paneful Manager $TAG" --generate-notes "$@" \
+            "paneful-manager-$TAG.tar.gz" "paneful-manager-$TAG.tar.gz.sha256" install.sh

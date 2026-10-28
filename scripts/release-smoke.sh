@@ -1,6 +1,6 @@
 #!/bin/sh
 # Smoke test for a packed release: installs it with its own install.sh into a temp HOME, starts the server, checks /api/health.
-# Usage: scripts/release-smoke.sh <dir>/agent-hub-<tag>.tar.gz [port]
+# Usage: scripts/release-smoke.sh <dir>/paneful-manager-<tag>.tar.gz [port]
 set -eu
 
 [ $# -ge 1 ] || { sed -n '3p' "$0" | sed 's/^# //' >&2; exit 2; }
@@ -8,8 +8,8 @@ TARBALL=$(realpath -- "$1")
 PORT=${2:-17337}
 [ -f "$TARBALL" ] || { echo "Tarball not found: $TARBALL" >&2; exit 1; }
 NAME=$(basename "$TARBALL" .tar.gz)
-TAG=${NAME#agent-hub-}
-[ "$TAG" != "$NAME" ] || { echo "Tarball name must be agent-hub-<tag>.tar.gz" >&2; exit 1; }
+TAG=${NAME#paneful-manager-}
+[ "$TAG" != "$NAME" ] || { echo "Tarball name must be paneful-manager-<tag>.tar.gz" >&2; exit 1; }
 HEALTH_URL="http://127.0.0.1:$PORT/api/health"
 
 T=$(mktemp -d)
@@ -19,7 +19,7 @@ cleanup() {
     kill "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
   fi
-  TMUX_TMPDIR="$T/tmux" tmux -L agent-hub kill-server 2>/dev/null || true
+  TMUX_TMPDIR="$T/tmux" tmux -L paneful-manager kill-server 2>/dev/null || true
   rm -rf "$T"
 }
 trap cleanup EXIT
@@ -52,7 +52,7 @@ export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_STATE_HOME="$HOME/.local/state"
 export XDG_DATA_HOME="$HOME/.local/share"
 export TMUX_TMPDIR="$T/tmux"
-PREFIX="$XDG_DATA_HOME/agent-hub"
+PREFIX="$XDG_DATA_HOME/paneful-manager"
 
 echo "==> Installing with install.sh --from-source --no-systemd"
 PATH="$T/no-compiler:$PATH" sh "$REL/install.sh" --from-source "$TARBALL" --no-systemd --no-wsl-conf --no-windows-task \
@@ -67,7 +67,7 @@ grep -q 'Using the prebuilt production dependencies' "$T/install.log" || { echo 
 
 echo "==> Starting the server on port $PORT"
 cd "$PREFIX/current" || exit 1
-NODE_ENV=production AGENT_HUB_PORT=$PORT node "$PREFIX/current/apps/server/dist/index.js" >"$T/server.log" 2>&1 &
+NODE_ENV=production PANEFUL_MANAGER_PORT=$PORT node "$PREFIX/current/apps/server/dist/index.js" >"$T/server.log" 2>&1 &
 SERVER_PID=$!
 
 waited=0

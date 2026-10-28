@@ -1,22 +1,22 @@
 #!/bin/sh
-# Agent Hub installer for WSL2 (Linux works too, without the WSL steps).
+# Paneful Manager installer for WSL2 (Linux works too, without the WSL steps).
 #   curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/install.sh | sh
 # Private repository: GITHUB_TOKEN=<token> sh install.sh (or log in with gh), see docs/install.md
 # Run with -h for all options. Docs: docs/install.md
 set -eu
 
-AGENT_HUB_REPO=${AGENT_HUB_REPO:-Dev-Sebi/Paneful-Manager}
+PANEFUL_MANAGER_REPO=${PANEFUL_MANAGER_REPO:-Dev-Sebi/Paneful-Manager}
 DEFAULT_PORT=7337
 MIN_NODE_MAJOR=22
 MIN_TMUX_VERSION=3.2
 # Reads headers from stdin (7.55) and keeps a custom Authorization header off redirect hosts (7.58).
 MIN_CURL_TOKEN_VERSION=7.58
-TMUX_UNIT=agent-hub-tmux.service
-SERVER_UNIT=agent-hub.service
+TMUX_UNIT=paneful-manager-tmux.service
+SERVER_UNIT=paneful-manager.service
 HEALTH_TIMEOUT_SEC=20
 # Overridable for scripts/test-install.sh only.
-WSL_CONF=${AGENT_HUB_WSL_CONF:-/etc/wsl.conf}
-PROC_VERSION=${AGENT_HUB_PROC_VERSION:-/proc/version}
+WSL_CONF=${PANEFUL_MANAGER_WSL_CONF:-/etc/wsl.conf}
+PROC_VERSION=${PANEFUL_MANAGER_PROC_VERSION:-/proc/version}
 
 VERSION=latest
 PREFIX=""
@@ -36,12 +36,12 @@ usage() {
   cat <<'EOF'
 Usage: install.sh [options]
 
-Installs Agent Hub as systemd user services (agent-hub-tmux.service, agent-hub.service).
+Installs Paneful Manager as systemd user services (paneful-manager-tmux.service, paneful-manager.service).
 
 Options:
   --version <tag|latest>  Release to install (default: latest)
   --from-source <path>    Install from a local release tarball or a built source checkout
-  --prefix <dir>          Install directory (default: ~/.local/share/agent-hub)
+  --prefix <dir>          Install directory (default: ~/.local/share/paneful-manager)
   --port <port>           Server port (default: 7337, or the port already installed); saved in config.yaml
   --no-systemd            Do not install or start the systemd user units
   --no-wsl-conf           Never offer to enable systemd in /etc/wsl.conf
@@ -57,7 +57,7 @@ Options:
   -h, --help              Show this help
 
 Environment:
-  AGENT_HUB_REPO          GitHub <owner>/<repo> to download releases from
+  PANEFUL_MANAGER_REPO          GitHub <owner>/<repo> to download releases from
   GITHUB_TOKEN, GH_TOKEN  Token for a private repository (read-only Contents access); without one,
                           'gh auth token' is used when gh is logged in, otherwise downloads are anonymous
 EOF
@@ -186,29 +186,29 @@ USER_NAME=${USER:-$(id -un)}
 CONFIG_HOME=$(xdg_dir "${XDG_CONFIG_HOME:-}" "$HOME/.config")
 STATE_HOME=$(xdg_dir "${XDG_STATE_HOME:-}" "$HOME/.local/state")
 DATA_HOME=$(xdg_dir "${XDG_DATA_HOME:-}" "$HOME/.local/share")
-PREFIX=${PREFIX:-$DATA_HOME/agent-hub}
+PREFIX=${PREFIX:-$DATA_HOME/paneful-manager}
 case "$PREFIX" in /*) ;; *) PREFIX=$(pwd)/$PREFIX ;; esac
 command -v realpath >/dev/null 2>&1 || die "realpath (coreutils) is required"
 PREFIX=$(realpath -m -- "$PREFIX")
 HOME_REAL=$(realpath -m -- "$HOME")
-CONFIG_DIR=$CONFIG_HOME/agent-hub
+CONFIG_DIR=$CONFIG_HOME/paneful-manager
 CONFIG_FILE=$CONFIG_DIR/config.yaml
-STATE_DIR=$STATE_HOME/agent-hub
+STATE_DIR=$STATE_HOME/paneful-manager
 UNIT_DIR=$CONFIG_HOME/systemd/user
 RELEASES_DIR=$PREFIX/releases
 CURRENT_LINK=$PREFIX/current
 PREVIOUS_LINK=$PREFIX/previous
-MARKER=$PREFIX/.agent-hub-install
+MARKER=$PREFIX/.paneful-manager-install
 
 case "$PREFIX" in
   /|"$HOME_REAL"|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var|/boot) die "Refusing to use $PREFIX as install prefix" ;;
   "$HOME_REAL"/*) ;;
   *) [ "$FORCE" -eq 1 ] || die "Refusing to use $PREFIX as install prefix: it is outside $HOME_REAL (pass --force to allow)" ;;
 esac
-case "$AGENT_HUB_REPO" in
-  */*/*|*[!A-Za-z0-9._/-]*|/*|*/) die "AGENT_HUB_REPO must look like <owner>/<repo>" ;;
+case "$PANEFUL_MANAGER_REPO" in
+  */*/*|*[!A-Za-z0-9._/-]*|/*|*/) die "PANEFUL_MANAGER_REPO must look like <owner>/<repo>" ;;
   */*) ;;
-  *) die "AGENT_HUB_REPO must look like <owner>/<repo>" ;;
+  *) die "PANEFUL_MANAGER_REPO must look like <owner>/<repo>" ;;
 esac
 if [ -n "$PORT" ]; then
   case "$PORT" in *[!0-9]*|'') die "--port must be a number" ;; esac
@@ -226,7 +226,7 @@ distro_name() {
   printf '%s' "$name"
 }
 
-windows_task_name() { printf 'AgentHub-%s' "$1"; }
+windows_task_name() { printf 'paneful-manager-%s' "$1"; }
 
 # True when %UserProfile%\.wslconfig sets instanceIdleTimeout=-1 (best effort, false when unknown).
 wslconfig_keeps_distro() {
@@ -262,7 +262,7 @@ install_windows_task() {
   info "Windows logon task"
   say "  WSL does not start on its own after Windows boots. A scheduled task can run"
   say "  'wsl.exe -d $distro --exec true' at your Windows logon, which boots the distro so"
-  say "  systemd starts Agent Hub. It runs as your Windows user, no admin rights needed."
+  say "  systemd starts Paneful Manager. It runs as your Windows user, no admin rights needed."
   say "  The task only boots the distro: WSL stops an idle distro again after instanceIdleTimeout"
   say "  (default 15 s, [general] in %UserProfile%\\.wslconfig) and the VM after vmIdleTimeout ([wsl2])."
   if wslconfig_keeps_distro; then
@@ -278,7 +278,7 @@ install_windows_task() {
   ps="\$a = New-ScheduledTaskAction -Execute 'wsl.exe' -Argument '-d $distro --exec true';"
   ps="$ps \$t = New-ScheduledTaskTrigger -AtLogOn -User \"\$env:USERDOMAIN\\\$env:USERNAME\";"
   ps="$ps \$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5);"
-  ps="$ps Register-ScheduledTask -TaskName '$task' -Description 'Boots the WSL distro $distro for Agent Hub' -Action \$a -Trigger \$t -Settings \$s -Force | Out-Null"
+  ps="$ps Register-ScheduledTask -TaskName '$task' -Description 'Boots the WSL distro $distro for Paneful Manager' -Action \$a -Trigger \$t -Settings \$s -Force | Out-Null"
   if ! run powershell.exe -NoProfile -NonInteractive -Command "$ps"; then
     warn "Registering the task failed. See docs/install.md (Windows logon task) for the manual steps."
   fi
@@ -334,7 +334,7 @@ handle_missing_systemd() {
   if ! is_wsl; then
     warn "The systemd user manager is not reachable (systemctl --user failed)."
     say "  Start the server manually: $(command -v node) $CURRENT_LINK/apps/server/dist/index.js"
-    say "  and the tmux server: tmux -L agent-hub -f $STATE_DIR/tmux.conf start-server"
+    say "  and the tmux server: tmux -L paneful-manager -f $STATE_DIR/tmux.conf start-server"
     return 0
   fi
   info "systemd is not running in this WSL distro"
@@ -343,7 +343,7 @@ handle_missing_systemd() {
   elif [ "$NO_WSL_CONF" -eq 1 ]; then
     say "  Enable it yourself: add '[boot]' and 'systemd=true' to $WSL_CONF."
   else
-    say "  Agent Hub runs as systemd user services. WSL enables systemd with"
+    say "  Paneful Manager runs as systemd user services. WSL enables systemd with"
     say "  '[boot]' + 'systemd=true' in $WSL_CONF (needs sudo; other settings are kept, a backup is written)."
     if confirm "Enable systemd in $WSL_CONF now?" y; then
       tmp=$(mktemp)
@@ -356,7 +356,7 @@ handle_missing_systemd() {
         sed 's/^/    | /' "$tmp"
       fi
       if [ -f "$WSL_CONF" ]; then
-        run sudo cp -p "$WSL_CONF" "$WSL_CONF.agent-hub.bak"
+        run sudo cp -p "$WSL_CONF" "$WSL_CONF.paneful-manager.bak"
       fi
       run sudo install -m 0644 "$tmp" "$WSL_CONF"
       rm -f "$tmp"
@@ -378,7 +378,7 @@ check_requirements() {
   if is_wsl; then
     say "  WSL detected"
   else
-    warn "This does not look like WSL. Agent Hub targets WSL2; continuing on plain Linux."
+    warn "This does not look like WSL. Paneful Manager targets WSL2; continuing on plain Linux."
   fi
   command -v node >/dev/null 2>&1 || die "Node.js $MIN_NODE_MAJOR or later is required (https://nodejs.org)"
   NODE_BIN=$(command -v node)
@@ -477,8 +477,8 @@ gh_curl() {
 
 die_private_hint() {
   printf '%s\n' "Error: $1 (HTTP 404)" \
-    "  $AGENT_HUB_REPO may be private: GitHub answers 404 to anonymous requests for private repositories." \
-    "  Set GITHUB_TOKEN to a fine-grained token with read-only Contents access to $AGENT_HUB_REPO," \
+    "  $PANEFUL_MANAGER_REPO may be private: GitHub answers 404 to anonymous requests for private repositories." \
+    "  Set GITHUB_TOKEN to a fine-grained token with read-only Contents access to $PANEFUL_MANAGER_REPO," \
     "  or log in with 'gh auth login', then re-run the installer. Without a token: download the release" \
     "  with 'gh release download' and pass the tarball to --from-source (see docs/install.md)." >&2
   exit 1
@@ -497,22 +497,22 @@ resolve_release_api() {
   info "Looking up the release through the GitHub API (token from $TOKEN_SOURCE)"
   json=$(mktemp)
   code=$(gh_curl -sSL -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' \
-    -o "$json" -w '%{http_code}' "https://api.github.com/repos/$AGENT_HUB_REPO/$path") || code=000
+    -o "$json" -w '%{http_code}' "https://api.github.com/repos/$PANEFUL_MANAGER_REPO/$path") || code=000
   case "$code" in
     200) ;;
     401) rm -f "$json"; die "GitHub rejected the token from $TOKEN_SOURCE (HTTP 401): it is invalid or expired" ;;
     403|404)
       rm -f "$json"
-      die "No release '$VERSION' found in $AGENT_HUB_REPO (HTTP $code). The token from $TOKEN_SOURCE needs read access to it (fine-grained: Contents read-only)"
+      die "No release '$VERSION' found in $PANEFUL_MANAGER_REPO (HTTP $code). The token from $TOKEN_SOURCE needs read access to it (fine-grained: Contents read-only)"
       ;;
-    *) rm -f "$json"; die "GitHub API request for $AGENT_HUB_REPO failed (HTTP $code)" ;;
+    *) rm -f "$json"; die "GitHub API request for $PANEFUL_MANAGER_REPO failed (HTTP $code)" ;;
   esac
   parsed=$(node -e '
     const release = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))
     const tag = String(release.tag_name || "")
     const url = name => String(((release.assets || []).find(a => a.name === name) || {}).url || "")
-    console.log([tag, url(`agent-hub-${tag}.tar.gz`), url(`agent-hub-${tag}.tar.gz.sha256`)].join("\n"))
-  ' "$json") || { rm -f "$json"; die "Cannot read the GitHub API answer for $AGENT_HUB_REPO"; }
+    console.log([tag, url(`paneful-manager-${tag}.tar.gz`), url(`paneful-manager-${tag}.tar.gz.sha256`)].join("\n"))
+  ' "$json") || { rm -f "$json"; die "Cannot read the GitHub API answer for $PANEFUL_MANAGER_REPO"; }
   rm -f "$json"
   TAG=$(printf '%s\n' "$parsed" | sed -n 1p)
   TARBALL_URL=$(printf '%s\n' "$parsed" | sed -n 2p)
@@ -520,7 +520,7 @@ resolve_release_api() {
   case "$TAG" in
     ''|*[!A-Za-z0-9._-]*) die "Invalid release tag in the GitHub API answer: '$TAG'" ;;
   esac
-  [ -n "$TARBALL_URL" ] || die "Release '$TAG' of $AGENT_HUB_REPO has no asset agent-hub-$TAG.tar.gz"
+  [ -n "$TARBALL_URL" ] || die "Release '$TAG' of $PANEFUL_MANAGER_REPO has no asset paneful-manager-$TAG.tar.gz"
   for asset_url in "$TARBALL_URL" "$SHA_URL"; do
     case "$asset_url" in
       ''|https://api.github.com/repos/*/*/releases/assets/[0-9]*) ;;
@@ -537,9 +537,9 @@ resolve_tag() {
       TAG="v$(node -p 'require(process.argv[1]).version' "$FROM_SOURCE/package.json")"
     elif [ -f "$FROM_SOURCE" ]; then
       base=$(basename "$FROM_SOURCE")
-      TAG=${base#agent-hub-}
+      TAG=${base#paneful-manager-}
       TAG=${TAG%.tar.gz}
-      [ "$TAG" != "$base" ] || die "Tarball name must be agent-hub-<tag>.tar.gz"
+      [ "$TAG" != "$base" ] || die "Tarball name must be paneful-manager-<tag>.tar.gz"
     else
       die "--from-source path not found: $FROM_SOURCE"
     fi
@@ -548,26 +548,26 @@ resolve_tag() {
   elif load_token; then
     resolve_release_api
   elif [ "$VERSION" = latest ]; then
-    out=$(curl -sSLI --proto '=https' --tlsv1.2 -o /dev/null -w '%{http_code} %{url_effective}' "https://github.com/$AGENT_HUB_REPO/releases/latest") ||
-      die "Cannot resolve the latest release of $AGENT_HUB_REPO"
+    out=$(curl -sSLI --proto '=https' --tlsv1.2 -o /dev/null -w '%{http_code} %{url_effective}' "https://github.com/$PANEFUL_MANAGER_REPO/releases/latest") ||
+      die "Cannot resolve the latest release of $PANEFUL_MANAGER_REPO"
     code=${out%% *}
-    [ "$code" != 404 ] || die_private_hint "Cannot resolve the latest release of $AGENT_HUB_REPO"
-    [ "$code" = 200 ] || die "Cannot resolve the latest release of $AGENT_HUB_REPO (HTTP $code)"
+    [ "$code" != 404 ] || die_private_hint "Cannot resolve the latest release of $PANEFUL_MANAGER_REPO"
+    [ "$code" = 200 ] || die "Cannot resolve the latest release of $PANEFUL_MANAGER_REPO (HTTP $code)"
     url=${out#* }
     TAG=${url##*/}
   else
     TAG=$VERSION
   fi
   case "$TAG" in
-    ''|latest|releases|*[!A-Za-z0-9._-]*) die "Invalid release tag: '$TAG' (does $AGENT_HUB_REPO have a published release?)" ;;
+    ''|latest|releases|*[!A-Za-z0-9._-]*) die "Invalid release tag: '$TAG' (does $PANEFUL_MANAGER_REPO have a published release?)" ;;
   esac
 }
 
-# fetch_tarball <dir>: leaves agent-hub-<tag>.tar.gz in <dir>; downloads need a .sha256 unless --no-verify.
+# fetch_tarball <dir>: leaves paneful-manager-<tag>.tar.gz in <dir>; downloads need a .sha256 unless --no-verify.
 fetch_tarball() {
-  name="agent-hub-$TAG.tar.gz"
+  name="paneful-manager-$TAG.tar.gz"
   if [ -d "$FROM_SOURCE" ]; then
-    [ -f "$FROM_SOURCE/scripts/release-pack.sh" ] || die "$FROM_SOURCE is not an Agent Hub source checkout"
+    [ -f "$FROM_SOURCE/scripts/release-pack.sh" ] || die "$FROM_SOURCE is not a Paneful Manager source checkout"
     if [ ! -f "$FROM_SOURCE/apps/server/dist/index.js" ] || [ ! -f "$FROM_SOURCE/apps/web/dist/index.html" ]; then
       die "$FROM_SOURCE is not built: run 'pnpm install && pnpm build' there first"
     fi
@@ -582,7 +582,7 @@ fetch_tarball() {
       gh_curl -fsSL -H 'Accept: application/octet-stream' -o "$1/$name.sha256" "$SHA_URL" 2>/dev/null || rm -f "$1/$name.sha256"
     fi
   else
-    base="https://github.com/$AGENT_HUB_REPO/releases/download/$TAG"
+    base="https://github.com/$PANEFUL_MANAGER_REPO/releases/download/$TAG"
     say "  Downloading $base/$name"
     code=$(curl -SL --proto '=https' --tlsv1.2 -o "$1/$name" -w '%{http_code}' "$base/$name") || die "Download failed: $base/$name"
     [ "$code" != 404 ] || die_private_hint "Download failed: $base/$name"
@@ -605,7 +605,7 @@ fetch_tarball() {
 
 # render <template> <out>: replaces @KEY@ placeholders; PATH and LANG are escaped for quoted Environment= lines.
 render_unit() {
-  R_REPO=$AGENT_HUB_REPO R_PORT=$EFFECTIVE_PORT R_PREFIX=$PREFIX R_NODE=$NODE_BIN R_TMUX=$TMUX_BIN \
+  R_REPO=$PANEFUL_MANAGER_REPO R_PORT=$EFFECTIVE_PORT R_PREFIX=$PREFIX R_NODE=$NODE_BIN R_TMUX=$TMUX_BIN \
     R_STATE_DIR=$STATE_DIR R_CONFIG_HOME=$CONFIG_HOME R_STATE_HOME=$STATE_HOME \
     R_PATH=$PATH R_LANG=${LANG:-C.UTF-8} \
     node -e '
@@ -629,7 +629,7 @@ render_unit() {
 
 unit_port() {
   [ -f "$UNIT_DIR/$SERVER_UNIT" ] || return 1
-  sed -n 's/^Environment=AGENT_HUB_PORT=\([0-9][0-9]*\)$/\1/p' "$UNIT_DIR/$SERVER_UNIT" | head -n 1
+  sed -n 's/^Environment=PANEFUL_MANAGER_PORT=\([0-9][0-9]*\)$/\1/p' "$UNIT_DIR/$SERVER_UNIT" | head -n 1
 }
 
 configured_port() {
@@ -646,7 +646,7 @@ install_release() {
   trap 'exit 130' INT TERM
   fetch_tarball "$work"
   mkdir "$work/release"
-  tar -xzf "$work/agent-hub-$TAG.tar.gz" -C "$work/release" --strip-components=1 --no-same-owner
+  tar -xzf "$work/paneful-manager-$TAG.tar.gz" -C "$work/release" --strip-components=1 --no-same-owner
   [ -f "$work/release/apps/server/dist/index.js" ] || die "Release $TAG is missing apps/server/dist/index.js"
   if [ -d "$work/release/node_modules" ] && (cd "$work/release/apps/server" && node -e "require('node-pty')") >/dev/null 2>&1; then
     info "Using the prebuilt production dependencies"
@@ -655,7 +655,7 @@ install_release() {
     ensure_build_tools
     ensure_pnpm "$work/release"
     info "Installing production dependencies (compiles node-pty)"
-    (cd "$work/release" && CI=true pnpm install --prod --frozen-lockfile --filter '@agent-hub/server...') ||
+    (cd "$work/release" && CI=true pnpm install --prod --frozen-lockfile --filter '@paneful-manager/server...') ||
       die "pnpm install failed. If node-pty failed to build, see 'node-pty build failure' in docs/install.md"
   fi
   if [ -e "$RELEASES_DIR/$TAG" ]; then
@@ -691,7 +691,7 @@ prune_releases() {
 }
 
 write_marker() {
-  [ "$DRY_RUN" -eq 1 ] || printf 'agent-hub %s\n' "$1" >"$MARKER"
+  [ "$DRY_RUN" -eq 1 ] || printf 'paneful-manager %s\n' "$1" >"$MARKER"
 }
 
 write_config() {
@@ -715,7 +715,7 @@ write_config() {
   fi
   run mkdir -p "$CONFIG_DIR"
   say "  writing $CONFIG_FILE (port: $EFFECTIVE_PORT)"
-  [ "$DRY_RUN" -eq 1 ] || printf '# Agent Hub config, see docs/install.md\nport: %s\n' "$EFFECTIVE_PORT" >"$CONFIG_FILE"
+  [ "$DRY_RUN" -eq 1 ] || printf '# Paneful Manager config, see docs/install.md\nport: %s\n' "$EFFECTIVE_PORT" >"$CONFIG_FILE"
   CHANGED=1
 }
 
@@ -746,7 +746,7 @@ write_units() {
       rm -f "$rendered"
     else
       say "  writing $UNIT_DIR/$unit"
-      tmp=$(mktemp "$UNIT_DIR/.agent-hub-unit.XXXXXX")
+      tmp=$(mktemp "$UNIT_DIR/.paneful-manager-unit.XXXXXX")
       cat "$rendered" >"$tmp"
       rm -f "$rendered"
       mv "$tmp" "$UNIT_DIR/$unit"
@@ -789,7 +789,7 @@ health_check() {
   waited=0
   while [ "$waited" -lt "$HEALTH_TIMEOUT_SEC" ]; do
     if curl -fsS --max-time 5 "http://127.0.0.1:$EFFECTIVE_PORT/api/health" >/dev/null 2>&1; then
-      say "  Agent Hub is up: http://127.0.0.1:$EFFECTIVE_PORT/"
+      say "  Paneful Manager is up: http://127.0.0.1:$EFFECTIVE_PORT/"
       return 0
     fi
     sleep 1
@@ -809,7 +809,7 @@ print_login_url() {
     warn "Could not write $STATE_DIR/login-code"
     return 1
   fi
-  say "  Open this login URL in the browser you use for Agent Hub (it works once, within 10 minutes):"
+  say "  Open this login URL in the browser you use for Paneful Manager (it works once, within 10 minutes):"
   say "  http://127.0.0.1:$1/#login=$code"
   say "  For another browser, or later, print a new one with: $CURRENT_LINK/install.sh --login-url"
 }
@@ -829,7 +829,7 @@ do_install() {
   require_plain_path "$TMUX_BIN" "tmux path"
 
   if [ -d "$PREFIX" ] && [ ! -f "$MARKER" ] && [ -n "$(ls -A "$PREFIX")" ] && [ "$FORCE" -eq 0 ]; then
-    die "$PREFIX is not empty and has no Agent Hub install marker; choose another --prefix (or pass --force)"
+    die "$PREFIX is not empty and has no Paneful Manager install marker; choose another --prefix (or pass --force)"
   fi
   existing_port=$(unit_port || configured_port || true)
   EFFECTIVE_PORT=${PORT:-${existing_port:-$DEFAULT_PORT}}
@@ -851,7 +851,7 @@ do_install() {
     say "  - user units $TMUX_UNIT + $SERVER_UNIT in $UNIT_DIR, enabled and started; lingering enabled"
   fi
   say "  - port $EFFECTIVE_PORT"
-  if [ "$NEED_RELEASE" -eq 1 ] && [ -z "$FROM_SOURCE" ]; then say "  - source: https://github.com/$AGENT_HUB_REPO/releases/tag/$TAG"; fi
+  if [ "$NEED_RELEASE" -eq 1 ] && [ -z "$FROM_SOURCE" ]; then say "  - source: https://github.com/$PANEFUL_MANAGER_REPO/releases/tag/$TAG"; fi
   if [ "$NEED_RELEASE" -eq 1 ] || [ ! -f "$CONFIG_FILE" ]; then
     confirm "Continue?" y || die "Aborted"
   fi
@@ -882,11 +882,11 @@ do_install() {
   install_windows_task
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    say "Dry run finished: would install Agent Hub $TAG. Nothing was changed."
+    say "Dry run finished: would install Paneful Manager $TAG. Nothing was changed."
   elif [ "$CHANGED" -eq 0 ]; then
-    say "Agent Hub $TAG is already installed and up to date."
+    say "Paneful Manager $TAG is already installed and up to date."
   else
-    say "Agent Hub $TAG installed."
+    say "Paneful Manager $TAG installed."
   fi
   if [ "$SERVICES" -eq 1 ]; then health_check || exit 1; fi
   if [ "$DRY_RUN" -eq 1 ]; then :
@@ -901,7 +901,7 @@ do_install() {
 # ---------- rollback ----------
 
 do_rollback() {
-  [ -f "$MARKER" ] || die "No Agent Hub install found in $PREFIX"
+  [ -f "$MARKER" ] || die "No Paneful Manager install found in $PREFIX"
   current=$(release_tag_of "$CURRENT_LINK" || true)
   previous=$(release_tag_of "$PREVIOUS_LINK" || true)
   if [ -z "$previous" ] || [ ! -d "$RELEASES_DIR/$previous" ]; then die "No previous release to roll back to"; fi
@@ -922,17 +922,34 @@ do_rollback() {
 
 # ---------- uninstall ----------
 
+# Removes a pre-rename agent-hub install (units and prefix); only when its install marker exists.
+remove_legacy_install() {
+  legacy_prefix=$DATA_HOME/agent-hub
+  [ -f "$legacy_prefix/.agent-hub-install" ] || return 0
+  info "Leftover agent-hub install in $legacy_prefix"
+  if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then
+    run systemctl --user disable --now agent-hub.service agent-hub-tmux.service || warn "Disabling the old units failed"
+  fi
+  run rm -f "$UNIT_DIR/agent-hub.service" "$UNIT_DIR/agent-hub-tmux.service"
+  if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then
+    run systemctl --user daemon-reload || true
+  fi
+  run rm -rf "$legacy_prefix/releases"
+  run rm -f "$legacy_prefix/current" "$legacy_prefix/previous" "$legacy_prefix/.agent-hub-install"
+  [ "$DRY_RUN" -eq 1 ] || rmdir "$legacy_prefix" 2>/dev/null || say "  kept $legacy_prefix (it contains other files)"
+}
+
 do_uninstall() {
   if [ -d "$PREFIX" ] && [ ! -f "$MARKER" ] && [ -n "$(ls -A "$PREFIX")" ]; then
-    die "$PREFIX has no Agent Hub install marker ($MARKER); refusing to delete anything"
+    die "$PREFIX has no Paneful Manager install marker ($MARKER); refusing to delete anything"
   fi
   info "Plan"
-  say "  - stop and disable $SERVER_UNIT and $TMUX_UNIT (ends all running Agent Hub sessions)"
+  say "  - stop and disable $SERVER_UNIT and $TMUX_UNIT (ends all running Paneful Manager sessions)"
   say "  - remove $UNIT_DIR/$SERVER_UNIT and $UNIT_DIR/$TMUX_UNIT"
   say "  - remove releases/, current, previous and the install marker from $PREFIX (and $PREFIX if then empty)"
   say "  - ask whether to remove config ($CONFIG_DIR) and state ($STATE_DIR)"
   is_wsl && say "  - remove the Windows logon task if present"
-  confirm "Uninstall Agent Hub?" n || die "Aborted"
+  confirm "Uninstall Paneful Manager?" n || die "Aborted"
 
   if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then
     run systemctl --user disable --now "$SERVER_UNIT" "$TMUX_UNIT" || warn "Disabling the units failed"
@@ -951,7 +968,7 @@ do_uninstall() {
     if [ "$DRY_RUN" -eq 1 ] || rmdir "$PREFIX" 2>/dev/null; then
       say "  removed $PREFIX"
     else
-      say "  kept $PREFIX (it contains files Agent Hub did not install)"
+      say "  kept $PREFIX (it contains files Paneful Manager did not install)"
     fi
   fi
 
@@ -966,12 +983,13 @@ do_uninstall() {
     fi
   done
   remove_windows_task
+  remove_legacy_install
 
-  say "Agent Hub uninstalled."
+  say "Paneful Manager uninstalled."
   say "  Lingering stays enabled (other user services may need it): loginctl disable-linger $USER_NAME"
   if is_wsl && wsl_conf_has_systemd; then
     say "  $WSL_CONF still enables systemd. To revert, remove 'systemd=true' from [boot]"
-    say "  (a backup may exist at $WSL_CONF.agent-hub.bak), then run 'wsl.exe --shutdown' in Windows."
+    say "  (a backup may exist at $WSL_CONF.paneful-manager.bak), then run 'wsl.exe --shutdown' in Windows."
   fi
 }
 

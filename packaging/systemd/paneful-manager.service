@@ -1,15 +1,15 @@
 # Installed by install.sh; @...@ placeholders are replaced at install time.
-# Restarting this unit never touches the tmux sessions (they belong to agent-hub-tmux.service).
+# Restarting this unit never touches the tmux sessions (they belong to paneful-manager-tmux.service).
 [Unit]
-Description=Agent Hub server
+Description=Paneful Manager server
 Documentation=https://github.com/@REPO@
-Wants=agent-hub-tmux.service
-After=agent-hub-tmux.service
+Wants=paneful-manager-tmux.service
+After=paneful-manager-tmux.service
 
 [Service]
 Type=simple
 Environment=NODE_ENV=production
-Environment=AGENT_HUB_PORT=@PORT@
+Environment=PANEFUL_MANAGER_PORT=@PORT@
 Environment=XDG_CONFIG_HOME=@CONFIG_HOME@
 Environment=XDG_STATE_HOME=@STATE_HOME@
 Environment="PATH=@PATH@"
