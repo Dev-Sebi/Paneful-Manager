@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 import { spawnSync } from 'node:child_process'
 import { expect, test } from '@playwright/test'
+import { E2E_ACCESS_KEY } from './access'
 
 const hasTmux = spawnSync('tmux', ['-V'], { stdio: 'ignore' }).status === 0
 
@@ -12,7 +13,7 @@ async function lines (rows: Locator): Promise<string[]> {
 }
 
 async function sessionSize (page: Page, id: string) {
-  const response = await page.request.get('/api/sessions')
+  const response = await page.request.get('/api/sessions', { headers: { 'x-agent-hub-key': E2E_ACCESS_KEY } })
   const { sessions } = await response.json() as { sessions: Array<{ id: string, cols: number, rows: number }> }
   return sessions.find(session => session.id === id)
 }

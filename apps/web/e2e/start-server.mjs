@@ -44,6 +44,11 @@ for (const dir of Object.values(dirs)) {
   mkdirSync(dir, { recursive: true })
 }
 writeFileSync(join(root, 'pid'), String(process.pid))
+// The server keeps an existing access key, so the specs know it up front (see e2e/access.ts).
+if (process.env.AGENT_HUB_E2E_ACCESS_KEY) {
+  mkdirSync(join(dirs.state, 'agent-hub'), { recursive: true, mode: 0o700 })
+  writeFileSync(join(dirs.state, 'agent-hub', 'access-key'), `${process.env.AGENT_HUB_E2E_ACCESS_KEY}\n`, { mode: 0o600 })
+}
 // Specs run in other processes; this file tells them where the isolated state lives.
 const pathsFile = join(tmpdir(), 'ah-e2e-paths.json')
 writeFileSync(pathsFile, JSON.stringify({ state: join(dirs.state, 'agent-hub'), config: join(dirs.config, 'agent-hub') }), { mode: 0o600 })

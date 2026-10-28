@@ -25,6 +25,29 @@ describe('api client', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
+  it('sends the stored access key on every request', async () => {
+    localStorage.setItem('agent-hub.access-key.v1', 'the-key')
+    const { fetchJson } = await load()
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+      .mockResolvedValueOnce(jsonResponse({ token: 't1' }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+    await fetchJson('/api/x', { schema })
+    await fetchJson('/api/x', { schema, method: 'POST' })
+    for (const call of fetchMock.mock.calls) {
+      expect(new Headers(call[1]?.headers).get('x-agent-hub-key')).toBe('the-key')
+    }
+    localStorage.clear()
+  })
+
+  it('shows the login hint when the server rejects the key', async () => {
+    const { fetchJson } = await load()
+    const { loginRequired } = await import('./access')
+    fetchMock.mockResolvedValueOnce(jsonResponse({ code: 'login_required', message: 'no key' }, 401))
+    await expect(fetchJson('/api/x', { schema })).rejects.toMatchObject({ status: 401, code: 'login_required' })
+    expect(loginRequired.value).toBe(true)
+  })
+
   it('sends GET requests without fetching a token', async () => {
     const { fetchJson } = await load()
     fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }))

@@ -40,7 +40,7 @@ function write(root: string, rel: string, content: string | Buffer): void {
 function send(options: InjectOptions) {
   return app.inject({
     ...options,
-    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-agent-hub-token': TOKEN, ...options.headers },
+    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN, ...options.headers },
   })
 }
 
@@ -84,6 +84,7 @@ beforeEach(() => {
     config: DEFAULT_CONFIG,
     logger: pino({ level: 'silent' }),
     sessionToken: TOKEN,
+    accessKey: TOKEN,
     dev: false,
     worktrees: { getScopes: async () => scopes, backups: createBackupStore({ dir: backupDir }) },
   })

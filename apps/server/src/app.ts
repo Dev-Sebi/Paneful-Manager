@@ -48,6 +48,8 @@ export interface BuildAppOptions {
   logger: FastifyBaseLogger
   /** Per-boot token; generated when omitted. */
   sessionToken?: string
+  /** Persisted access key every API request must carry; loaded from the state directory by `startServer`. */
+  accessKey: string
   /** Allows the Vite dev origins; defaults to `NODE_ENV === 'development'`. */
   dev?: boolean
   /** Extra dev origins (see `parseDevOrigins`); only used when `dev` is on. */
@@ -123,7 +125,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], engine, files, presets, worktrees, mcp, configStore, teams, teamTemplates, webDist, hookToken, hookSettings }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, accessKey, dev, devOrigins = [], engine, files, presets, worktrees, mcp, configStore, teams, teamTemplates, webDist, hookToken, hookSettings }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -138,7 +140,7 @@ export function buildApp({ config, logger, sessionToken, dev, devOrigins = [], e
   }
   const token = sessionToken ?? createSessionToken()
   const isDev = dev ?? process.env.NODE_ENV === 'development'
-  registerSecurity(app, { getPort, token, dev: isDev, devOrigins })
+  registerSecurity(app, { getPort, token, accessKey, dev: isDev, devOrigins })
   registerCore(app, engine)
   const store = configStore ?? createConfigStore(config)
   registerConfig(app, { store })

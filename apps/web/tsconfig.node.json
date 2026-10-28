@@ -4,6 +4,7 @@
     "vite.config.*",
     "vitest.config.*",
     "playwright.config.*",
+    "e2e/access.ts",
     "scripts/**/*"
   ],
   "compilerOptions": {

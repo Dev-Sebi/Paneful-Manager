@@ -138,7 +138,7 @@ The frame catalogue is in [Shared contracts](#websocket-protocol). This section 
 sequenceDiagram
     participant C as Browser
     participant S as Server
-    C->>S: GET /api/session-token
+    C->>S: GET /api/session-token, X-Agent-Hub-Key
     S-->>C: token
     C->>S: GET /ws?v=1, Sec-WebSocket-Protocol agent-hub.v1 + token.t
     Note over S: Host, Origin, token, version checked before upgrade
@@ -153,7 +153,7 @@ sequenceDiagram
     end
 ```
 
-1. Before every connect the client fetches the current per-boot token from `GET /api/session-token` (route name fixed, added to `API_ROUTES` in T11). It opens one socket per browser tab at `/ws?v=<WS_PROTOCOL_VERSION>` with the subprotocols `agent-hub.v1` and `token.<token>` (`new WebSocket(url, ['agent-hub.v1', 'token.' + token])`). The server validates the token entry and echoes only `agent-hub.v1`. Browsers cannot set other headers on WebSocket requests; the subprotocol header keeps the token out of URLs and access logs.
+1. Before every connect the client fetches the current per-boot token from `GET /api/session-token` (route name fixed, added to `API_ROUTES` in T11), sending the access key. It opens one socket per browser tab at `/ws?v=<WS_PROTOCOL_VERSION>` with the subprotocols `agent-hub.v1` and `token.<token>` (`new WebSocket(url, ['agent-hub.v1', 'token.' + token])`). The server validates the token entry and echoes only `agent-hub.v1`. Browsers cannot set other headers on WebSocket requests; the subprotocol header keeps the token out of URLs and access logs.
 2. It sends `attach` for every pane that is visible. Hidden app tabs are detached to save bandwidth and re-attached when shown.
 3. `session.created`, `session.removed` and `state` frames are broadcast to every connection, attached or not, so sidebars stay current.
 4. Invalid frames get `error bad_message` and are ignored; the connection stays open.
@@ -261,7 +261,7 @@ flowchart LR
 
 ## Security model
 
-Agent Hub is a single-user tool on loopback. The main attacker is a web page open in the same browser, not another user on the machine. The Origin check is the primary CSRF control; the token is defense in depth. `POST /api/hooks` takes its own path (hook token, see below). All request checks live in `apps/server/src/security/` and run in one `onRequest` hook (`registerSecurity`) before routing, so they also cover unknown routes.
+Agent Hub is a single-user tool on loopback. The main attacker is a web page open in the same browser; other OS users on the same machine are kept out by the access key ([ADR 0013](adr/0013-access-key-against-local-users.md)). The Origin check is the primary CSRF control; the token is defense in depth. `POST /api/hooks` takes its own path (hook token, see below). All request checks live in `apps/server/src/security/` and run in one `onRequest` hook (`registerSecurity`) before routing, so they also cover unknown routes.
 
 ```mermaid
 flowchart LR
@@ -277,8 +277,12 @@ flowchart LR
   HT -- yes --> OK
   K -- no --> O{Origin present and not allowed?}
   O -- yes --> X403
-  O -- no --> M{Mutating?}
-  M -- no --> OK[Handle]
+  O -- no --> P{GET/HEAD /api/health or not /api?}
+  P -- yes --> OK[Handle]
+  P -- no --> AK{Access key valid?}
+  AK -- no --> X401L[401 login_required]
+  AK -- yes --> M{Mutating?}
+  M -- no --> OK
   M -- yes --> T{Origin present and token valid?}
   T -- no --> X401[401 unauthorized]
   T -- yes --> OK
@@ -289,14 +293,15 @@ flowchart LR
 | Loopback bind | `127.0.0.1` only (`BIND_HOST`), not configurable. After `listen`, `startServer` asserts that the bound address is `127.0.0.1` and closes the server otherwise (the process exits 1). WSL localhost forwarding makes it reachable from the Windows browser (assumed, verify in T60). |
 | Host allowlist | `localhost:<port>`, `127.0.0.1:<port>`, `[::1]:<port>` and bare `localhost` (case-insensitive), else `403 forbidden` on every route. Blocks DNS rebinding, where an attacker domain resolves to 127.0.0.1. No dev Host is allowed: in development the UI on `:3000` reaches the server only through the Vite proxy (`/api` and `/ws`, `changeOrigin: true`, `ws: true`; config lands in T22), which rewrites Host to the server's. Reusable as `isAllowedHost(host, port)`. |
 | Origin allowlist | Checked on every request that carries `Origin`, and required on every mutating request except `POST /api/hooks`. Allowed: exactly `http://localhost:<port>`, `http://127.0.0.1:<port>` or `http://[::1]:<port>`; with `NODE_ENV=development` also `http://localhost:3000` / `http://127.0.0.1:3000` (Vite). A mismatch, including `null`, is `403`; a missing `Origin` on a mutation is `401`. Reads without `Origin` pass. No CORS headers are ever sent. Reusable as `isAllowedOrigin(origin, port, dev)`. |
-| Per-boot token | `randomBytes(32)` base64url generated at startup, kept in memory, new on every restart. Required as `X-Agent-Hub-Token` (`SESSION_TOKEN_HEADER`) on every `POST`/`PUT`/`PATCH`/`DELETE` (except `POST /api/hooks`) and as `token.<t>` subprotocol on `/ws`; compared in constant time (SHA-256 + `timingSafeEqual`); missing or wrong is `401 unauthorized`. `GET /api/health` stays token-free. The SPA fetches it from `GET /api/session-token` (`SessionTokenResponseSchema`) before every WS connect and once more after any `401`/`403`. That route sits behind the Host and Origin checks and also rejects `Sec-Fetch-Site: cross-site`; without CORS headers other origins cannot read it. |
+| Access key | `randomBytes(32)` base64url, created once in `$STATE/access-key` (`0600`, state dir `0700`) by `loadAccessKey` and kept across restarts. Required as `X-Agent-Hub-Key` (`ACCESS_KEY_HEADER`) on every `/api/*` request, reads included, except `GET`/`HEAD /api/health` and `POST /api/hooks`; constant-time compare; missing or wrong is `401 login_required`. The browser gets it from the login URL `http://localhost:<port>/#key=<key>` (printed by the installer, `install.sh --login-url` or `pnpm login-url [--port <n>]`): the SPA reads the fragment before the router starts, stores the key in `localStorage` (`agent-hub.access-key.v1`, scoped to the origin) and removes the fragment. Without a key, or after `401 login_required`, the shell shows only the login hint. Keeps other OS users out; see [ADR 0013](adr/0013-access-key-against-local-users.md). |
+| Per-boot token | `randomBytes(32)` base64url generated at startup, kept in memory, new on every restart. Required as `X-Agent-Hub-Token` (`SESSION_TOKEN_HEADER`) on every `POST`/`PUT`/`PATCH`/`DELETE` (except `POST /api/hooks`) and as `token.<t>` subprotocol on `/ws`; compared in constant time (SHA-256 + `timingSafeEqual`); missing or wrong is `401 unauthorized`. `GET /api/health` stays token-free. The SPA fetches it from `GET /api/session-token` (`SessionTokenResponseSchema`) before every WS connect and once more after any `401`/`403`. That route needs the access key, sits behind the Host and Origin checks and also rejects `Sec-Fetch-Site: cross-site`; without CORS headers other origins cannot read it. |
 | WebSocket upgrade | `authorizeUpgrade(req, { port, token, dev })`: Host allowed, `Origin` present and allowed, `Sec-WebSocket-Protocol` offers `agent-hub.v1` (`WS_SUBPROTOCOL`) and exactly one `token.<token>`. The server echoes only `agent-hub.v1`. No token in the query string. |
 | Hook token | Separate random token in `$STATE/hook-token` (`0600`), stable across restarts because re-adopted sessions keep their environment. Only valid on `POST /api/hooks` (`API_ROUTES.hooks`), which is exempt from the per-boot token (`POST` only; other methods need it) and rejects any request that carries an `Origin` header (Claude Code sends none; browsers always do). The route checks `X-Agent-Hub-Hook-Token` (`HOOK_TOKEN_HEADER`, constant time, `401` otherwise) before the body is parsed; a request with both hook headers empty comes from a Claude session not started by Agent Hub and gets `204`. |
 | Process spawning | `run(file, args, { cwd, timeoutMs, maxBuffer, env })` in `src/process/exec.ts`: `spawn` with an argument array, `shell: false` and `detached: true` (own process group); on timeout or output overflow the whole group gets `SIGKILL`. Rejects with `RunError` (`exit`/`signal`/`timeout`/`max-buffer`/`spawn`) unless exit code 0. The child env is `PATH`, `HOME`, `LANG`, `LC_ALL`, `USER`, `TMPDIR`, `SHELL` from the server env, overridden by the caller's `env`. node-pty also takes argument arrays only; commands after `--` in `new-session`. ESLint bans in `apps/server`: `exec`/`execSync` imports, default/namespace/dynamic `child_process` imports, a `shell` option other than `false` in `spawn`/`execFile`/`fork` calls, and options passed as a variable or spread there. |
 | Path allowlist | `createAllowlist(roots).resolveInside(candidate)` in `src/fs/allowlist.ts`: rejects empty, relative and NUL-byte paths, `~`-expands, `path.resolve`s, then `realpath`s the candidate (or its nearest existing parent for new files) and checks it against the `realpath` of each root (`path.relative`, no `..` segment). `..` and symlink escapes, and paths through dangling links, fail with `403 forbidden`. Callers must use the returned path; writers use temp file + rename in the resolved directory (TOCTOU). |
 | Security headers | Every response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`; `/api/*` also `Cache-Control: no-store`. HTML responses of the SPA carry a strict CSP (`CONTENT_SECURITY_POLICY` in `apps/server/src/static.ts`). |
 | No secrets to the browser | MCP `env` and `headers` values are masked as `{ masked: true, set }` in API responses (except `PATH`, `HOME`, `NODE_ENV`, `LOG_LEVEL`); `{ keep: true }` on save keeps the stored value. |
-| Logging | pino `redact` removes the `authorization`, `x-agent-hub-token`, `x-agent-hub-hook-token` and `sec-websocket-protocol` request headers. Query strings carry no secrets. |
+| Logging | pino `redact` removes the `authorization`, `x-agent-hub-key`, `x-agent-hub-token`, `x-agent-hub-hook-token` and `sec-websocket-protocol` request headers. Query strings carry no secrets. |
 | Validation | Every REST body and WS frame is parsed with strict zod schemas; unknown keys fail. |
 
 ### Threats
@@ -314,7 +319,7 @@ flowchart LR
 | Oversized frames / memory exhaustion | yes | `maxPayload`, backpressure limits, 1 MiB body limit, bounded `run()` output |
 | Exposure to the LAN | yes | Loopback bind only, asserted after listen; user-made port proxies are out of scope |
 | Other local processes of the same user | no | They can already read `~/.claude` and run `claude` |
-| Other OS users on a shared machine | no | v1 targets personal machines; the token is only a partial barrier |
+| Other OS users on a shared machine | yes | Access key in an owner-only file on every API request; the per-boot token is only handed out with it ([ADR 0013](adr/0013-access-key-against-local-users.md)) |
 | Malicious repository content (CLAUDE.md, skills, MCP servers in a project) | no | Claude Code's own trust model applies |
 | Supply-chain attacks on dependencies | partly | Lockfile with `--frozen-lockfile` in CI, Dependabot update PRs |
 
@@ -436,6 +441,7 @@ examples/          config.yaml and preset examples, validated by tests
 | Command | Effect |
 | --- | --- |
 | `pnpm dev` | Builds `@agent-hub/shared`, then runs in parallel: shared `tsc --watch`, server `tsx watch`, web Vite dev server. Vite proxies `/api` and `/ws` to the server port (set up with the server skeleton). |
+| `pnpm login-url [--port <n>]` | Prints the login URL with the access key of the server's state directory; `--port 3000` for the Vite dev server. |
 | `pnpm build` | `tsc` for shared and server, `vite build` for web. In production the server serves `apps/web/dist` and the SPA uses relative URLs, so one origin serves everything. |
 | `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint (flat config, `eslint-config-vuetify` + `typescript-eslint`), `tsc`/`vue-tsc --noEmit`, vitest per package. |
 | `pnpm e2e` | Playwright end-to-end tests in `apps/web`; see [Running the e2e suite](#running-the-e2e-suite). |
@@ -453,7 +459,7 @@ Design tokens flow from `docs/design-system/tokens.json` through a build script 
 
 ### Running the e2e suite
 
-Install the browser once with `pnpm --dir apps/web exec playwright install chromium`, then run `pnpm e2e`. Playwright builds the server and starts it on port 7340 together with Vite on 3001, using a private tmux socket and temporary state and config directories, so a running Agent Hub is never touched. Specs that need sessions require `tmux` on the `PATH` and skip without it. Specs reach the server through `apps/web/e2e/support.ts`, which also reads the hook token from the isolated state directory.
+Install the browser once with `pnpm --dir apps/web exec playwright install chromium`, then run `pnpm e2e`. Playwright builds the server and starts it on port 7340 together with Vite on 3001, using a private tmux socket and temporary state and config directories, so a running Agent Hub is never touched. Specs that need sessions require `tmux` on the `PATH` and skip without it. Specs reach the server through `apps/web/e2e/support.ts`, which also reads the hook token from the isolated state directory. The e2e server gets a fixed access key (`apps/web/e2e/access.ts`, written into the temporary state directory before start); every page starts with it in `localStorage` through `storageState`, and `login.spec.ts` covers the login URL itself.
 
 Dependabot (`.github/dependabot.yml`) opens dependency update pull requests. Required status checks for merging are a repository setting, not part of the repo.
 

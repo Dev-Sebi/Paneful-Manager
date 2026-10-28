@@ -123,7 +123,7 @@ class Client {
 }
 
 function mutationHeaders(json = false): Record<string, string> {
-  return { ...(json ? { 'content-type': 'application/json' } : {}), 'origin': baseUrl, [SESSION_TOKEN_HEADER]: TOKEN }
+  return { ...(json ? { 'content-type': 'application/json' } : {}), 'origin': baseUrl, 'x-agent-hub-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
 }
 
 async function createSession(body: Record<string, unknown>): Promise<string> {
@@ -145,7 +145,7 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     tmux('-f', conf, 'start-server')
     engine = newEngine()
     await engine.start()
-    app = buildApp({ config: DEFAULT_CONFIG, logger, engine, sessionToken: TOKEN, hookToken: HOOK_TOKEN, dev: false })
+    app = buildApp({ config: DEFAULT_CONFIG, logger, engine, sessionToken: TOKEN, accessKey: TOKEN, hookToken: HOOK_TOKEN, dev: false })
     await app.listen({ host: '127.0.0.1', port: 0 })
     const address = app.server.address()
     baseUrl = `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`
@@ -327,7 +327,7 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     } finally {
       await second.close()
     }
-    const response = await fetch(`${baseUrl}${API_ROUTES.sessions}`)
+    const response = await fetch(`${baseUrl}${API_ROUTES.sessions}`, { headers: { 'x-agent-hub-key': TOKEN } })
     expect(ListSessionsResponseSchema.parse(await response.json()).sessions.map(s => s.id)).toContain(kept)
   })
 

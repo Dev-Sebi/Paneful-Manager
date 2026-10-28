@@ -34,14 +34,14 @@ function start(fake: FakeRun, overrides: Partial<McpServiceOptions> & { logger?:
     home: box.home,
     ...overrides,
   })
-  app = buildApp({ config: DEFAULT_CONFIG, logger: overrides.logger ?? silentLogger, sessionToken: TOKEN, dev: false, mcp: { service } })
+  app = buildApp({ config: DEFAULT_CONFIG, logger: overrides.logger ?? silentLogger, sessionToken: TOKEN, accessKey: TOKEN, dev: false, mcp: { service } })
   return app
 }
 
 function send(target: FastifyInstance, options: InjectOptions) {
   return target.inject({
     ...options,
-    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-agent-hub-token': TOKEN, ...options.headers },
+    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN, ...options.headers },
   })
 }
 

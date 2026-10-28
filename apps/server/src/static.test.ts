@@ -29,8 +29,8 @@ afterEach(async () => {
 })
 
 function get(url: string) {
-  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: 't', dev: false, webDist: root })
-  return app.inject({ method: 'GET', url, headers: { host: `127.0.0.1:${DEFAULT_CONFIG.port}` } })
+  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: 't', accessKey: 't', dev: false, webDist: root })
+  return app.inject({ method: 'GET', url, headers: { host: `127.0.0.1:${DEFAULT_CONFIG.port}`, 'x-agent-hub-key': 't' } })
 }
 
 describe('static web app', () => {
@@ -73,7 +73,7 @@ describe('static web app', () => {
   })
 
   it('still applies the Host check', async () => {
-    app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: 't', dev: false, webDist: root })
+    app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: 't', accessKey: 't', dev: false, webDist: root })
     const response = await app.inject({ method: 'GET', url: '/', headers: { host: 'evil.example:7337' } })
     expect(response.statusCode).toBe(403)
   })

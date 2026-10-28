@@ -10,6 +10,7 @@ import { AppError } from './errors.js'
 import { assertBackupDirOutsideScopes } from './files/state-dir.js'
 import { createHookSettings, resolveClaudeSettingsPath } from './hooks/install.js'
 import { loadHookToken } from './hooks/token.js'
+import { loadAccessKey } from './security/access-key.js'
 import { createHealthRunner } from './mcp/health.js'
 import { createMcpService } from './mcp/service.js'
 import { expandHome } from './paths.js'
@@ -64,6 +65,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const getScopes = () => discoverScopes({ config: store.get(), env, logger })
   assertBackupDirOutsideScopes(backupDir, await getScopes())
   const hookToken = await loadHookToken(stateDir)
+  const accessKey = await loadAccessKey(stateDir)
   // The URL is only known after listen; sessions are created through the server, so never before that.
   let serverUrl = `http://${BIND_HOST}:${config.port}`
   const sessionEnv = (): Record<string, string> => ({ [HOOK_ENV.token]: hookToken, [HOOK_ENV.url]: serverUrl })
@@ -86,6 +88,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const app = buildApp({
     config,
     logger,
+    accessKey,
     devOrigins,
     files,
     engine,

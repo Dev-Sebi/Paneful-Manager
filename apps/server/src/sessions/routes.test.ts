@@ -17,7 +17,7 @@ const TOKEN = 'test-token'
 const local = {
   host: `localhost:${DEFAULT_CONFIG.port}`,
   origin: `http://localhost:${DEFAULT_CONFIG.port}`,
-  [SESSION_TOKEN_HEADER]: TOKEN,
+  'x-agent-hub-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN,
 }
 
 function inject(options: InjectOptions): Promise<LightMyRequestResponse> {
@@ -31,7 +31,7 @@ beforeEach(async () => {
   } })
   const engine = new SessionEngine({ stateDir: join(dir, 'state'), logger, tmux })
   await engine.start()
-  app = buildApp({ config: DEFAULT_CONFIG, logger, engine, sessionToken: TOKEN, dev: false })
+  app = buildApp({ config: DEFAULT_CONFIG, logger, engine, sessionToken: TOKEN, accessKey: TOKEN, dev: false })
 })
 
 afterEach(async () => {

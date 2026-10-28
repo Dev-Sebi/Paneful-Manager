@@ -52,7 +52,13 @@
     </v-app-bar>
 
     <v-main id="main-content" ref="mainRef" class="shell__main" tabindex="-1">
-      <router-view />
+      <EmptyState
+        v-if="loginRequired"
+        icon="mdi-key-outline"
+        message="Open the login URL once in this browser. Print it with install.sh --login-url (or pnpm login-url in a checkout)."
+      />
+
+      <router-view v-else />
     </v-main>
 
     <v-snackbar
@@ -76,9 +82,11 @@
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { useTheme } from 'vuetify'
+  import { loginRequired } from '@/api/access'
   import { connection } from '@/api/connection'
   import { wsClient } from '@/api/ws'
   import { AhButton, AhStatusBadge } from '@/components/ah'
+  import EmptyState from '@/components/EmptyState.vue'
   import { SECTIONS } from '@/layouts/sections'
   import { useConfigStore } from '@/stores/config'
   import { useSessionsStore } from '@/stores/sessions'
@@ -146,6 +154,9 @@
     window.addEventListener('keydown', onKeydown)
     unbind = sessions.bind(wsClient)
     offFatal = wsClient.onFatal(() => ui.notify('Protocol mismatch, reload the page', 'error', true))
+    if (loginRequired.value) {
+      return
+    }
     void config.ensureLoaded()
     void sessions.load()
     wsClient.connect()

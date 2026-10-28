@@ -45,6 +45,7 @@ Options:
   --no-windows-task       Never offer the Windows logon task that boots the distro
   --force                 Reinstall the same version; allow a prefix outside HOME or without install marker
   --no-verify             Install a downloaded release without a published .sha256 file
+  --login-url             Print the login URL to open once per browser, then exit
   --rollback              Switch back to the previously installed release
   --uninstall             Remove services, units and the install directory
   --purge                 With --uninstall: also remove config and state without asking
@@ -153,6 +154,7 @@ while [ $# -gt 0 ]; do
     --no-wsl-conf) NO_WSL_CONF=1 ;;
     --no-windows-task) NO_WINDOWS_TASK=1 ;;
     --force) FORCE=1 ;;
+    --login-url) ACTION=login_url ;;
     --rollback) ACTION=rollback ;;
     --uninstall) ACTION=uninstall ;;
     --purge) PURGE=1 ;;
@@ -684,6 +686,24 @@ health_check() {
   return 1
 }
 
+# print_login_url <port>: the URL carries the owner-only access key in its fragment (never sent to the server).
+print_login_url() {
+  if [ -r "$STATE_DIR/access-key" ]; then
+    key=$(tr -d '[:space:]' <"$STATE_DIR/access-key")
+    say "  Open this login URL once per browser (it contains your access key, do not share it):"
+    say "  http://localhost:$1/#key=$key"
+    return 0
+  fi
+  say "  No access key yet; the server creates $STATE_DIR/access-key on its first start."
+  say "  Then print the login URL with: $CURRENT_LINK/install.sh --login-url"
+  return 1
+}
+
+do_login_url() {
+  port=${PORT:-$(unit_port || configured_port || true)}
+  print_login_url "${port:-$DEFAULT_PORT}"
+}
+
 do_install() {
   check_requirements
   resolve_tag
@@ -754,6 +774,7 @@ do_install() {
     say "Agent Hub $TAG installed."
   fi
   if [ "$SERVICES" -eq 1 ]; then health_check || exit 1; fi
+  if [ "$DRY_RUN" -eq 0 ]; then print_login_url "$EFFECTIVE_PORT" || true; fi
   if is_wsl; then
     say "Note: WSL stops an idle distro, which ends all sessions. See 'Keeping WSL running' in docs/install.md."
   fi
@@ -838,6 +859,7 @@ do_uninstall() {
 
 case "$ACTION" in
   install) do_install ;;
+  login_url) do_login_url ;;
   rollback) do_rollback ;;
   uninstall) do_uninstall ;;
 esac

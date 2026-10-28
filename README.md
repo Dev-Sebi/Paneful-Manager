@@ -29,7 +29,7 @@ Inside WSL2 with systemd, Node.js 22 or later and tmux 3.2 or later (the install
 curl -fsSL https://github.com/Dev-Sebi/Paneful-Manager/releases/latest/download/install.sh | sh
 ```
 
-The installer shows a plan and asks before it changes anything. It sets up the systemd user services `agent-hub-tmux.service` and `agent-hub.service`. Then open `http://127.0.0.1:7337/` in your Windows browser.
+The installer shows a plan and asks before it changes anything. It sets up the systemd user services `agent-hub-tmux.service` and `agent-hub.service`. Then open the login URL it prints once in your browser (in WSL: your Windows browser); `install.sh --login-url` prints it again.
 
 Flags, the list of changes, upgrade, rollback and uninstall are in the [install guide](docs/install.md).
 
@@ -51,7 +51,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:3000` in your browser (Vite dev server). The API server listens on the configured port (default `7337`); the Vite proxy forwards to `AGENT_HUB_PORT` or `7337`, so set `AGENT_HUB_PORT` when `config.yaml` uses another port.
+Open the URL from `pnpm login-url --port 3000` once in your browser (Vite dev server; it carries the access key, see [Login URL](docs/install.md#login-url)), later `http://localhost:3000` is enough. The API server listens on the configured port (default `7337`); the Vite proxy forwards to `AGENT_HUB_PORT` or `7337`, so set `AGENT_HUB_PORT` when `config.yaml` uses another port.
 
 ## Requirements
 

@@ -24,6 +24,7 @@ async function main(): Promise<void> {
     throw error
   }
   logger.info(`Agent Hub listening on ${server.url}`)
+  logger.info('Open the login URL from "install.sh --login-url" (or "pnpm login-url" in a checkout) once per browser')
 
   installShutdown(server, process, code => process.exit(code), logger)
 }

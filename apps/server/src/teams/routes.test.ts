@@ -16,14 +16,14 @@ let store: ConfigStore
 
 function build(): FastifyInstance {
   store = createConfigStore(config)
-  app = buildApp({ config, logger: pino({ level: 'silent' }), sessionToken: TOKEN, dev: false, configStore: store, teams: { claudeDir: dir } })
+  app = buildApp({ config, logger: pino({ level: 'silent' }), sessionToken: TOKEN, accessKey: TOKEN, dev: false, configStore: store, teams: { claudeDir: dir } })
   return app
 }
 
 const get = () => app.inject({
   method: 'GET',
   url: API_ROUTES.teams,
-  headers: { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, 'x-agent-hub-token': TOKEN },
+  headers: { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, 'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN },
 })
 
 beforeEach(() => {

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, request } from '@playwright/test'
+import { E2E_ACCESS_KEY } from './access'
 
 /** Direct server origin of the e2e fixture (see playwright.config.ts). */
 const SERVER = 'http://127.0.0.1:7340'
@@ -29,12 +30,12 @@ export function hookToken (): string {
   return readFileSync(join(readPaths().state, 'hook-token'), 'utf8').trim()
 }
 
-/** API client that behaves like the browser app: allowed Origin plus the per-boot session token. */
+/** API client that behaves like the browser app: allowed Origin, access key and the per-boot session token. */
 export class ServerApi {
   private constructor (private readonly ctx: APIRequestContext, private readonly token: string) {}
 
   static async create (): Promise<ServerApi> {
-    const ctx = await request.newContext({ baseURL: SERVER, extraHTTPHeaders: { origin: WEB_ORIGIN } })
+    const ctx = await request.newContext({ baseURL: SERVER, extraHTTPHeaders: { 'origin': WEB_ORIGIN, 'x-agent-hub-key': E2E_ACCESS_KEY } })
     const response = await ctx.get('/api/session-token')
     expect(response.ok()).toBe(true)
     const { token } = await response.json() as { token: string }

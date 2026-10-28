@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import {
+  ACCESS_KEY_HEADER,
   API_ROUTES,
   HOOK_SESSION_HEADER,
   HOOK_TOKEN_HEADER,
@@ -23,6 +24,7 @@ import { HOOK_BODY_LIMIT_BYTES, registerHooks, type HookTarget } from './routes.
 const PORT = 7337
 const HOOK_TOKEN = 'h'.repeat(43)
 const SESSION_TOKEN = 'per-boot-token'
+const ACCESS_KEY = 'persisted-access-key'
 const SESSION_ID = 'abcDEF123_-x'
 const HOST = `127.0.0.1:${PORT}`
 const ORIGIN = `http://127.0.0.1:${PORT}`
@@ -55,7 +57,7 @@ beforeEach(async () => {
   engine = new FakeEngine()
   const logger: FastifyBaseLogger = pino({ level: 'silent' })
   app = Fastify({ loggerInstance: logger })
-  registerSecurity(app, { getPort: () => PORT, token: SESSION_TOKEN, dev: false })
+  registerSecurity(app, { getPort: () => PORT, token: SESSION_TOKEN, accessKey: ACCESS_KEY, dev: false })
   registerHooks(app, {
     getPort: () => PORT,
     engine,
@@ -143,10 +145,10 @@ describe('POST /api/hooks', () => {
 })
 
 describe('hook settings routes', () => {
-  const browser = { host: HOST, origin: ORIGIN, [SESSION_TOKEN_HEADER]: SESSION_TOKEN }
+  const browser = { host: HOST, origin: ORIGIN, [ACCESS_KEY_HEADER]: ACCESS_KEY, [SESSION_TOKEN_HEADER]: SESSION_TOKEN }
 
   it('installs, reports and uninstalls', async () => {
-    const before = await app.inject({ method: 'GET', url: API_ROUTES.hooksStatus, headers: { host: HOST } })
+    const before = await app.inject({ method: 'GET', url: API_ROUTES.hooksStatus, headers: { host: HOST, [ACCESS_KEY_HEADER]: ACCESS_KEY } })
     expect(HookStatusSchema.parse(before.json())).toMatchObject({ installed: false, statusAvailable: false })
 
     const installed = await app.inject({ method: 'POST', url: API_ROUTES.hooksInstall, headers: browser })
@@ -158,8 +160,8 @@ describe('hook settings routes', () => {
   })
 
   it('needs the per-boot token and an Origin like every mutation', async () => {
-    expect((await app.inject({ method: 'POST', url: API_ROUTES.hooksInstall, headers: { host: HOST } })).statusCode).toBe(401)
-    expect((await app.inject({ method: 'POST', url: API_ROUTES.hooksInstall, headers: { host: HOST, origin: ORIGIN } })).statusCode).toBe(401)
+    expect((await app.inject({ method: 'POST', url: API_ROUTES.hooksInstall, headers: { host: HOST, [ACCESS_KEY_HEADER]: ACCESS_KEY } })).statusCode).toBe(401)
+    expect((await app.inject({ method: 'POST', url: API_ROUTES.hooksInstall, headers: { host: HOST, origin: ORIGIN, [ACCESS_KEY_HEADER]: ACCESS_KEY } })).statusCode).toBe(401)
   })
 })
 
@@ -170,7 +172,7 @@ describe('hook request logging', () => {
     stream.on('data', (chunk: Buffer) => chunks.push(chunk.toString('utf8')))
     const logger: FastifyBaseLogger = createLogger('debug', {}, stream)
     const logged = Fastify({ loggerInstance: logger })
-    registerSecurity(logged, { getPort: () => PORT, token: SESSION_TOKEN, dev: false })
+    registerSecurity(logged, { getPort: () => PORT, token: SESSION_TOKEN, accessKey: ACCESS_KEY, dev: false })
     registerHooks(logged, { getPort: () => PORT, engine, token: HOOK_TOKEN })
     const headers = { host: HOST, 'content-type': 'application/json', [HOOK_TOKEN_HEADER]: HOOK_TOKEN, [HOOK_SESSION_HEADER]: 'unknownid' }
     const accepted = await logged.inject({ method: 'POST', url: API_ROUTES.hooks, headers, payload: { hook_event_name: 'Stop' } })
