@@ -1,4 +1,4 @@
-import type { McpScopeKind } from '@agent-hub/shared'
+import type { McpScopeKind } from '@paneful-manager/shared'
 import { AppError } from '../errors.js'
 import { RunError, run as defaultRun, type RunOptions, type RunResult } from '../process/exec.js'
 import type { NativeServer } from './native.js'

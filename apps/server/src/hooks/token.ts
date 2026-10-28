@@ -117,7 +117,7 @@ export async function withHookTokenLock<T>(stateDir: string, task: () => Promise
       continue
     }
     if (Date.now() > deadline) {
-      throw new Error(`Timed out waiting for ${file}; remove it if no Agent Hub server is starting`)
+      throw new Error(`Timed out waiting for ${file}; remove it if no Paneful Manager server is starting`)
     }
     await sleep(LOCK_RETRY_MS)
   }

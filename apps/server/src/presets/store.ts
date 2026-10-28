@@ -1,4 +1,4 @@
-import { PresetNameSchema, WorkspacePresetSchema, type WorkspacePreset } from '@agent-hub/shared'
+import { PresetNameSchema, WorkspacePresetSchema, type WorkspacePreset } from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import type { BackupStore } from '../files/backups.js'
 import { createNamedYamlStore, YAML_EXTENSION, type NamedYamlStore } from '../files/yaml-store.js'

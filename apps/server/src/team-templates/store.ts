@@ -1,4 +1,4 @@
-import { TeamTemplateNameSchema, TeamTemplateSchema, type TeamTemplate } from '@agent-hub/shared'
+import { TeamTemplateNameSchema, TeamTemplateSchema, type TeamTemplate } from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import type { BackupStore } from '../files/backups.js'
 import { TEAM_TEMPLATES_DIR_NAME } from '../config/load-config.js'

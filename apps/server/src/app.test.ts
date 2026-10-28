@@ -1,4 +1,4 @@
-import { ApiErrorSchema, PortSchema, API_ROUTES, DEFAULT_CONFIG, HealthResponseSchema } from '@agent-hub/shared'
+import { ApiErrorSchema, PortSchema, API_ROUTES, DEFAULT_CONFIG, HealthResponseSchema } from '@paneful-manager/shared'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -16,7 +16,7 @@ function build(): FastifyInstance {
     inject({ ...options, headers: {
         host: `localhost:${DEFAULT_CONFIG.port}`,
         origin: `http://localhost:${DEFAULT_CONFIG.port}`,
-        'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN,
+        'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN,
         ...options.headers,
       },
     })

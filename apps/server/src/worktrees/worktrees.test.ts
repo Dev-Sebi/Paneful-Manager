@@ -10,7 +10,7 @@ import {
   WorktreeCopyPlanResponseSchema,
   WorktreeDiffResponseSchema,
   type Scope,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -40,7 +40,7 @@ function write(root: string, rel: string, content: string | Buffer): void {
 function send(options: InjectOptions) {
   return app.inject({
     ...options,
-    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN, ...options.headers },
+    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN, ...options.headers },
   })
 }
 
@@ -54,7 +54,7 @@ const apply = (files: { relPath: string; overwrite?: boolean; expectedHash: stri
   })
 
 beforeEach(() => {
-  base = realpathSync(mkdtempSync(join(tmpdir(), 'agent-hub-wt-')))
+  base = realpathSync(mkdtempSync(join(tmpdir(), 'paneful-manager-wt-')))
   main = join(base, 'main')
   wt = join(base, 'wt')
   backupDir = join(base, 'backups')

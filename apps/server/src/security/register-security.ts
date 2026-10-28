@@ -9,7 +9,7 @@ import {
   type RegisterDeviceResponse,
   SESSION_TOKEN_HEADER,
   type SessionTokenResponse,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { AppError } from '../errors.js'
 import type { DeviceAuth } from './device-auth.js'

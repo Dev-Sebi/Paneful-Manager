@@ -10,7 +10,7 @@ import {
   type ApiErrorCode,
   type AppConfig,
   type HealthResponse,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { registerConfig } from './config/routes.js'
 import { createConfigStore, type ConfigStore } from './config/store.js'

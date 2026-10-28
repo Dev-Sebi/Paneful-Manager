@@ -1,7 +1,7 @@
 import { createHash, createHmac, createPublicKey, randomBytes, verify } from 'node:crypto'
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { deviceSignatureMessage, DevicePublicKeySchema, type DevicePublicKey, z } from '@agent-hub/shared'
+import { deviceSignatureMessage, DevicePublicKeySchema, type DevicePublicKey, z } from '@paneful-manager/shared'
 import { consumeLoginCode, LOGIN_CODE_FILE } from './login-code.js'
 import { tokenMatches } from './token.js'
 

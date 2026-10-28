@@ -10,7 +10,7 @@ import {
   type LaunchPresetResponse,
   type ListPresetsResponse,
   type PresetResponse,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import type { PresetLauncher } from './launch.js'
 import type { PresetStore } from './store.js'

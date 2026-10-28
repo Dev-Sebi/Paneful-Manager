@@ -9,7 +9,7 @@ import {
   type WorktreeCopyPlanResponse,
   type WorktreeSkipped,
   type WorktreeSkipReason,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import { AppError } from '../errors.js'
 import { errnoCode, readCurrent, sha256 } from '../files/read.js'
 import type { RunFn } from '../scopes/run-git.js'

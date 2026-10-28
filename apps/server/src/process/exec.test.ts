@@ -39,9 +39,9 @@ describe('run', () => {
   })
 
   it('uses cwd and merges the caller env over a minimal base env', async () => {
-    vi.stubEnv('AGENT_HUB_LEAK_CHECK', 'leaked')
+    vi.stubEnv('PANEFUL_MANAGER_LEAK_CHECK', 'leaked')
     vi.stubEnv('HOME', '/home/base')
-    const script = 'pwd; printf "%s|%s|%s|%s" "$HOME" "$EXTRA" "$AGENT_HUB_LEAK_CHECK" "$LC_ALL"'
+    const script = 'pwd; printf "%s|%s|%s|%s" "$HOME" "$EXTRA" "$PANEFUL_MANAGER_LEAK_CHECK" "$LC_ALL"'
     const result = await run('sh', ['-c', script], { ...opts, cwd: '/', env: { EXTRA: 'set', LC_ALL: 'C' } })
     expect(result.stdout).toBe('/\n/home/base|set||C')
   })

@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { API_ROUTES, DEFAULT_CONFIG, ListTeamsResponseSchema, type AppConfig } from '@agent-hub/shared'
+import { API_ROUTES, DEFAULT_CONFIG, ListTeamsResponseSchema, type AppConfig } from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -23,7 +23,7 @@ function build(): FastifyInstance {
 const get = () => app.inject({
   method: 'GET',
   url: API_ROUTES.teams,
-  headers: { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, 'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN },
+  headers: { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN },
 })
 
 beforeEach(() => {

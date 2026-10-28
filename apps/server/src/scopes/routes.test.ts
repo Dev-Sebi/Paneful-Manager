@@ -1,4 +1,4 @@
-import { API_ROUTES, DEFAULT_CONFIG, ScopesResponseSchema } from '@agent-hub/shared'
+import { API_ROUTES, DEFAULT_CONFIG, ScopesResponseSchema } from '@paneful-manager/shared'
 import Fastify from 'fastify'
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'

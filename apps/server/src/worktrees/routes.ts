@@ -9,7 +9,7 @@ import {
   type WorktreeCopyApplyResponse,
   type WorktreeCopyPlanResponse,
   type WorktreeDiffResponse,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import { planCopy } from './candidates.js'
 import { applyCopy, diffFile, type WorktreeDeps } from './copy.js'

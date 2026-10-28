@@ -1,8 +1,8 @@
 import { pino, type Logger } from 'pino'
-import type { LogLevel } from '@agent-hub/shared'
+import type { LogLevel } from '@paneful-manager/shared'
 
 /** Headers that carry credentials; never written to logs. */
-const SECRET_HEADERS = ['authorization', 'x-agent-hub-key', 'x-agent-hub-token', 'x-agent-hub-hook-token', 'sec-websocket-protocol']
+const SECRET_HEADERS = ['authorization', 'x-paneful-key', 'x-paneful-token', 'x-paneful-hook-token', 'sec-websocket-protocol']
 
 export const REDACTED_PATHS = SECRET_HEADERS.flatMap(name => [`req.headers["${name}"]`, `*.headers["${name}"]`])
 

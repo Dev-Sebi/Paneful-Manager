@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { BIND_HOST, HOOK_ENV, resolveStateDir, type AppConfig } from '@agent-hub/shared'
+import { BIND_HOST, HOOK_ENV, resolveStateDir, type AppConfig } from '@paneful-manager/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { buildApp } from './app.js'
 import { resolveConfigFile, resolveTeamTemplatesDir, resolveWorkspacesDir } from './config/load-config.js'

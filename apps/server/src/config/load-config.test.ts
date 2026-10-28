@@ -1,14 +1,14 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { DEFAULT_CONFIG } from '@agent-hub/shared'
+import { DEFAULT_CONFIG } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ConfigError, loadConfig } from './load-config.js'
 
 let dir: string
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'agent-hub-config-'))
+  dir = await mkdtemp(join(tmpdir(), 'paneful-manager-config-'))
 })
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
@@ -46,19 +46,19 @@ describe('loadConfig', () => {
     expect(message).toContain('config.yaml')
   })
 
-  it('lets AGENT_HUB_PORT win over the file', async () => {
+  it('lets PANEFUL_MANAGER_PORT win over the file', async () => {
     await writeFile(join(dir, 'config.yaml'), 'port: 8000\n')
-    const config = await loadConfig({ env: { AGENT_HUB_PORT: '9000' }, configDir: dir })
+    const config = await loadConfig({ env: { PANEFUL_MANAGER_PORT: '9000' }, configDir: dir })
     expect(config.port).toBe(9000)
   })
 
-  it('rejects an invalid AGENT_HUB_PORT with a ConfigError', async () => {
-    await expect(loadConfig({ env: { AGENT_HUB_PORT: 'abc' }, configDir: dir })).rejects.toBeInstanceOf(ConfigError)
+  it('rejects an invalid PANEFUL_MANAGER_PORT with a ConfigError', async () => {
+    await expect(loadConfig({ env: { PANEFUL_MANAGER_PORT: 'abc' }, configDir: dir })).rejects.toBeInstanceOf(ConfigError)
   })
 
   it('respects XDG_CONFIG_HOME', async () => {
-    await mkdir(join(dir, 'agent-hub'))
-    await writeFile(join(dir, 'agent-hub', 'config.yaml'), 'port: 8123\n')
+    await mkdir(join(dir, 'paneful-manager'))
+    await writeFile(join(dir, 'paneful-manager', 'config.yaml'), 'port: 8123\n')
     const config = await loadConfig({ env: { XDG_CONFIG_HOME: dir } })
     expect(config.port).toBe(8123)
   })

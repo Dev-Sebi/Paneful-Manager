@@ -10,7 +10,7 @@ import {
   ListFilesResponseSchema,
   ReadFileResponseSchema,
   WriteFileResponseSchema,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../app.js'
@@ -26,7 +26,7 @@ let app: FastifyInstance
 function send(options: InjectOptions) {
   return app.inject({
     ...options,
-    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN, ...options.headers },
+    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN, ...options.headers },
   })
 }
 
@@ -105,18 +105,18 @@ describe('file routes', () => {
 
   it('requires the token and a local Origin for mutations', async () => {
     const payload = { scopePath: box.project, kind: 'claude-md' }
-    const noToken = await send({ method: 'POST', url: API_ROUTES.files, payload, headers: { 'x-agent-hub-token': 'wrong' } })
+    const noToken = await send({ method: 'POST', url: API_ROUTES.files, payload, headers: { 'x-paneful-token': 'wrong' } })
     expect(noToken.statusCode).toBe(401)
     const foreign = await send({ method: 'POST', url: API_ROUTES.files, payload, headers: { origin: 'http://evil.example' } })
     expect(foreign.statusCode).toBe(403)
-    const deleteNoToken = await send({ method: 'DELETE', url: API_ROUTES.fileContent, query: { path: join(box.project, 'CLAUDE.md') }, headers: { 'x-agent-hub-token': '' } })
+    const deleteNoToken = await send({ method: 'DELETE', url: API_ROUTES.fileContent, query: { path: join(box.project, 'CLAUDE.md') }, headers: { 'x-paneful-token': '' } })
     expect(deleteNoToken.statusCode).toBe(401)
     expect(existsSync(join(box.project, 'CLAUDE.md'))).toBe(false)
   })
 
   it('is not registered without a file service', async () => {
     const bare = buildApp({ config: DEFAULT_CONFIG, logger: silentLogger, sessionToken: TOKEN, accessKey: TOKEN, dev: false })
-    const response = await bare.inject({ method: 'GET', url: API_ROUTES.files, headers: { host: `localhost:${PORT}`, 'x-agent-hub-key': TOKEN } })
+    const response = await bare.inject({ method: 'GET', url: API_ROUTES.files, headers: { host: `localhost:${PORT}`, 'x-paneful-key': TOKEN } })
     expect(response.statusCode).toBe(404)
     await bare.close()
   })

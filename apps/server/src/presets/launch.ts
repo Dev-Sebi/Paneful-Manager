@@ -4,7 +4,7 @@ import {
   type LaunchedTab,
   type LaunchPresetResponse,
   type WorkspacePreset,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import type { SessionEngine } from '../sessions/engine.js'
 import type { LaunchLedger } from './ledger.js'

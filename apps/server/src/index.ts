@@ -1,4 +1,4 @@
-import { PORT_ENV_VAR } from '@agent-hub/shared'
+import { PORT_ENV_VAR } from '@paneful-manager/shared'
 import { ConfigError, loadConfig } from './config/load-config.js'
 import { createLogger } from './logger.js'
 import { installShutdown, startServer, type RunningServer } from './start.js'
@@ -23,7 +23,7 @@ async function main(): Promise<void> {
     }
     throw error
   }
-  logger.info(`Agent Hub listening on ${server.url}`)
+  logger.info(`Paneful Manager listening on ${server.url}`)
   logger.info('Open the login URL from "install.sh --login-url" (or "pnpm login-url" in a checkout) once per browser')
 
   installShutdown(server, process, code => process.exit(code), logger)

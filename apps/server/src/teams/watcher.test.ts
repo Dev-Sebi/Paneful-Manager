@@ -1,6 +1,6 @@
 import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import type { TeamChangedMessage } from '@agent-hub/shared'
+import type { TeamChangedMessage } from '@paneful-manager/shared'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { makeClaudeDir, task, writeJson } from './fixtures.js'

@@ -11,7 +11,7 @@ import {
   HookStatusSchema,
   SESSION_TOKEN_HEADER,
   type SessionState,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance, type InjectOptions } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -54,7 +54,7 @@ let app: FastifyInstance
 let engine: FakeEngine
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'agent-hub-hooks-routes-'))
+  dir = await mkdtemp(join(tmpdir(), 'paneful-manager-hooks-routes-'))
   engine = new FakeEngine()
   const logger: FastifyBaseLogger = pino({ level: 'silent' })
   app = Fastify({ loggerInstance: logger })
@@ -114,7 +114,7 @@ describe('POST /api/hooks', () => {
     expect(engine.applied).toEqual([])
   })
 
-  it('ignores sessions not started by Agent Hub, which send both headers empty', async () => {
+  it('ignores sessions not started by Paneful Manager, which send both headers empty', async () => {
     const response = await hook({ hook_event_name: 'Stop' }, { [HOOK_TOKEN_HEADER]: '', [HOOK_SESSION_HEADER]: '' })
     expect(response.statusCode).toBe(204)
     expect(engine.applied).toEqual([])

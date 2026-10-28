@@ -43,7 +43,7 @@ async function waitForReady(barrier: string): Promise<void> {
 }
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'agent-hub-hook-token-'))
+  dir = await mkdtemp(join(tmpdir(), 'paneful-manager-hook-token-'))
 })
 
 afterEach(async () => {

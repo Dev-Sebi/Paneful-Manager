@@ -1,4 +1,4 @@
-import { API_ROUTES, ScopesResponseSchema, type AppConfig, type ScopesResponse } from '@agent-hub/shared'
+import { API_ROUTES, ScopesResponseSchema, type AppConfig, type ScopesResponse } from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import { discoverScopes } from './discover.js'
 import type { RunFn } from './run-git.js'

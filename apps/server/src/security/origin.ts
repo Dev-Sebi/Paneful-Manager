@@ -1,4 +1,4 @@
-import { BIND_HOST } from '@agent-hub/shared'
+import { BIND_HOST } from '@paneful-manager/shared'
 import type { AddressInfo } from 'node:net'
 
 /** Vite dev server port, allowed as an Origin only in development. */
@@ -7,7 +7,7 @@ export const DEV_ORIGIN_PORT = 3000
 const LOOPBACK_NAMES = ['localhost', '127.0.0.1', '[::1]'] as const
 
 /** Comma-separated extra dev origins, e.g. a second Vite instance for e2e; honored only in dev mode. */
-export const DEV_ORIGINS_ENV_VAR = 'AGENT_HUB_DEV_ORIGINS'
+export const DEV_ORIGINS_ENV_VAR = 'PANEFUL_MANAGER_DEV_ORIGINS'
 const DEV_ORIGIN_PATTERN = /^http:\/\/(?:localhost|127\.0\.0\.1):(\d{1,5})$/
 
 /** Keeps exact `http://localhost:<port>` / `http://127.0.0.1:<port>` entries; anything else is reported and dropped. */
@@ -27,7 +27,7 @@ export function parseDevOrigins(value: string | undefined, warn: (message: strin
 export function assertLoopbackAddress(address: AddressInfo | string | null): void {
   const bound = typeof address === 'object' && address !== null ? address.address : String(address)
   if (bound !== BIND_HOST) {
-    throw new Error(`Refusing to serve on ${bound}: Agent Hub only listens on ${BIND_HOST}`)
+    throw new Error(`Refusing to serve on ${bound}: Paneful Manager only listens on ${BIND_HOST}`)
   }
 }
 

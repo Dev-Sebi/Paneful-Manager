@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 export function makeClaudeDir(): string {
-  return realpathSync(mkdtempSync(join(tmpdir(), 'agent-hub-teams-')))
+  return realpathSync(mkdtempSync(join(tmpdir(), 'paneful-manager-teams-')))
 }
 
 export function writeJson(path: string, value: unknown): void {

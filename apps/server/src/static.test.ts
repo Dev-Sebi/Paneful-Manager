@@ -1,19 +1,19 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { API_ROUTES, ApiErrorSchema, DEFAULT_CONFIG } from '@agent-hub/shared'
+import { API_ROUTES, ApiErrorSchema, DEFAULT_CONFIG } from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import { pino } from 'pino'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from './app.js'
 import { contentSecurityPolicy, HASHED_ASSET_CACHE_CONTROL, resolveWebDist, WEB_DIST_ENV_VAR } from './static.js'
 
-const INDEX = '<!doctype html><title>Agent Hub</title>'
+const INDEX = '<!doctype html><title>Paneful Manager</title>'
 let root: string
 let app: FastifyInstance
 
 beforeAll(() => {
-  root = mkdtempSync(join(tmpdir(), 'agent-hub-web-'))
+  root = mkdtempSync(join(tmpdir(), 'paneful-manager-web-'))
   mkdirSync(join(root, 'assets'))
   writeFileSync(join(root, 'index.html'), INDEX)
   writeFileSync(join(root, 'assets', 'index-abc123.js'), 'console.log(1)')
@@ -30,7 +30,7 @@ afterEach(async () => {
 
 function get(url: string) {
   app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: 't', accessKey: 't', dev: false, webDist: root })
-  return app.inject({ method: 'GET', url, headers: { host: `127.0.0.1:${DEFAULT_CONFIG.port}`, 'x-agent-hub-key': 't' } })
+  return app.inject({ method: 'GET', url, headers: { host: `127.0.0.1:${DEFAULT_CONFIG.port}`, 'x-paneful-key': 't' } })
 }
 
 describe('static web app', () => {
@@ -86,7 +86,7 @@ describe('static web app', () => {
 })
 
 describe('resolveWebDist', () => {
-  it('uses AGENT_HUB_WEB_DIST when it holds an index.html', () => {
+  it('uses PANEFUL_MANAGER_WEB_DIST when it holds an index.html', () => {
     expect(resolveWebDist({ [WEB_DIST_ENV_VAR]: root }, '/nonexistent')).toBe(root)
   })
 

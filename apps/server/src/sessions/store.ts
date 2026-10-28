@@ -1,14 +1,14 @@
 import { randomBytes } from 'node:crypto'
 import { chmod, mkdir, open, readdir, readFile, rename, rm } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
-import { SessionIdSchema, SessionSchema, type Session } from '@agent-hub/shared'
+import { SessionIdSchema, SessionSchema, type Session } from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 
 export const SESSIONS_DIR_NAME = 'sessions'
 
 /** Writes `data` to `file` atomically: temp file in the same directory, fsync, rename. */
 export async function writeFileAtomic(file: string, data: string, mode = 0o600): Promise<void> {
-  const temp = join(dirname(file), `.${basename(file)}.agent-hub-${randomBytes(6).toString('hex')}.tmp`)
+  const temp = join(dirname(file), `.${basename(file)}.paneful-manager-${randomBytes(6).toString('hex')}.tmp`)
   const handle = await open(temp, 'wx', mode)
   try {
     try {

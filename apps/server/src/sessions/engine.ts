@@ -11,7 +11,7 @@ import {
   type Session,
   type SessionLifecycle,
   type SessionState,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import { AppError } from '../errors.js'
 import { removeStaleTempFiles } from '../files/temp-cleanup.js'
@@ -63,7 +63,7 @@ export interface SessionEngineOptions {
   logger: Pick<BaseLogger, 'debug' | 'info' | 'warn' | 'error'>
   tmux?: Tmux
   spawnPty?: SpawnPty
-  /** Extra environment for new sessions, passed as `-e` arguments (no secrets); `AGENT_HUB_SESSION_ID` is always set. */
+  /** Extra environment for new sessions, passed as `-e` arguments (no secrets); `PANEFUL_MANAGER_SESSION_ID` is always set. */
   sessionEnv?: (id: string) => Record<string, string>
   /** Secret environment (hook token): written to an owner-only tmux command file, so it never shows in any argv. */
   secretEnv?: () => Record<string, string>

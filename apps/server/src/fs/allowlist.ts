@@ -1,7 +1,7 @@
 import { lstatSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { PathSchema } from '@agent-hub/shared'
+import { PathSchema } from '@paneful-manager/shared'
 import { AppError } from '../errors.js'
 
 export interface Allowlist {

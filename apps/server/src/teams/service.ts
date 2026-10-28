@@ -1,4 +1,4 @@
-import type { AppConfig, ListTeamsResponse, Team, TeamChangedMessage } from '@agent-hub/shared'
+import type { AppConfig, ListTeamsResponse, Team, TeamChangedMessage } from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import type { TmuxPaneInfo } from '../tmux/tmux.js'
 import { linkTeams } from './links.js'
@@ -8,7 +8,7 @@ import { createTeamsWatcher, type TeamsWatcher } from './watcher.js'
 /** Fallback for file systems where change events are missed. */
 export const TEAMS_POLL_INTERVAL_MS = 10_000
 
-/** Live sources for linking members to Agent Hub sessions (T53). */
+/** Live sources for linking members to Paneful Manager sessions (T53). */
 export interface TeamLinkSources {
   listPanes: () => Promise<TmuxPaneInfo[]>
   sessions: () => Iterable<{ id: string, cwd: string }>

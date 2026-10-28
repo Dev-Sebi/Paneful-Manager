@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { LaunchPresetResponseSchema, WorkspacePresetSchema, type CreateSessionRequest, type Session } from '@agent-hub/shared'
+import { LaunchPresetResponseSchema, WorkspacePresetSchema, type CreateSessionRequest, type Session } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../errors.js'
 import { createPresetLauncher } from './launch.js'
@@ -60,7 +60,7 @@ function setup(presets: ReturnType<typeof preset>[]) {
 }
 
 beforeEach(async () => {
-  stateDir = await mkdtemp(join(tmpdir(), 'ah-launch-'))
+  stateDir = await mkdtemp(join(tmpdir(), 'pm-launch-'))
   alive = new Set()
   exited = new Set()
   requests = []

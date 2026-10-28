@@ -1,6 +1,6 @@
 import { mkdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { TeamLaunchSchema, z, type TeamLaunch } from '@agent-hub/shared'
+import { TeamLaunchSchema, z, type TeamLaunch } from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import { writeFileAtomic } from '../sessions/store.js'
 

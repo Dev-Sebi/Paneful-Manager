@@ -1,7 +1,7 @@
 import { lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { WorkspacePresetSchema, type WorkspacePreset } from '@agent-hub/shared'
+import { WorkspacePresetSchema, type WorkspacePreset } from '@paneful-manager/shared'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
@@ -17,7 +17,7 @@ function preset(name: string, extra: Record<string, unknown> = {}): WorkspacePre
 }
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'ah-presets-'))
+  root = await mkdtemp(join(tmpdir(), 'pm-presets-'))
   dir = join(root, 'workspaces')
   store = createPresetStore({ dir, logger: pino({ level: 'silent' }), backups: createBackupStore({ dir: join(root, 'backups') }) })
 })

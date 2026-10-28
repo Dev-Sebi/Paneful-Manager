@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
-import type { TeamMember } from '@agent-hub/shared'
+import type { TeamMember } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { TmuxPaneInfo } from '../tmux/tmux.js'
 import { makeClaudeDir, writeJson } from './fixtures.js'
@@ -8,7 +8,7 @@ import { linkMembers, linkTeams, type LinkContext } from './links.js'
 import { readTeams } from './reader.js'
 
 const pane = (paneId: string, sessionId: string | undefined): TmuxPaneInfo =>
-  ({ paneId, sessionName: sessionId === undefined ? 'scratch' : `ah-${sessionId}`, sessionId })
+  ({ paneId, sessionName: sessionId === undefined ? 'scratch' : `pm-${sessionId}`, sessionId })
 
 const context = (panes: TmuxPaneInfo[] | null, sessions: Record<string, string> = { s1: '/work/app' }): LinkContext =>
   ({ panes, sessions: new Map(Object.entries(sessions).map(([id, cwd]) => [id, { cwd }])) })
@@ -50,8 +50,8 @@ describe('linkMembers', () => {
       ['inproc', { status: 'unlinked', reason: 'in-process' }],
       ['nopane', { status: 'unlinked', reason: 'no-pane' }],
       ['gone', { status: 'unlinked', reason: 'pane-not-found' }],
-      ['foreign', { status: 'unlinked', reason: 'not-agent-hub' }],
-      ['stale', { status: 'unlinked', reason: 'not-agent-hub' }],
+      ['foreign', { status: 'unlinked', reason: 'not-paneful-manager' }],
+      ['stale', { status: 'unlinked', reason: 'not-paneful-manager' }],
       ['elsewhere', { status: 'unlinked', reason: 'cwd-mismatch' }],
     ])
   })

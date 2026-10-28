@@ -8,7 +8,7 @@ import {
   type Team,
   type TeamMember,
   type TeamTask,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import { expandHome } from '../paths.js'
 import { readCurrent } from '../files/read.js'
 

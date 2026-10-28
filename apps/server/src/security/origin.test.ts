@@ -1,4 +1,4 @@
-import { BIND_HOST } from '@agent-hub/shared'
+import { BIND_HOST } from '@paneful-manager/shared'
 import { describe, expect, it, vi } from 'vitest'
 import { assertLoopbackAddress, isAllowedHost, isAllowedOrigin, parseDevOrigins } from './origin.js'
 import { createSessionToken, tokenMatches } from './token.js'
@@ -9,7 +9,7 @@ describe('assertLoopbackAddress', () => {
     for (const address of ['0.0.0.0', '::', '::1', '192.168.1.10']) {
       expect(() => assertLoopbackAddress({ address, family: 'IPv4', port: 1 })).toThrow(/Refusing to serve/)
     }
-    expect(() => assertLoopbackAddress('/tmp/agent-hub.sock')).toThrow(/Refusing to serve/)
+    expect(() => assertLoopbackAddress('/tmp/paneful-manager.sock')).toThrow(/Refusing to serve/)
     expect(() => assertLoopbackAddress(null)).toThrow(/Refusing to serve/)
   })
 })
@@ -74,7 +74,7 @@ describe('parseDevOrigins', () => {
     ]
     expect(parseDevOrigins(rejected.join(','), warn)).toEqual([])
     expect(warn).toHaveBeenCalledTimes(rejected.length)
-    expect(warn.mock.calls[0]?.[0]).toMatch(/AGENT_HUB_DEV_ORIGINS/)
+    expect(warn.mock.calls[0]?.[0]).toMatch(/PANEFUL_MANAGER_DEV_ORIGINS/)
   })
 })
 

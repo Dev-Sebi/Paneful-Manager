@@ -6,7 +6,7 @@ import {
   type FileChangeEvent,
   type FileChangedMessage,
   type Scope,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import { watch, type FSWatcher } from 'chokidar'
 import type { BaseLogger } from 'pino'
 import { createAllowlist, type Allowlist } from '../fs/allowlist.js'

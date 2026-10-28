@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { WS_SUBPROTOCOL, type Session } from '@agent-hub/shared'
+import { WS_SUBPROTOCOL, type Session } from '@paneful-manager/shared'
 import Fastify, { type FastifyInstance } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -35,7 +35,7 @@ class GatedEngine extends SessionEngine {
   }
 
   override get(id: string): Session | undefined {
-    return { id, hostId: 'local', cwd: '/tmp', command: 'sh', args: [], tmuxSession: `ah-${id}`, createdAt: '2026-10-27T10:00:00.000Z', state: 'idle', lifecycle: 'running', lastEventAt: '2026-10-27T10:00:00.000Z', cols: 80, rows: 24 }
+    return { id, hostId: 'local', cwd: '/tmp', command: 'sh', args: [], tmuxSession: `pm-${id}`, createdAt: '2026-10-27T10:00:00.000Z', state: 'idle', lifecycle: 'running', lastEventAt: '2026-10-27T10:00:00.000Z', cols: 80, rows: 24 }
   }
 
   override async attach(id: string, _client: EngineClient, _options: AttachOptions): Promise<void> {
@@ -56,7 +56,7 @@ class GatedEngine extends SessionEngine {
 
 function engineOptions(): SessionEngineOptions {
   const tmux = new Tmux({ run: async () => {
-    throw new RunError('failed', 'exit', 1, '', 'no server running on /tmp/tmux-1000/agent-hub\n')
+    throw new RunError('failed', 'exit', 1, '', 'no server running on /tmp/tmux-1000/paneful-manager\n')
   } })
   return { stateDir: join(dir, 'state'), logger, tmux }
 }
@@ -85,7 +85,7 @@ function nextClose(ws: WebSocket): Promise<number> {
 }
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'agent-hub-ws-'))
+  dir = await mkdtemp(join(tmpdir(), 'paneful-manager-ws-'))
 })
 
 afterEach(async () => {
@@ -94,7 +94,7 @@ afterEach(async () => {
 })
 
 describe('registerWs', () => {
-  it('echoes only the agent-hub subprotocol', async () => {
+  it('echoes only the paneful-manager subprotocol', async () => {
     await start()
     const { ws } = await connect('/ws?v=1', [WS_SUBPROTOCOL, 'token.secret'])
     expect(ws.protocol).toBe(WS_SUBPROTOCOL)

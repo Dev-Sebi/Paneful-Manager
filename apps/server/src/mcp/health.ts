@@ -6,7 +6,7 @@ import {
   type McpHealthResult,
   type McpHealthStatus,
   type McpServerEntry,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import { BASE_ENV_KEYS } from '../process/exec.js'
 import { scrub } from './cli.js'
@@ -91,7 +91,7 @@ const initializeMessage = (): string =>
     jsonrpc: '2.0',
     id: INITIALIZE_ID,
     method: 'initialize',
-    params: { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: 'agent-hub', version: '0.0.0' } },
+    params: { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: 'paneful-manager', version: '0.0.0' } },
   })
 
 const initializedMessage = (): string => JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })

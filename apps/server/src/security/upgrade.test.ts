@@ -5,7 +5,7 @@ const context = { port: 7337, token: 'secret-token', dev: false }
 const valid = {
   host: 'localhost:7337',
   origin: 'http://localhost:7337',
-  'sec-websocket-protocol': 'agent-hub.v1, token.secret-token',
+  'sec-websocket-protocol': 'paneful-manager.v1, token.secret-token',
 }
 
 const decide = (overrides: Record<string, string | undefined>, dev = false) =>
@@ -13,8 +13,8 @@ const decide = (overrides: Record<string, string | undefined>, dev = false) =>
 
 describe('authorizeUpgrade', () => {
   it('accepts a valid upgrade and echoes only the app subprotocol', () => {
-    expect(decide({})).toEqual({ ok: true, protocol: 'agent-hub.v1' })
-    expect(decide({ 'sec-websocket-protocol': 'token.secret-token,agent-hub.v1' }).ok).toBe(true)
+    expect(decide({})).toEqual({ ok: true, protocol: 'paneful-manager.v1' })
+    expect(decide({ 'sec-websocket-protocol': 'token.secret-token,paneful-manager.v1' }).ok).toBe(true)
   })
 
   it('rejects a bad Host or Origin with 403', () => {
@@ -37,18 +37,18 @@ describe('authorizeUpgrade', () => {
   })
 
   it('requires the app subprotocol', () => {
-    for (const protocol of [undefined, 'token.secret-token', 'agent-hub.v2, token.secret-token']) {
+    for (const protocol of [undefined, 'token.secret-token', 'paneful-manager.v2, token.secret-token']) {
       expect(decide({ 'sec-websocket-protocol': protocol })).toMatchObject({ ok: false, status: 403 })
     }
   })
 
   it('rejects a missing, wrong or duplicated token with 401', () => {
     for (const protocol of [
-      'agent-hub.v1',
-      'agent-hub.v1, token.wrong',
-      'agent-hub.v1, token.',
-      'agent-hub.v1, token.wrong, token.secret-token',
-      'agent-hub.v1, secret-token',
+      'paneful-manager.v1',
+      'paneful-manager.v1, token.wrong',
+      'paneful-manager.v1, token.',
+      'paneful-manager.v1, token.wrong, token.secret-token',
+      'paneful-manager.v1, secret-token',
     ]) {
       expect(decide({ 'sec-websocket-protocol': protocol })).toMatchObject({ ok: false, status: 401, code: 'unauthorized' })
     }
@@ -68,18 +68,18 @@ describe('authorizeKeyedUpgrade', () => {
 
   it('needs a valid key besides the token, from the header or one key subprotocol', async () => {
     await expect(keyed({})).resolves.toMatchObject({ ok: false, status: 401 })
-    await expect(keyed({ 'sec-websocket-protocol': 'agent-hub.v1, token.secret-token, key.wrong' })).resolves.toMatchObject({ ok: false, status: 401 })
-    await expect(keyed({ 'x-agent-hub-key': 'script-key' })).resolves.toEqual({ ok: true, protocol: 'agent-hub.v1' })
-    await expect(keyed({ 'sec-websocket-protocol': 'agent-hub.v1, token.secret-token, key.session-key' })).resolves.toEqual({ ok: true, protocol: 'agent-hub.v1', revalidate })
+    await expect(keyed({ 'sec-websocket-protocol': 'paneful-manager.v1, token.secret-token, key.wrong' })).resolves.toMatchObject({ ok: false, status: 401 })
+    await expect(keyed({ 'x-paneful-key': 'script-key' })).resolves.toEqual({ ok: true, protocol: 'paneful-manager.v1' })
+    await expect(keyed({ 'sec-websocket-protocol': 'paneful-manager.v1, token.secret-token, key.session-key' })).resolves.toEqual({ ok: true, protocol: 'paneful-manager.v1', revalidate })
   })
 
   it('still checks Host, Origin and the token first', async () => {
-    await expect(keyed({ 'x-agent-hub-key': 'script-key', 'origin': 'https://evil.example' })).resolves.toMatchObject({ ok: false, status: 403 })
-    await expect(keyed({ 'x-agent-hub-key': 'script-key', 'sec-websocket-protocol': 'agent-hub.v1, token.wrong' })).resolves.toMatchObject({ ok: false, status: 401 })
+    await expect(keyed({ 'x-paneful-key': 'script-key', 'origin': 'https://evil.example' })).resolves.toMatchObject({ ok: false, status: 403 })
+    await expect(keyed({ 'x-paneful-key': 'script-key', 'sec-websocket-protocol': 'paneful-manager.v1, token.wrong' })).resolves.toMatchObject({ ok: false, status: 401 })
   })
 
   it('takes no key from two key subprotocols', () => {
-    expect(upgradeKey({ 'sec-websocket-protocol': 'agent-hub.v1, key.a, key.b' })).toBeUndefined()
-    expect(upgradeKey({ 'sec-websocket-protocol': 'agent-hub.v1, key.a' })).toBe('a')
+    expect(upgradeKey({ 'sec-websocket-protocol': 'paneful-manager.v1, key.a, key.b' })).toBeUndefined()
+    expect(upgradeKey({ 'sec-websocket-protocol': 'paneful-manager.v1, key.a' })).toBe('a')
   })
 })

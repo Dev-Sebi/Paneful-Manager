@@ -11,8 +11,8 @@ describe('removeStaleTempFiles', () => {
   let outside: string
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'agent-hub-temp-'))
-    outside = await mkdtemp(join(tmpdir(), 'agent-hub-temp-outside-'))
+    dir = await mkdtemp(join(tmpdir(), 'paneful-manager-temp-'))
+    outside = await mkdtemp(join(tmpdir(), 'paneful-manager-temp-outside-'))
   })
 
   afterEach(async () => {

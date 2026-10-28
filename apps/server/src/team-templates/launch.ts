@@ -12,7 +12,7 @@ import {
   teamNameFor,
   type LaunchTeamTemplateResponse,
   type TeamLaunch,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import { AppError } from '../errors.js'
 import { expandHome } from '../paths.js'

@@ -1,11 +1,11 @@
 import { isAbsolute, relative, resolve } from 'node:path'
-import { isTeamLead, type Team, type TeamMember, type TeamMemberLink } from '@agent-hub/shared'
+import { isTeamLead, type Team, type TeamMember, type TeamMemberLink } from '@paneful-manager/shared'
 import type { TmuxPaneInfo } from '../tmux/tmux.js'
 
 export interface LinkContext {
-  /** Panes of the Agent Hub tmux server; `null` when tmux could not be queried. */
+  /** Panes of the Paneful Manager tmux server; `null` when tmux could not be queried. */
   panes: readonly TmuxPaneInfo[] | null
-  /** Known Agent Hub sessions by id. */
+  /** Known Paneful Manager sessions by id. */
   sessions: ReadonlyMap<string, { cwd: string }>
 }
 
@@ -28,7 +28,7 @@ function linkByPane(member: TeamMember, paneId: string, context: LinkContext): T
   }
   const session = pane.sessionId === undefined ? undefined : context.sessions.get(pane.sessionId)
   if (pane.sessionId === undefined || session === undefined) {
-    return { status: 'unlinked', reason: 'not-agent-hub' }
+    return { status: 'unlinked', reason: 'not-paneful-manager' }
   }
   if (member.cwd !== undefined && !isWithin(member.cwd, session.cwd)) {
     return { status: 'unlinked', reason: 'cwd-mismatch' }
@@ -37,8 +37,8 @@ function linkByPane(member: TeamMember, paneId: string, context: LinkContext): T
 }
 
 /**
- * Links members to Agent Hub sessions: a member's `tmuxPaneId` must be a pane of an `ah-` session on
- * the Agent Hub tmux server whose cwd contains the member's (absolute) cwd. A lead without a pane id
+ * Links members to Paneful Manager sessions: a member's `tmuxPaneId` must be a pane of a `pm-` session on
+ * the Paneful Manager tmux server whose cwd contains the member's (absolute) cwd. A lead without a pane id
  * inherits the session when all linked teammates share one (they split the lead's window) and its cwd fits.
  */
 export function linkMembers(members: readonly TeamMember[], context: LinkContext): TeamMember[] {

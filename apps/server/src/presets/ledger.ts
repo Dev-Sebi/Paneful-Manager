@@ -1,6 +1,6 @@
 import { mkdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { PresetNameSchema, SessionIdSchema, z } from '@agent-hub/shared'
+import { PresetNameSchema, SessionIdSchema, z } from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import { writeFileAtomic } from '../sessions/store.js'
 

@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Scope } from '@agent-hub/shared'
+import type { Scope } from '@paneful-manager/shared'
 import { pino } from 'pino'
 import { AppError } from '../errors.js'
 import { createFileService, type FileService, type FileServiceOptions } from './service.js'
@@ -21,7 +21,7 @@ export const silentLogger = pino({ level: 'silent' })
 
 /** Temp `$CLAUDE_DIR`, one project, an outside dir and a state dir, plus a service over them. */
 export function createSandbox(overrides: Partial<FileServiceOptions> = {}): Sandbox {
-  const base = realpathSync(mkdtempSync(join(tmpdir(), 'agent-hub-files-')))
+  const base = realpathSync(mkdtempSync(join(tmpdir(), 'paneful-manager-files-')))
   const claudeDir = join(base, 'claude')
   const project = join(base, 'project')
   const outside = join(base, 'outside')

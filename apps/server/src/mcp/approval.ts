@@ -1,7 +1,7 @@
 import { constants } from 'node:fs'
 import { open, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { McpScope } from '@agent-hub/shared'
+import type { McpScope } from '@paneful-manager/shared'
 import { resolveClaudeJsonPath } from './files.js'
 
 const MAX_SETTINGS_BYTES = 16 * 1024 * 1024

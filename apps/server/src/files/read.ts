@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { constants, type Stats } from 'node:fs'
 import { open } from 'node:fs/promises'
-import { MAX_MANAGED_FILE_BYTES } from '@agent-hub/shared'
+import { MAX_MANAGED_FILE_BYTES } from '@paneful-manager/shared'
 import { AppError } from '../errors.js'
 
 export interface CurrentFile {

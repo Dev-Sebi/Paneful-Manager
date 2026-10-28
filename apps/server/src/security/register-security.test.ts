@@ -7,7 +7,7 @@ import {
   DEFAULT_CONFIG,
   RegisterDeviceResponseSchema,
   SessionTokenResponseSchema,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -80,7 +80,7 @@ describe('Origin check', () => {
       await expectError(await send(target, 'GET', API_ROUTES.health, { origin }), 403, 'forbidden')
     }
     await expectError(
-      await send(target, 'POST', '/api/test-mutation', { origin: 'https://evil.example', 'x-agent-hub-token': TOKEN }),
+      await send(target, 'POST', '/api/test-mutation', { origin: 'https://evil.example', 'x-paneful-token': TOKEN }),
       403,
       'forbidden',
     )
@@ -104,7 +104,7 @@ describe('Origin check', () => {
     const dev = build(true, extra)
     expect((await send(dev, 'GET', API_ROUTES.health, { origin: 'http://localhost:3001' })).statusCode).toBe(200)
     await expectError(await send(dev, 'GET', API_ROUTES.health, { origin: 'http://evil.example' }), 403, 'forbidden')
-    await expectError(await send(dev, 'POST', '/api/test-mutation', { origin: 'http://evil.example', 'x-agent-hub-token': TOKEN }), 403, 'forbidden')
+    await expectError(await send(dev, 'POST', '/api/test-mutation', { origin: 'http://evil.example', 'x-paneful-token': TOKEN }), 403, 'forbidden')
   })
 
   it('derives dev mode from NODE_ENV', async () => {
@@ -125,17 +125,17 @@ describe('per-boot token', () => {
       await expectError(await send(target, method, '/api/test-mutation', { origin: ORIGIN }), 401, 'unauthorized')
     }
     for (const candidate of ['wrong', `${TOKEN}x`]) {
-      const headers = { origin: ORIGIN, 'x-agent-hub-token': candidate }
+      const headers = { origin: ORIGIN, 'x-paneful-token': candidate }
       await expectError(await send(target, 'POST', '/api/test-mutation', headers), 401, 'unauthorized')
     }
   })
 
   it('rejects mutating requests without Origin even with the correct token', async () => {
-    await expectError(await send(build(), 'POST', '/api/test-mutation', { 'x-agent-hub-token': TOKEN }), 401, 'unauthorized')
+    await expectError(await send(build(), 'POST', '/api/test-mutation', { 'x-paneful-token': TOKEN }), 401, 'unauthorized')
   })
 
   it('passes with the correct token and an allowed Origin', async () => {
-    const response = await send(build(), 'POST', '/api/test-mutation', { 'x-agent-hub-token': TOKEN, origin: ORIGIN })
+    const response = await send(build(), 'POST', '/api/test-mutation', { 'x-paneful-token': TOKEN, origin: ORIGIN })
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual({ done: true })
   })
@@ -158,7 +158,7 @@ describe('access key', () => {
       const read = await send(target, 'GET', '/api/test-read', { [ACCESS_KEY_HEADER]: key })
       await expectError(read, 401, 'login_required')
       expect(read.body).not.toContain('data')
-      const headers = { [ACCESS_KEY_HEADER]: key, origin: ORIGIN, 'x-agent-hub-token': TOKEN }
+      const headers = { [ACCESS_KEY_HEADER]: key, origin: ORIGIN, 'x-paneful-token': TOKEN }
       await expectError(await send(target, 'POST', '/api/test-mutation', headers), 401, 'login_required')
     }
   })
@@ -239,14 +239,14 @@ describe('hook route', () => {
   it('exempts only POST from the per-boot token', async () => {
     const target = build()
     await expectError(await send(target, 'DELETE', API_ROUTES.hooks, {}), 401, 'unauthorized')
-    const headers = { origin: ORIGIN, 'x-agent-hub-token': TOKEN }
+    const headers = { origin: ORIGIN, 'x-paneful-token': TOKEN }
     expect((await send(target, 'DELETE', API_ROUTES.hooks, headers)).statusCode).toBe(200)
   })
 
   it('rejects any request with an Origin, even an allowed one', async () => {
     const target = build()
     for (const origin of [ORIGIN, 'https://evil.example']) {
-      await expectError(await send(target, 'POST', API_ROUTES.hooks, { origin, 'x-agent-hub-token': TOKEN }), 403, 'forbidden')
+      await expectError(await send(target, 'POST', API_ROUTES.hooks, { origin, 'x-paneful-token': TOKEN }), 403, 'forbidden')
     }
   })
 
@@ -287,7 +287,7 @@ describe('device login', () => {
   })
 
   async function buildWithDevices(): Promise<{ target: FastifyInstance, dir: string }> {
-    const dir = await mkdtemp(join(tmpdir(), 'agent-hub-login-'))
+    const dir = await mkdtemp(join(tmpdir(), 'paneful-manager-login-'))
     stateDir = dir
     app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, accessKey: KEY, deviceAuth: new DeviceAuth(dir), dev: false })
     app.get('/api/test-read', () => ({ secret: 'data' }))

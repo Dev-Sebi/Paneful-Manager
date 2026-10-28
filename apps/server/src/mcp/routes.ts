@@ -15,7 +15,7 @@ import {
   type McpHealthResult,
   type RemoveMcpServerResponse,
   type UpsertMcpServerResponse,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import { createHealthRunner, type HealthRunner } from './health.js'
 import type { McpService } from './service.js'

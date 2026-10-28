@@ -1,7 +1,7 @@
 import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { API_ROUTES, DEFAULT_CONFIG, GetConfigResponseSchema, PatchConfigResponseSchema } from '@agent-hub/shared'
+import { API_ROUTES, DEFAULT_CONFIG, GetConfigResponseSchema, PatchConfigResponseSchema } from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import { pino } from 'pino'
 import { parse } from 'yaml'
@@ -24,13 +24,13 @@ function patch(payload: unknown) {
     headers: {
       host: `localhost:${DEFAULT_CONFIG.port}`,
       origin: `http://localhost:${DEFAULT_CONFIG.port}`,
-      'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN,
+      'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN,
     },
   })
 }
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'ah-config-'))
+  dir = await mkdtemp(join(tmpdir(), 'pm-config-'))
   await mkdir(dir, { recursive: true })
   file = join(dir, 'config.yaml')
   store = createConfigStore(DEFAULT_CONFIG, { file })
@@ -47,7 +47,7 @@ describe('config routes', () => {
     const response = await app.inject({
       method: 'GET',
       url: API_ROUTES.config,
-      headers: { host: `localhost:${DEFAULT_CONFIG.port}`, 'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN },
+      headers: { host: `localhost:${DEFAULT_CONFIG.port}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN },
     })
     expect(GetConfigResponseSchema.parse(response.json()).config.confirmCloseTab).toBe(true)
   })

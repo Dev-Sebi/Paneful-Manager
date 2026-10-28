@@ -1,7 +1,7 @@
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Session } from '@agent-hub/shared'
+import type { Session } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SessionStore, writeFileAtomic } from './store.js'
 
@@ -11,7 +11,7 @@ const base: Session = {
   cwd: '/tmp',
   command: 'claude',
   args: [],
-  tmuxSession: 'ah-a1',
+  tmuxSession: 'pm-a1',
   createdAt: '2026-10-27T10:00:00.000Z',
   state: 'idle',
   lifecycle: 'running',
@@ -24,7 +24,7 @@ let dir: string
 let store: SessionStore
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'agent-hub-store-'))
+  dir = await mkdtemp(join(tmpdir(), 'paneful-manager-store-'))
   store = new SessionStore(join(dir, 'state'))
   await store.init()
 })
@@ -69,7 +69,7 @@ describe('SessionStore', () => {
 
   it('saves, loads and removes records', async () => {
     await store.save(base)
-    await store.save({ ...base, id: 'b2', tmuxSession: 'ah-b2', lifecycle: 'exited', exitCode: 3 })
+    await store.save({ ...base, id: 'b2', tmuxSession: 'pm-b2', lifecycle: 'exited', exitCode: 3 })
     const loaded = await store.loadAll()
     expect(loaded.map(s => s.id).sort()).toEqual(['a1', 'b2'])
     expect(loaded.find(s => s.id === 'b2')?.exitCode).toBe(3)
@@ -89,13 +89,13 @@ describe('SessionStore', () => {
     await writeFile(join(store.dir, 'broken.json'), '{')
     await writeFile(join(store.dir, 'b2.json'), JSON.stringify({ ...base, extra: 1 }))
     await writeFile(join(store.dir, 'c3.json'), JSON.stringify(base))
-    await writeFile(join(store.dir, '.a1.json.agent-hub-1.tmp'), '{')
+    await writeFile(join(store.dir, '.a1.json.paneful-manager-1.tmp'), '{')
     expect((await store.loadAll()).map(s => s.id)).toEqual(['a1'])
   })
 
   it('prunes records that are not kept', async () => {
     await store.save(base)
-    await store.save({ ...base, id: 'b2', tmuxSession: 'ah-b2' })
+    await store.save({ ...base, id: 'b2', tmuxSession: 'pm-b2' })
     expect(await store.prune(new Set(['b2']))).toEqual(['a1'])
     expect((await store.loadAll()).map(s => s.id)).toEqual(['b2'])
   })
