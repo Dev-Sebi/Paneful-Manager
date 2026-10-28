@@ -148,6 +148,11 @@ function isSessionMissing(stderr: string): boolean {
   return /can't find (session|window|pane)|session not found/i.test(stderr)
 }
 
+/** tmux expands `-c` as a format, where `#(...)` runs a shell command; `##` is a literal `#`. */
+export function escapeFormat(value: string): string {
+  return value.replaceAll('#', '##')
+}
+
 /** Socket location override; `run()` adds only its base env, so it is passed on explicitly. */
 function socketEnv(): NodeJS.ProcessEnv {
   const dir = process.env.TMUX_TMPDIR
@@ -210,7 +215,7 @@ export class Tmux {
   async newSession({ id, cwd, command, args, env, cols, rows }: NewSessionOptions): Promise<void> {
     const envArgs = Object.entries(env).flatMap(([key, value]) => ['-e', `${key}=${value}`])
     await this.exec([
-      'new-session', '-d', '-s', tmuxName(id), '-c', cwd, '-x', String(cols), '-y', String(rows),
+      'new-session', '-d', '-s', tmuxName(id), '-c', escapeFormat(cwd), '-x', String(cols), '-y', String(rows),
       ...envArgs, '--', 'env', '--', command, ...args,
     ])
   }

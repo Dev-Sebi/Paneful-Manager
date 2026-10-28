@@ -100,6 +100,12 @@ describe('Tmux', () => {
     expect(tmux.attachArgs('a1')).toEqual(['-L', 'test-sock', 'attach-session', '-t', '=ah-a1'])
   })
 
+  it('escapes tmux formats in the cwd', async () => {
+    const { run, calls } = fakeRun(() => '')
+    await new Tmux({ run }).newSession({ id: 'a1', cwd: '/p/a#(cmd)#{x}##', command: 'sh', args: [], env: {}, cols: 80, rows: 24 })
+    expect(calls[0]?.[calls[0].indexOf('-c') + 1]).toBe('/p/a##(cmd)##{x}####')
+  })
+
   it('adds the alternate-screen override only once', async () => {
     let overrides = ''
     const { run, calls } = fakeRun(args => {

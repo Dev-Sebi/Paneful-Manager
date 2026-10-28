@@ -155,6 +155,11 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
 
   async create(input: CreateSessionRequest): Promise<Session> {
     const cwd = resolve(expandHome(input.cwd))
+    // A line break or tab in the cwd would forge extra lines in the tab-separated tmux session listing.
+    // eslint-disable-next-line no-control-regex
+    if (/[\0-\x1F\x7F]/.test(cwd)) {
+      throw new AppError('cwd must not contain control characters', 400, 'bad_request')
+    }
     const isDir = await stat(cwd).then(s => s.isDirectory(), () => false)
     if (!isDir) {
       throw new AppError(`cwd ${input.cwd} is not a directory`, 400, 'bad_request')
