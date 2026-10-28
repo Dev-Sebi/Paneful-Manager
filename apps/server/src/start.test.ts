@@ -1,11 +1,12 @@
-import { DEFAULT_CONFIG, HealthResponseSchema, API_ROUTES, ListMcpServersResponseSchema } from '@agent-hub/shared'
+import { ACCESS_KEY_HEADER, DEFAULT_CONFIG, HealthResponseSchema, API_ROUTES, ListMcpServersResponseSchema } from '@agent-hub/shared'
 import { pino } from 'pino'
 import { EventEmitter } from 'node:events'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { RunError } from './process/exec.js'
+import { ACCESS_KEY_FILE, portArgument, resolveLoginUrl } from './security/access-key.js'
 import { SHUTDOWN_TIMEOUT_MS, installShutdown, startServer } from './start.js'
 import { Tmux } from './tmux/tmux.js'
 
@@ -104,14 +105,49 @@ describe('shutdown timeout', () => {
   })
 })
 
+async function accessKeyOf(stateHome: string): Promise<string> {
+  return (await readFile(join(stateHome, 'agent-hub', ACCESS_KEY_FILE), 'utf8')).trim()
+}
+
+describe('access key', () => {
+  it('is created owner-only, guards the API and builds the login URL', async () => {
+    const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
+    const env = { CLAUDE_CONFIG_DIR: '/nonexistent/claude', XDG_STATE_HOME: stateHome, XDG_CONFIG_HOME: stateHome }
+    const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env, tmux: missingTmux() })
+    try {
+      const file = join(stateHome, 'agent-hub', ACCESS_KEY_FILE)
+      expect((await stat(file)).mode & 0o777).toBe(0o600)
+      const key = await accessKeyOf(stateHome)
+      expect(key).toMatch(/^[\w-]{43}$/)
+      expect((await fetch(`${server.url}${API_ROUTES.sessionToken}`)).status).toBe(401)
+      expect((await fetch(`${server.url}${API_ROUTES.sessionToken}`, { headers: { [ACCESS_KEY_HEADER]: key } })).status).toBe(200)
+      expect((await fetch(`${server.url}${API_ROUTES.health}`)).status).toBe(200)
+      expect(await resolveLoginUrl({ ...env, AGENT_HUB_PORT: String(server.port) }, [])).toBe(`http://127.0.0.1:${server.port}/#key=${key}`)
+      expect(await resolveLoginUrl(env, ['--port', '3000'])).toBe(`http://127.0.0.1:3000/#key=${key}`)
+    } finally {
+      await server.shutdown()
+      await rm(stateHome, { recursive: true, force: true })
+    }
+  })
+
+  it('login URL fails clearly before the first start and on a bad port', async () => {
+    const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
+    await expect(resolveLoginUrl({ XDG_STATE_HOME: stateHome }, [])).rejects.toThrow(/start Agent Hub once/)
+    expect(() => portArgument(['--port', 'x'])).toThrow(/--port/)
+    expect(portArgument([])).toBeUndefined()
+    await rm(stateHome, { recursive: true, force: true })
+  })
+})
+
 describe('file service wiring', () => {
   it('serves the file and MCP routes and refuses a backup dir inside a scope', async () => {
     const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
     const env = { CLAUDE_CONFIG_DIR: '/nonexistent/claude', XDG_STATE_HOME: stateHome }
     const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env, tmux: missingTmux() })
-    const response = await fetch(`${server.url}${API_ROUTES.files}`)
+    const headers = { [ACCESS_KEY_HEADER]: await accessKeyOf(stateHome) }
+    const response = await fetch(`${server.url}${API_ROUTES.files}`, { headers })
     expect(response.status).toBe(200)
-    const mcp = await fetch(`${server.url}${API_ROUTES.mcp}`)
+    const mcp = await fetch(`${server.url}${API_ROUTES.mcp}`, { headers })
     expect(mcp.status).toBe(200)
     expect(ListMcpServersResponseSchema.parse(await mcp.json()).servers).toEqual([])
     await server.shutdown()

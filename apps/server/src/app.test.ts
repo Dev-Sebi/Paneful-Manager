@@ -10,13 +10,13 @@ let app: FastifyInstance
 const TOKEN = 'test-token'
 
 function build(): FastifyInstance {
-  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, dev: false })
+  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, accessKey: TOKEN, dev: false })
   const inject = app.inject.bind(app)
   const local = (options: InjectOptions) =>
     inject({ ...options, headers: {
         host: `localhost:${DEFAULT_CONFIG.port}`,
         origin: `http://localhost:${DEFAULT_CONFIG.port}`,
-        'x-agent-hub-token': TOKEN,
+        'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN,
         ...options.headers,
       },
     })

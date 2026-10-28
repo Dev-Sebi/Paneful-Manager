@@ -7,6 +7,7 @@ import {
   parsePaneList,
   parseSessionList,
   sessionTarget,
+  secretEnvCommands,
   Tmux,
   tmuxEnv,
   TmuxSessionNotFoundError,
@@ -98,6 +99,19 @@ describe('Tmux', () => {
       '-e', 'AGENT_HUB_SESSION_ID=a1', '--', 'env', '--', 'claude', '--resume',
     ])
     expect(tmux.attachArgs('a1')).toEqual(['-L', 'test-sock', 'attach-session', '-t', '=ah-a1'])
+  })
+
+  it('sources the secret env file in the same invocation, before new-session', async () => {
+    const { run, calls } = fakeRun(() => '')
+    await new Tmux({ socketName: 's', run }).newSession({ id: 'a1', cwd: '/tmp', command: 'sh', args: [], env: {}, secretEnvFile: '/state/session-env.tmux', cols: 80, rows: 24 })
+    expect(calls[0]?.slice(0, 7)).toEqual(['-N', '-L', 's', 'source-file', '/state/session-env.tmux', ';', 'new-session'])
+  })
+
+  it('renders secret env as set-environment commands and refuses unsafe names or values', () => {
+    expect(secretEnvCommands({ AGENT_HUB_HOOK_TOKEN: 'aB3_-x' })).toBe("set-environment -g AGENT_HUB_HOOK_TOKEN 'aB3_-x'\n")
+    for (const env of [{ 'bad name': 'x' }, { A: "it's" }, { A: 'a\nset-option x' }, { A: 'a;b' }] as Array<Record<string, string>>) {
+      expect(() => secretEnvCommands(env)).toThrow(/set-environment/)
+    }
   })
 
   it('escapes tmux formats in the cwd', async () => {

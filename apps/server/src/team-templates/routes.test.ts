@@ -22,7 +22,7 @@ import { TeamLaunchLedger } from './ledger.js'
 import { createTeamTemplateStore } from './store.js'
 
 const TOKEN = 'test-token'
-const local = { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, [SESSION_TOKEN_HEADER]: TOKEN }
+const local = { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, 'x-agent-hub-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
 const template = { name: 'alpha', experimental: true, lead: { cwd: tmpdir() }, teammates: [{ name: 'tester', prompt: 'Test it' }] }
 const body = { template }
 let root: string
@@ -58,7 +58,7 @@ beforeEach(async () => {
     newClaudeSessionId: () => 'abcdef12-0000-4000-8000-000000000000',
   })
   config = createConfigStore({ ...DEFAULT_CONFIG, experimental: { agentTeams: true } })
-  app = buildApp({ config: DEFAULT_CONFIG, configStore: config, logger, sessionToken: TOKEN, dev: false, teamTemplates: { store, launcher } })
+  app = buildApp({ config: DEFAULT_CONFIG, configStore: config, logger, sessionToken: TOKEN, accessKey: TOKEN, dev: false, teamTemplates: { store, launcher } })
 })
 
 afterEach(async () => {
@@ -124,7 +124,7 @@ describe('team template routes', () => {
   it('applies the token and Origin rules to every mutation', async () => {
     for (const [method, url] of [['POST', API_ROUTES.teamTemplates], ['PUT', '/api/team-templates/alpha'], ['DELETE', '/api/team-templates/alpha'], ['POST', '/api/team-templates/alpha/launch']] as const) {
       expect((await inject({ method, url, payload: body, headers: { [SESSION_TOKEN_HEADER]: 'wrong' } })).statusCode).toBe(401)
-      expect((await app.inject({ method, url, payload: body, headers: { host: local.host, [SESSION_TOKEN_HEADER]: TOKEN } })).statusCode).toBe(401)
+      expect((await app.inject({ method, url, payload: body, headers: { host: local.host, 'x-agent-hub-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN } })).statusCode).toBe(401)
       expect((await inject({ method, url, payload: body, headers: { origin: 'http://evil.example' } })).statusCode).toBe(403)
     }
     expect(live.size).toBe(0)

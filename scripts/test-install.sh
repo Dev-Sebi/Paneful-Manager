@@ -180,6 +180,13 @@ check "units enabled" contains "$STUB_LOG" "systemctl --user enable agent-hub-tm
 check "linger enabled" contains "$STUB_LOG" "loginctl enable-linger tester"
 check "health check called" contains "$STUB_LOG" "curl -fsS --max-time 5 http://127.0.0.1:7337/api/health"
 check "non-WSL warning shown" contains "$OUT" "does not look like WSL"
+check "install explains where the login URL comes from" contains "$OUT" "install.sh --login-url"
+install_sh_fails --login-url
+check "--login-url without a key explains why" contains "$OUT" "No access key yet"
+printf 'test-access-key-0123456789abcdefghijkl\n' >"$STATE/access-key"
+install_sh --login-url
+check "--login-url prints the URL with the key and port" contains "$OUT" "^  http://127.0.0.1:7337/#key=test-access-key-0123456789abcdefghijkl$"
+rm -f "$STATE/access-key"
 
 # ---------- re-run is a no-op ----------
 

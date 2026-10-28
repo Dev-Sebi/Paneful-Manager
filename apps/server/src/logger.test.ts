@@ -21,7 +21,7 @@ describe('createLogger', () => {
         req: {
           headers: {
             authorization: `Bearer ${TOKEN}`,
-            'x-agent-hub-token': TOKEN,
+            'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN,
             'x-agent-hub-hook-token': TOKEN,
             'sec-websocket-protocol': `agent-hub.v1, token.${TOKEN}`,
             host: 'localhost:7337',
@@ -43,9 +43,9 @@ describe('createLogger', () => {
 
   it('keeps the token out of request logs', async () => {
     const { logger, output } = capture()
-    const app = buildApp({ config: DEFAULT_CONFIG, logger, sessionToken: TOKEN, dev: false })
+    const app = buildApp({ config: DEFAULT_CONFIG, logger, sessionToken: TOKEN, accessKey: TOKEN, dev: false })
     app.post('/api/test-mutation', () => ({}))
-    await app.inject({ method: 'POST', url: '/api/test-mutation', headers: { host: 'localhost', origin: 'http://localhost:7337', 'x-agent-hub-token': TOKEN } })
+    await app.inject({ method: 'POST', url: '/api/test-mutation', headers: { host: 'localhost', origin: 'http://localhost:7337', 'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN } })
     await app.inject({ method: 'GET', url: '/api/session-token', headers: { host: 'localhost' } })
     await app.close()
     expect(output()).toContain('incoming request')

@@ -9,7 +9,7 @@ export const HOOK_TOKEN_HEADER = 'x-agent-hub-hook-token'
 /** Header carrying the Agent Hub session id on `POST /api/hooks`. */
 export const HOOK_SESSION_HEADER = 'x-agent-hub-session-id'
 
-/** Environment variables every new session gets through `tmux new-session -e`. */
+/** Environment variables every new session gets: the token through a sourced owner-only tmux file, the others through `new-session -e`. */
 export const HOOK_ENV = {
   sessionId: 'AGENT_HUB_SESSION_ID',
   token: 'AGENT_HUB_HOOK_TOKEN',

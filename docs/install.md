@@ -31,7 +31,7 @@ curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/install.sh
 
 The installer prints a plan first and asks before it changes anything. Questions are read from the terminal, so they work with `curl | sh`. Without a terminal every question is answered with no, so nothing privileged happens by accident; pass `--yes` for unattended installs. `--dry-run` prints every step without changing anything.
 
-When the install finishes, open `http://127.0.0.1:7337/` or `http://localhost:7337/` in a Windows browser. WSL forwards localhost ports to Windows.
+When the install finishes, the installer prints a login URL. Open it once in your browser (in WSL: a Windows browser; WSL forwards loopback ports to Windows). See [Login URL](#login-url).
 
 ### From a local build
 
@@ -57,6 +57,7 @@ A source checkout must contain `apps/server/dist/index.js` and `apps/web/dist/in
 | `--no-windows-task` | never offer the Windows logon task |
 | `--force` | reinstall the same version; also allows a prefix outside your home directory or a non-empty prefix without install marker |
 | `--no-verify` | install a downloaded release that publishes no `.sha256` file |
+| `--login-url` | print the login URL (see [Login URL](#login-url)) and exit |
 | `--rollback` | switch back to the previous release |
 | `--uninstall` | remove units, installed releases and the Windows task |
 | `--purge` | with `--uninstall`: also remove config and state without asking |
@@ -86,6 +87,25 @@ Environment: `AGENT_HUB_REPO` (`<owner>/<repo>` to download releases from).
 
 All paths follow `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and `XDG_DATA_HOME` when they are set to absolute paths. The units pin the config and state values, so the server uses the same directories as the installer.
 
+## Login URL
+
+Every API request needs the access key, a random value the server writes once to `~/.local/state/agent-hub/access-key` (mode `0600`). Only you (and root) can read it, so other users on the same machine cannot use your Agent Hub, although it listens on the shared loopback interface. Background: [ADR 0013](adr/0013-access-key-against-local-users.md).
+
+The browser gets the key from the login URL:
+
+```bash
+~/.local/share/agent-hub/current/install.sh --login-url
+#   http://127.0.0.1:7337/#key=<access key>
+```
+
+Open the URL once per browser profile. The web app stores the key for that origin and removes it from the address bar; later visits to `http://127.0.0.1:7337/` need nothing else. The key survives server restarts and upgrades.
+
+- Always use `127.0.0.1`, never `localhost`: `localhost` may resolve to `::1`, where another user on the machine can listen on the same port and read the key. Under any other host name the app does not keep the key and asks you to switch to `127.0.0.1`.
+- Without a stored key, or with an old one, the app shows only the hint to open the login URL.
+- The installer does not open the browser: a browser started with the URL as an argument would show the key in the process list.
+- To rotate the key, delete the file and restart the server (`systemctl --user restart agent-hub.service`); every browser then needs the new login URL.
+- In a source checkout, `pnpm login-url` prints the URL for the running server; `pnpm login-url --port 3000` prints it for the Vite dev server.
+
 ## Port
 
 The server reads `port` from `config.yaml`; `AGENT_HUB_PORT` overrides it. `agent-hub.service` sets `AGENT_HUB_PORT` to the port the installer used: `--port` if given, otherwise the port of the installed unit, otherwise the `port` in `config.yaml`, otherwise `7337`. `--port` is also written to `config.yaml`, so both agree.
@@ -97,6 +117,12 @@ To change the port later, re-run the installer with `--port <port>`. It rewrites
 ```bash
 systemctl --user status agent-hub-tmux.service agent-hub.service
 curl -fsS http://127.0.0.1:7337/api/health
+```
+
+`/api/health` is the only route that needs no access key. For other routes from a shell, pass the key on stdin so it does not show up in `curl`'s command line:
+
+```bash
+printf 'X-Agent-Hub-Key: %s\n' "$(cat ~/.local/state/agent-hub/access-key)" | curl -fsS -H @- http://127.0.0.1:7337/api/sessions
 ```
 
 The health answer is JSON with `status` (`ok`), `name` (`Agent Hub`), `version`, `protocolVersion`, `uptimeSec` and `tmux` (`available` or `unavailable`). `tmux: unavailable` means the tmux unit is not running; see [Troubleshooting](troubleshooting.md#tmux-unavailable).

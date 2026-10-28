@@ -12,6 +12,7 @@ import type {
   z,
 } from '@agent-hub/shared'
 import {
+  ACCESS_KEY_HEADER,
   API_ROUTES,
   ApiErrorSchema,
   CreateFileResponseSchema,
@@ -40,6 +41,7 @@ import {
   UpsertMcpServerResponseSchema,
   WriteFileResponseSchema,
 } from '@agent-hub/shared'
+import { loginRequired, readAccessKey } from './access'
 import { getToken, refreshToken } from './token'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -73,6 +75,10 @@ async function send (route: string, init: RequestInit, mutating: boolean, token?
   if (init.body !== undefined) {
     headers.set('content-type', 'application/json')
   }
+  const key = readAccessKey()
+  if (key) {
+    headers.set(ACCESS_KEY_HEADER, key)
+  }
   if (mutating && token) {
     headers.set(SESSION_TOKEN_HEADER, token)
   }
@@ -87,13 +93,16 @@ async function toError (response: Response): Promise<ApiClientError> {
   const body: unknown = await response.json().catch(() => undefined)
   const parsed = ApiErrorSchema.safeParse(body)
   if (parsed.success) {
+    if (parsed.data.code === 'login_required') {
+      loginRequired.value = true
+    }
     return new ApiClientError(response.status, parsed.data.code, parsed.data.message, parsed.data.details)
   }
   return new ApiClientError(response.status, 'internal', response.statusText || `Request failed with status ${response.status}`)
 }
 
 /**
- * Fetches `route`, sends the session token on mutations and retries a mutation once with a fresh token on 401/403.
+ * Fetches `route` with the access key, sends the session token on mutations and retries a mutation once with a fresh token on 401/403.
  * The body is validated with `init.schema`.
  */
 export async function fetchJson<S extends z.ZodType> (route: string, init: FetchJsonInit<S>): Promise<z.infer<S>> {

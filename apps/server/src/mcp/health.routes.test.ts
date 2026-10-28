@@ -29,7 +29,7 @@ const fakeRunner: HealthRunner = {
 function send(options: InjectOptions, token = TOKEN) {
   return app.inject({
     ...options,
-    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, ...(token ? { 'x-agent-hub-token': token } : {}), ...options.headers },
+    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-agent-hub-key': TOKEN, ...(token ? { 'x-agent-hub-token': token } : {}), ...options.headers },
   })
 }
 
@@ -49,7 +49,7 @@ const writeLocalSettings = (value: unknown): void => {
 
 function start(health?: HealthRunner): void {
   const service = createMcpService({ getScopes: async () => box.scopes, env: {}, backupDir: join(box.state, 'backups'), logger: silentLogger, mode: 'file', home: box.home, managedDir: join(box.base, 'managed') })
-  app = buildApp({ config: DEFAULT_CONFIG, logger: silentLogger, sessionToken: TOKEN, dev: false, mcp: { service, ...(health ? { health } : {}) } })
+  app = buildApp({ config: DEFAULT_CONFIG, logger: silentLogger, sessionToken: TOKEN, accessKey: TOKEN, dev: false, mcp: { service, ...(health ? { health } : {}) } })
 }
 
 beforeEach(() => {

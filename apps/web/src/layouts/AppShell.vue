@@ -52,7 +52,13 @@
     </v-app-bar>
 
     <v-main id="main-content" ref="mainRef" class="shell__main" tabindex="-1">
-      <router-view />
+      <EmptyState
+        v-if="loginRequired"
+        icon="mdi-key-outline"
+        :message="loginMessage"
+      />
+
+      <router-view v-else />
     </v-main>
 
     <v-snackbar
@@ -72,13 +78,15 @@
 <script lang="ts" setup>
   import type { ConnectionState } from '@/api/connection'
   import type { AhStatusBadgeState } from '@/components/ah'
-  import type { Theme } from '@agent-hub/shared'
+  import { BIND_HOST, type Theme } from '@agent-hub/shared'
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { useTheme } from 'vuetify'
+  import { loginRequired, untrustedHost } from '@/api/access'
   import { connection } from '@/api/connection'
   import { wsClient } from '@/api/ws'
   import { AhButton, AhStatusBadge } from '@/components/ah'
+  import EmptyState from '@/components/EmptyState.vue'
   import { SECTIONS } from '@/layouts/sections'
   import { useConfigStore } from '@/stores/config'
   import { useSessionsStore } from '@/stores/sessions'
@@ -100,6 +108,9 @@
   const visibleSections = computed(() => SECTIONS.filter(section => !section.flagged || config.agentTeams))
   const current = computed(() => ui.snackbars[0])
   const activeTheme = computed(() => ui.theme ?? config.theme)
+  const loginMessage = computed(() => untrustedHost.value
+    ? `Open Agent Hub at http://${BIND_HOST}:${location.port}/ instead: on this host name another local user's server can answer. Then open the login URL once.`
+    : 'Open the login URL once in this browser. Print it with install.sh --login-url (or pnpm login-url in a checkout).')
 
   const CONNECTION_BADGES: Record<ConnectionState, { state: AhStatusBadgeState, label: string }> = {
     connected: { state: 'idle', label: 'Connected' },
@@ -147,6 +158,9 @@
     window.addEventListener('keydown', onKeydown)
     unbind = sessions.bind(wsClient)
     offFatal = wsClient.onFatal(() => ui.notify('Protocol mismatch, reload the page', 'error', true))
+    if (loginRequired.value) {
+      return
+    }
     // State events missed while disconnected are not replayed, so resync the list on every (re)connect.
     offOpen = wsClient.onOpen(() => void sessions.load())
     void config.ensureLoaded()

@@ -24,7 +24,7 @@ function patch(payload: unknown) {
     headers: {
       host: `localhost:${DEFAULT_CONFIG.port}`,
       origin: `http://localhost:${DEFAULT_CONFIG.port}`,
-      'x-agent-hub-token': TOKEN,
+      'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN,
     },
   })
 }
@@ -34,7 +34,7 @@ beforeEach(async () => {
   await mkdir(dir, { recursive: true })
   file = join(dir, 'config.yaml')
   store = createConfigStore(DEFAULT_CONFIG, { file })
-  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, dev: false, configStore: store })
+  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, accessKey: TOKEN, dev: false, configStore: store })
 })
 
 afterEach(async () => {
@@ -47,7 +47,7 @@ describe('config routes', () => {
     const response = await app.inject({
       method: 'GET',
       url: API_ROUTES.config,
-      headers: { host: `localhost:${DEFAULT_CONFIG.port}`, 'x-agent-hub-token': TOKEN },
+      headers: { host: `localhost:${DEFAULT_CONFIG.port}`, 'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN },
     })
     expect(GetConfigResponseSchema.parse(response.json()).config.confirmCloseTab).toBe(true)
   })

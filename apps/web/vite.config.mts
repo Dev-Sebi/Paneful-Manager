@@ -34,6 +34,8 @@ export default defineConfig({
     ],
   },
   server: {
+    // The bound address, not `localhost`: another local user could listen on `::1` with the same port.
+    host: '127.0.0.1',
     port: 3000,
     strictPort: true,
     proxy: {

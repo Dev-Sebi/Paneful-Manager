@@ -1,10 +1,11 @@
-import { API_ROUTES, ApiErrorSchema, DEFAULT_CONFIG, SessionTokenResponseSchema } from '@agent-hub/shared'
+import { ACCESS_KEY_HEADER, API_ROUTES, ApiErrorSchema, DEFAULT_CONFIG, SessionTokenResponseSchema } from '@agent-hub/shared'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../app.js'
 
 const TOKEN = 'per-boot-test-token'
+const KEY = 'persisted-access-key'
 const PORT = DEFAULT_CONFIG.port
 const HOST = `127.0.0.1:${PORT}`
 const ORIGIN = `http://127.0.0.1:${PORT}`
@@ -12,15 +13,18 @@ const ORIGIN = `http://127.0.0.1:${PORT}`
 let app: FastifyInstance | undefined
 
 function build(dev = false, devOrigins: string[] = []): FastifyInstance {
-  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, dev, devOrigins })
+  app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, accessKey: KEY, dev, devOrigins })
+  app.get('/api/test-read', () => ({ secret: 'data' }))
   app.post('/api/test-mutation', () => ({ done: true }))
   app.post(API_ROUTES.hooks, () => ({ received: true }))
   app.delete(API_ROUTES.hooks, () => ({ deleted: true }))
   return app
 }
 
+/** Sends the access key unless `headers` overrides it (`undefined` drops it). */
 function send(target: FastifyInstance, method: InjectOptions['method'], url: string, headers: Record<string, string | undefined>) {
-  return target.inject({ method, url, headers: { host: HOST, ...headers } })
+  const merged = Object.entries({ host: HOST, [ACCESS_KEY_HEADER]: KEY, ...headers }).filter(([, value]) => value !== undefined)
+  return target.inject({ method, url, headers: Object.fromEntries(merged) as Record<string, string> })
 }
 
 async function expectError(response: Awaited<ReturnType<typeof send>>, status: number, code: string): Promise<void> {
@@ -90,11 +94,11 @@ describe('Origin check', () => {
 
   it('derives dev mode from NODE_ENV', async () => {
     vi.stubEnv('NODE_ENV', 'development')
-    app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN })
+    app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, accessKey: KEY })
     expect((await send(app, 'GET', API_ROUTES.health, { origin: 'http://localhost:3000' })).statusCode).toBe(200)
     await app.close()
     vi.stubEnv('NODE_ENV', 'production')
-    app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN })
+    app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, accessKey: KEY })
     expect((await send(app, 'GET', API_ROUTES.health, { origin: 'http://localhost:3000' })).statusCode).toBe(403)
   })
 })
@@ -126,13 +130,71 @@ describe('per-boot token', () => {
   })
 
   it('generates a random base64url token when none is given', async () => {
-    app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), dev: false })
+    app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), accessKey: KEY, dev: false })
     const { token } = SessionTokenResponseSchema.parse((await send(app, 'GET', API_ROUTES.sessionToken, {})).json())
     expect(token).toMatch(/^[\w-]{43}$/)
   })
 })
 
+describe('access key', () => {
+  it('rejects reads and mutations without the key or with a wrong one, before any route runs', async () => {
+    const target = build()
+    for (const key of [undefined, '', 'wrong', `${KEY}x`, TOKEN]) {
+      const read = await send(target, 'GET', '/api/test-read', { [ACCESS_KEY_HEADER]: key })
+      await expectError(read, 401, 'login_required')
+      expect(read.body).not.toContain('data')
+      const headers = { [ACCESS_KEY_HEADER]: key, origin: ORIGIN, 'x-agent-hub-token': TOKEN }
+      await expectError(await send(target, 'POST', '/api/test-mutation', headers), 401, 'login_required')
+    }
+  })
+
+  it('cannot be skipped with encoded, doubled, trailing or case-changed paths', async () => {
+    const target = build()
+    const variants = [
+      '/%61pi/test-read', '/%61%70%69/test-read', '/api/test-%72ead', '//api/test-read', '/api//test-read', '/API/test-read',
+      '/api/test-read/', '/./api/test-read', '/x/../api/test-read', '/%2fapi/test-read', '/api%2ftest-read', '/%61pi/session-token',
+    ]
+    for (const url of variants) {
+      const response = await send(target, 'GET', url, { [ACCESS_KEY_HEADER]: undefined })
+      expect(response.statusCode, url).not.toBe(200)
+      expect(response.body, url).not.toContain('data')
+      expect(response.body, url).not.toContain(TOKEN)
+    }
+    await expectError(await send(target, 'GET', '/%61pi/test-read', { [ACCESS_KEY_HEADER]: undefined }), 401, 'login_required')
+  })
+
+  it('needs the key on unmatched paths outside /api as well (fail closed)', async () => {
+    await expectError(await send(build(), 'GET', '/unknown', { [ACCESS_KEY_HEADER]: undefined }), 401, 'login_required')
+  })
+
+  it('guards unknown API paths too, so they reveal nothing', async () => {
+    await expectError(await send(build(), 'GET', '/api/missing', { [ACCESS_KEY_HEADER]: undefined }), 401, 'login_required')
+  })
+
+  it('keeps health and the hook route free of it', async () => {
+    const target = build()
+    expect((await send(target, 'GET', API_ROUTES.health, { [ACCESS_KEY_HEADER]: undefined })).statusCode).toBe(200)
+    expect((await send(target, 'HEAD', API_ROUTES.health, { [ACCESS_KEY_HEADER]: undefined })).statusCode).toBe(200)
+    expect((await send(target, 'POST', API_ROUTES.hooks, { [ACCESS_KEY_HEADER]: undefined })).statusCode).toBe(200)
+  })
+
+  it('serves reads with the key', async () => {
+    const response = await send(build(), 'GET', '/api/test-read', {})
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ secret: 'data' })
+  })
+})
+
 describe('session token endpoint', () => {
+  it('never hands out the token without the access key', async () => {
+    const target = build()
+    for (const headers of [{ [ACCESS_KEY_HEADER]: undefined }, { [ACCESS_KEY_HEADER]: 'wrong', origin: ORIGIN }, { [ACCESS_KEY_HEADER]: undefined, 'sec-fetch-site': 'same-origin' }]) {
+      const response = await send(target, 'GET', API_ROUTES.sessionToken, headers)
+      await expectError(response, 401, 'login_required')
+      expect(response.body).not.toContain(TOKEN)
+    }
+  })
+
   it('returns the token to same-origin requests', async () => {
     const target = build()
     for (const headers of [{}, { origin: ORIGIN }, { 'sec-fetch-site': 'same-origin' }, { 'sec-fetch-site': 'none' }]) {

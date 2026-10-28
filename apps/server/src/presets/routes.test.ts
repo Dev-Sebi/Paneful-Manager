@@ -22,7 +22,7 @@ import { LaunchLedger } from './ledger.js'
 import { createPresetStore } from './store.js'
 
 const TOKEN = 'test-token'
-const local = { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, [SESSION_TOKEN_HEADER]: TOKEN }
+const local = { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, 'x-agent-hub-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
 const body = { preset: { name: 'alpha', description: 'demo', tabs: [{ layout: 'row', panes: [{ cwd: '/work/app' }, { cwd: '/work/app' }] }] } }
 let root: string
 let app: FastifyInstance
@@ -42,7 +42,7 @@ beforeEach(async () => {
     get: () => undefined,
   }
   const launcher = createPresetLauncher({ store, engine, ledger: new LaunchLedger(join(root, 'state')), logger })
-  app = buildApp({ config: DEFAULT_CONFIG, logger, sessionToken: TOKEN, dev: false, presets: { store, launcher } })
+  app = buildApp({ config: DEFAULT_CONFIG, logger, sessionToken: TOKEN, accessKey: TOKEN, dev: false, presets: { store, launcher } })
 })
 
 afterEach(async () => {
@@ -101,7 +101,7 @@ describe('preset routes', () => {
     for (const [method, url] of [['POST', API_ROUTES.presets], ['PUT', '/api/presets/alpha'], ['DELETE', '/api/presets/alpha'], ['POST', '/api/presets/alpha/launch']] as const) {
       const noToken = await inject({ method, url, payload: body, headers: { [SESSION_TOKEN_HEADER]: 'wrong' } })
       expect(noToken.statusCode).toBe(401)
-      const noOrigin = await app.inject({ method, url, payload: body, headers: { host: local.host, [SESSION_TOKEN_HEADER]: TOKEN } })
+      const noOrigin = await app.inject({ method, url, payload: body, headers: { host: local.host, 'x-agent-hub-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN } })
       expect(noOrigin.statusCode).toBe(401)
       const badOrigin = await inject({ method, url, payload: body, headers: { origin: 'http://evil.example' } })
       expect(badOrigin.statusCode).toBe(403)

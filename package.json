@@ -11,6 +11,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @agent-hub/shared build && pnpm -r --parallel run dev",
+    "login-url": "pnpm --silent --filter @agent-hub/server login-url",
     "build": "pnpm -r run build",
     "lint": "eslint . && pnpm -r --if-present run lint",
     "lint:fix": "eslint . --fix",

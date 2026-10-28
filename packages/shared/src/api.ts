@@ -43,6 +43,12 @@ export const API_ROUTES = {
 /** Header carrying the per-boot token on every mutating request. */
 export const SESSION_TOKEN_HEADER = 'x-agent-hub-token'
 
+/** Header carrying the persisted access key on every API request except health and the hook route. */
+export const ACCESS_KEY_HEADER = 'x-agent-hub-key'
+
+/** Login URL fragment parameter: `http://localhost:<port>/#key=<access key>`; the fragment never reaches the server. */
+export const ACCESS_KEY_FRAGMENT_PARAM = 'key'
+
 /** WS subprotocol echoed by the server; the client also offers `token.<token>`. */
 export const WS_SUBPROTOCOL = 'agent-hub.v1'
 export const WS_TOKEN_PROTOCOL_PREFIX = 'token.'
@@ -59,6 +65,7 @@ export const ApiErrorCodeSchema = z.enum([
   'validation_failed',
   'bad_request',
   'unauthorized',
+  'login_required',
   'forbidden',
   'not_found',
   'conflict',
@@ -99,7 +106,7 @@ export type HealthResponse = z.infer<typeof HealthResponseSchema>
 
 // Session token
 
-/** GET /api/session-token; only served to same-origin requests on an allowed Host. */
+/** GET /api/session-token; needs the access key and is only served to same-origin requests on an allowed Host. */
 export const SessionTokenResponseSchema = z.strictObject({ token: z.string().min(1) })
 export type SessionTokenResponse = z.infer<typeof SessionTokenResponseSchema>
 

@@ -57,7 +57,7 @@ Assumed (not stated in the docs):
 
 - MCP management works with or without the `claude` binary; the UI can show the mode and CLI version from `GET /api/mcp`.
 - CLI updates stay non-atomic (remove + add, with a best-effort restore); removing or replacing a remote server can drop its OAuth tokens.
-- In CLI mode, secret values are part of the `claude` process's argv: other local users can read `/proc/<pid>/cmdline` for the CLI's lifetime unless `/proc` is mounted with `hidepid`. Other OS users are outside the threat model.
+- Entries with env or header values are always written in file mode, even when the CLI is available: `add-json` takes the entry as an argument, which other local users could read from `/proc/<pid>/cmdline` ([ADR 0013](0013-access-key-against-local-users.md)). Such entries skip the CLI's validation and locking; entries without secret values still go through the CLI.
 - If an update fails and both restores (CLI, then file) fail, the entry is gone and the API answers `500 internal` ("re-add it manually").
 - File mode depends on the documented layout of `~/.claude.json`; a format change in Claude Code needs a code change here.
 

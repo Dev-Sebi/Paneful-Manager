@@ -22,7 +22,8 @@ import { pino } from 'pino'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { WebSocket } from 'ws'
 import { buildApp } from '../app.js'
-import { Tmux } from '../tmux/tmux.js'
+import { run as defaultRun } from '../process/exec.js'
+import { Tmux, type RunFn } from '../tmux/tmux.js'
 import { SessionEngine } from './engine.js'
 
 function has(command: string, flag: string): boolean {
@@ -46,14 +47,21 @@ let stateDir: string
 let engine: SessionEngine
 let app: FastifyInstance
 let baseUrl: string
+const tmuxArgv: string[][] = []
 
 function tmux(...args: string[]): string {
   return execFileSync('tmux', ['-L', socketName, ...args], { encoding: 'utf8', env: { ...process.env, TMUX: '' } })
 }
 
 function newEngine(): SessionEngine {
-  const sessionEnv = (): Record<string, string> => ({ AGENT_HUB_HOOK_TOKEN: HOOK_TOKEN, AGENT_HUB_URL: baseUrl })
-  return new SessionEngine({ stateDir, logger, sessionEnv, tmux: new Tmux({ socketName }), pollAttachedMs: 100, pollIdleMs: 100 })
+  const sessionEnv = (): Record<string, string> => ({ AGENT_HUB_URL: baseUrl })
+  const secretEnv = (): Record<string, string> => ({ AGENT_HUB_HOOK_TOKEN: HOOK_TOKEN })
+  // Records every tmux argv, so the test can prove the hook token never appears in a process command line.
+  const run: RunFn = async (file, args, options) => {
+    tmuxArgv.push([...args])
+    return defaultRun(file, args, options)
+  }
+  return new SessionEngine({ stateDir, logger, sessionEnv, secretEnv, tmux: new Tmux({ socketName, run }), pollAttachedMs: 100, pollIdleMs: 100 })
 }
 
 async function waitFor<T>(check: () => T | undefined | false, label: string, timeoutMs = WAIT_MS): Promise<T> {
@@ -123,7 +131,7 @@ class Client {
 }
 
 function mutationHeaders(json = false): Record<string, string> {
-  return { ...(json ? { 'content-type': 'application/json' } : {}), 'origin': baseUrl, [SESSION_TOKEN_HEADER]: TOKEN }
+  return { ...(json ? { 'content-type': 'application/json' } : {}), 'origin': baseUrl, 'x-agent-hub-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
 }
 
 async function createSession(body: Record<string, unknown>): Promise<string> {
@@ -145,7 +153,7 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     tmux('-f', conf, 'start-server')
     engine = newEngine()
     await engine.start()
-    app = buildApp({ config: DEFAULT_CONFIG, logger, engine, sessionToken: TOKEN, hookToken: HOOK_TOKEN, dev: false })
+    app = buildApp({ config: DEFAULT_CONFIG, logger, engine, sessionToken: TOKEN, accessKey: TOKEN, hookToken: HOOK_TOKEN, dev: false })
     await app.listen({ host: '127.0.0.1', port: 0 })
     const address = app.server.address()
     baseUrl = `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`
@@ -327,7 +335,7 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     } finally {
       await second.close()
     }
-    const response = await fetch(`${baseUrl}${API_ROUTES.sessions}`)
+    const response = await fetch(`${baseUrl}${API_ROUTES.sessions}`, { headers: { 'x-agent-hub-key': TOKEN } })
     expect(ListSessionsResponseSchema.parse(await response.json()).sessions.map(s => s.id)).toContain(kept)
   })
 
@@ -355,6 +363,8 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     await writeFile(gate, '')
     await client.waitForMessage('state', m => m.sessionId === id && m.state === 'idle')
     expect(engine.get(id)?.state).toBe('idle')
+    expect(tmuxArgv.some(args => args.includes('new-session'))).toBe(true)
+    expect(tmuxArgv.flat().join(' ')).not.toContain(HOOK_TOKEN)
     client.close()
   })
 

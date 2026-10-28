@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Session } from '@agent-hub/shared'
@@ -6,7 +6,7 @@ import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RunError } from '../process/exec.js'
 import { Tmux, type RunFn } from '../tmux/tmux.js'
-import { SessionEngine, type EngineClient } from './engine.js'
+import { SECRET_ENV_FILE, SessionEngine, type EngineClient } from './engine.js'
 import type { PtyProcess, SpawnPty } from './pty.js'
 import { SessionStore } from './store.js'
 
@@ -60,7 +60,11 @@ class FakeTmuxServer {
   newSessionGate: Promise<void> | undefined
 
   run: RunFn = async (_file, rawArgs) => {
-    const args = rawArgs.slice(3)
+    let args = rawArgs.slice(3)
+    if (args[0] === 'source-file') {
+      this.calls.push(args.slice(0, 2))
+      args = args.slice(3)
+    }
     this.calls.push(args)
     if (!this.running) {
       throw new RunError('failed', 'exit', 1, '', 'no server running on /tmp/tmux-1000/agent-hub\n')
@@ -383,14 +387,20 @@ describe('SessionEngine', () => {
       tmux: new Tmux({ run: server.run }),
       spawnPty,
       pollIdleMs: 60_000,
-      sessionEnv: () => ({ AGENT_HUB_HOOK_TOKEN: 'hook-token', AGENT_HUB_URL: 'http://127.0.0.1:7337' }),
+      sessionEnv: () => ({ AGENT_HUB_URL: 'http://127.0.0.1:7337' }),
+      secretEnv: () => ({ AGENT_HUB_HOOK_TOKEN: 'hook-token-value' }),
     })
     await env.start()
     const session = await env.create({ cwd: dir, command: 'claude', args: [], cols: 80, rows: 24 })
     const args = server.calls.find(call => call[0] === 'new-session') ?? []
-    for (const pair of [`AGENT_HUB_SESSION_ID=${session.id}`, 'AGENT_HUB_HOOK_TOKEN=hook-token', 'AGENT_HUB_URL=http://127.0.0.1:7337']) {
+    for (const pair of [`AGENT_HUB_SESSION_ID=${session.id}`, 'AGENT_HUB_URL=http://127.0.0.1:7337']) {
       expect(args[args.indexOf(pair) - 1]).toBe('-e')
     }
+    expect(server.calls.flat().join(' ')).not.toContain('hook-token-value')
+    const file = join(dir, 'state', SECRET_ENV_FILE)
+    expect(server.calls).toContainEqual(['source-file', file])
+    expect(await readFile(file, 'utf8')).toBe("set-environment -g AGENT_HUB_HOOK_TOKEN 'hook-token-value'\n")
+    expect((await stat(file)).mode & 0o777).toBe(0o600)
     expect(args.indexOf('--')).toBeGreaterThan(args.indexOf('AGENT_HUB_URL=http://127.0.0.1:7337'))
     await env.close()
   })

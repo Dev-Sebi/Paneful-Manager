@@ -33,13 +33,23 @@ journalctl --user -u agent-hub -n 50
 
 ## Requests fail with 401 or 403
 
-The server checks the Host header, the Origin header and a per-start token. See [Security model](architecture.md#security-model).
+The server checks the Host header, the Origin header, the access key and a per-start token. See [Security model](architecture.md#security-model).
+
+API calls from a shell need the access key; pass it on stdin, so it never appears in a command line:
+
+```bash
+printf 'X-Agent-Hub-Key: %s\n' "$(cat ~/.local/state/agent-hub/access-key)" | curl -fsS -H @- http://127.0.0.1:<port>/api/sessions
+```
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| 403 `Host not allowed` | the page is opened through a name or address other than `localhost` or `127.0.0.1` (for example a LAN IP) | open `http://127.0.0.1:<port>/` or `http://localhost:<port>/`. |
-| 403 `Origin not allowed` | the request comes from another origin. Allowed origins are `http://localhost:<port>`, `http://127.0.0.1:<port>` and `http://[::1]:<port>`. | use the UI from one of these origins. In development the UI runs at `http://localhost:3000`; extra development origins are set with `AGENT_HUB_DEV_ORIGINS` and only work with `NODE_ENV=development`. |
-| 401 `Missing Origin or invalid token` on `POST`, `PUT`, `PATCH` or `DELETE` | the request has no `Origin` header, or its `X-Agent-Hub-Token` is missing or from an earlier server start | send `Origin: http://127.0.0.1:<port>` and the token from `GET /api/session-token` in `X-Agent-Hub-Token`. The token changes on every server restart. The web app fetches a new one after a 401 or 403 on its own; reload the page if it does not. |
+| The app shows "Open the login URL once in this browser" | this browser has no access key for `http://127.0.0.1:<port>`, or the key was rotated | print the URL with `~/.local/share/agent-hub/current/install.sh --login-url` and open it in this browser. See [Login URL](install.md#login-url). |
+| 401 `login_required` ("Missing or invalid access key; open the login URL once") | the request has no `X-Agent-Hub-Key` header or an old key | the web app shows the login hint, see the row above. Scripts send the key from `~/.local/state/agent-hub/access-key` as shown above. |
+| `--login-url` prints `No access key yet` | the server has not started since the install | start it (`systemctl --user start agent-hub.service`) and run `--login-url` again. |
+| The app shows "Open Agent Hub at http://127.0.0.1:<port>/ instead" | the page was opened as `localhost` or `[::1]`; the app keeps the key only on `127.0.0.1`, because another local user can listen on `::1` with the same port | open `http://127.0.0.1:<port>/` and the login URL there. |
+| 403 `Host not allowed` | the page is opened through a name or address other than `localhost` or `127.0.0.1` (for example a LAN IP) | open `http://127.0.0.1:<port>/`. |
+| 403 `Origin not allowed` | the request comes from another origin. Allowed origins are `http://localhost:<port>`, `http://127.0.0.1:<port>` and `http://[::1]:<port>`. | use the UI from one of these origins. In development the UI runs at `http://127.0.0.1:3000`; extra development origins are set with `AGENT_HUB_DEV_ORIGINS` and only work with `NODE_ENV=development`. |
+| 401 `Missing Origin or invalid token` on `POST`, `PUT`, `PATCH` or `DELETE` | the request has no `Origin` header, or its `X-Agent-Hub-Token` is missing or from an earlier server start | send `Origin: http://127.0.0.1:<port>`, the access key and the token from `GET /api/session-token` in `X-Agent-Hub-Token`. The token changes on every server restart. The web app fetches a new one after a 401 or 403 on its own; reload the page if it does not. |
 | 403 `Cross-site requests are not allowed` on `GET /api/session-token` | the request carries `Sec-Fetch-Site: cross-site` | open the UI directly in the browser, not from another site. |
 | 403 `Browser requests are not allowed on this route` on `POST /api/hooks` | the request carries an `Origin` header; the hook endpoint accepts only Claude Code | none. Claude Code sends no `Origin`. |
 | 401 `Invalid hook token` on `POST /api/hooks` | the `AGENT_HUB_HOOK_TOKEN` in the session's environment differs from `hook-token` in the state directory, for example because the file was replaced after the session started | restart that Claude session. Sessions keep the environment they were started with. |
@@ -49,14 +59,14 @@ The server checks the Host header, the Origin header and a per-start token. See 
 Session status (working, waiting, idle, error) comes from Claude Code hooks. Check the reasons first:
 
 ```bash
-curl -fsS http://127.0.0.1:<port>/api/hooks/status
+printf 'X-Agent-Hub-Key: %s\n' "$(cat ~/.local/state/agent-hub/access-key)" | curl -fsS -H @- http://127.0.0.1:<port>/api/hooks/status
 ```
 
 The answer lists `installed`, `portMatches`, `statusAvailable` and `reasons`. Each reason has a `code`.
 
 | Reason code | Cause | Fix |
 | --- | --- | --- |
-| `not_installed` | Agent Hub hook entries are missing in the Claude settings file | install them: `POST /api/hooks/install` with `Origin: http://127.0.0.1:<port>` and the `X-Agent-Hub-Token` header (see [401 and 403](#requests-fail-with-401-or-403)). |
+| `not_installed` | Agent Hub hook entries are missing in the Claude settings file | install them: `POST /api/hooks/install` with `Origin: http://127.0.0.1:<port>`, the access key and the `X-Agent-Hub-Token` header (see [401 and 403](#requests-fail-with-401-or-403)). |
 | `port_mismatch` | the entries point at another port | run the install call again; it rewrites the entries for the current port. |
 | `settings_invalid` | `settings.json` (user or managed) is not strict JSON. Comments and trailing commas are refused. | fix the file. Agent Hub never rewrites an invalid file. |
 | `disable_all_hooks` | `disableAllHooks` is `true` in a settings file | remove the key. |
@@ -125,7 +135,7 @@ The status badge in the app bar shows `Disconnected` when the WebSocket is close
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | `Disconnected` stays, `curl` to `/api/health` fails | the server is not running, or the distro was stopped | `systemctl --user status agent-hub.service`; start it with `systemctl --user start agent-hub.service`. If WSL stopped, see [Keeping WSL running](install.md#keeping-wsl-running). |
-| `Disconnected` stays, `curl` to `/api/health` works | the browser uses another port or origin than the server | open `http://127.0.0.1:<port>/` or `http://localhost:<port>/` with the port from `config.yaml` or `AGENT_HUB_PORT`. |
+| `Disconnected` stays, `curl` to `/api/health` works | the browser uses another port or origin than the server, or has no access key for this origin | open the login URL (`install.sh --login-url`), which uses the port from `config.yaml` or `AGENT_HUB_PORT`. |
 | The connection stops with a `protocol_mismatch` error (WebSocket close code 4001) | the web app and the server speak different protocol versions, for example after a partial update | reload the page. If it persists, re-run the installer so both come from the same release. The server reports its protocol version in the error message. |
 | `Disconnected` stays and the UI cannot connect | the session token cannot be fetched from `GET /api/session-token`, for example because of a 403 from the Host, Origin or cross-site check | see [Requests fail with 401 or 403](#requests-fail-with-401-or-403). |
 

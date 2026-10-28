@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { stat } from 'node:fs/promises'
+import { mkdir, rename, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import {
   DEFAULT_HOST_ID,
   HOOK_ENV,
@@ -15,7 +15,7 @@ import {
 import type { BaseLogger } from 'pino'
 import { AppError } from '../errors.js'
 import { expandHome } from '../paths.js'
-import { Tmux, TmuxSessionNotFoundError, TmuxUnavailableError, tmuxEnv, tmuxName, type TmuxSessionInfo } from '../tmux/tmux.js'
+import { Tmux, TmuxSessionNotFoundError, TmuxUnavailableError, secretEnvCommands, tmuxEnv, tmuxName, type TmuxSessionInfo } from '../tmux/tmux.js'
 import { spawnPty as defaultSpawnPty, type PtyProcess, type SpawnPty } from './pty.js'
 import { SessionStore } from './store.js'
 import { Utf8StreamDecoder } from './utf8.js'
@@ -62,12 +62,17 @@ export interface SessionEngineOptions {
   logger: Pick<BaseLogger, 'debug' | 'info' | 'warn' | 'error'>
   tmux?: Tmux
   spawnPty?: SpawnPty
-  /** Extra environment for new sessions: hook token and server URL; `AGENT_HUB_SESSION_ID` is always set. */
+  /** Extra environment for new sessions, passed as `-e` arguments (no secrets); `AGENT_HUB_SESSION_ID` is always set. */
   sessionEnv?: (id: string) => Record<string, string>
+  /** Secret environment (hook token): written to an owner-only tmux command file, so it never shows in any argv. */
+  secretEnv?: () => Record<string, string>
   scrollbackLines?: number
   pollAttachedMs?: number
   pollIdleMs?: number
 }
+
+/** tmux command file with the secret session env, sourced before every `new-session`. */
+export const SECRET_ENV_FILE = 'session-env.tmux'
 
 export class UnknownSessionError extends AppError {
   constructor(id: string) {
@@ -191,6 +196,7 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
         command: input.command,
         args: input.args,
         env: { ...this.options.sessionEnv?.(id), [HOOK_ENV.sessionId]: id },
+        ...(this.options.secretEnv === undefined ? {} : { secretEnvFile: await this.writeSecretEnv(this.options.secretEnv()) }),
         cols: input.cols,
         rows: input.rows,
       })
@@ -441,6 +447,16 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
       this.poll().finally(() => this.schedulePoll())
     }, delay)
     this.pollTimer.unref()
+  }
+
+  /** Writes the secret env as tmux commands to `<stateDir>/session-env.tmux` (0600, atomic) and returns its path. */
+  private async writeSecretEnv(env: Record<string, string>): Promise<string> {
+    await mkdir(this.options.stateDir, { recursive: true, mode: 0o700 })
+    const file = join(this.options.stateDir, SECRET_ENV_FILE)
+    const temp = `${file}.${randomBytes(6).toString('hex')}.tmp`
+    await writeFile(temp, secretEnvCommands(env), { mode: 0o600, flag: 'wx' })
+    await rename(temp, file)
+    return file
   }
 
   private async setSession(session: Session): Promise<void> {
