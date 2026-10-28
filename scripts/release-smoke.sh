@@ -1,6 +1,6 @@
 #!/bin/sh
-# Smoke test for a packed release: installs it with its own install.sh into a temp HOME, starts the server, checks /api/health.
-# Usage: scripts/release-smoke.sh <dir>/paneful-manager-<tag>.tar.gz [port]
+# Smoke test for a packed release: installs it with its own install.sh --no-service into a temp HOME, starts the server, checks /api/health.
+# Usage: scripts/release-smoke.sh <dir>/paneful-manager-<tag>-<target>.tar.gz [port]
 set -eu
 
 [ $# -ge 1 ] || { sed -n '3p' "$0" | sed 's/^# //' >&2; exit 2; }
@@ -9,7 +9,10 @@ PORT=${2:-17337}
 [ -f "$TARBALL" ] || { echo "Tarball not found: $TARBALL" >&2; exit 1; }
 NAME=$(basename "$TARBALL" .tar.gz)
 TAG=${NAME#paneful-manager-}
-[ "$TAG" != "$NAME" ] || { echo "Tarball name must be paneful-manager-<tag>.tar.gz" >&2; exit 1; }
+[ "$TAG" != "$NAME" ] || { echo "Tarball name must be paneful-manager-<tag>-<target>.tar.gz" >&2; exit 1; }
+for target in linux-x64 linux-arm64 darwin-x64 darwin-arm64; do
+  TAG=${TAG%-"$target"}
+done
 HEALTH_URL="http://127.0.0.1:$PORT/api/health"
 
 T=$(mktemp -d)
@@ -41,7 +44,7 @@ done
 
 # Compiler stubs that fail: the install must use the prebuilt node-pty and never compile anything.
 mkdir -p "$T/no-compiler" "$T/home" "$T/tmux"
-for tool in make cc gcc g++ c++; do
+for tool in make cc gcc g++ c++ clang clang++; do
   printf '#!/bin/sh\necho "%s must not be called during the install" >&2\nexit 1\n' "$tool" >"$T/no-compiler/$tool"
   chmod +x "$T/no-compiler/$tool"
 done
@@ -54,8 +57,8 @@ export XDG_DATA_HOME="$HOME/.local/share"
 export TMUX_TMPDIR="$T/tmux"
 PREFIX="$XDG_DATA_HOME/paneful-manager"
 
-echo "==> Installing with install.sh --from-source --no-systemd"
-PATH="$T/no-compiler:$PATH" sh "$REL/install.sh" --from-source "$TARBALL" --no-systemd --no-wsl-conf --no-windows-task \
+echo "==> Installing with install.sh --from-source --no-service"
+PATH="$T/no-compiler:$PATH" sh "$REL/install.sh" --from-source "$TARBALL" --no-service --no-wsl-conf --no-windows-task \
   --yes --port "$PORT" </dev/null >"$T/install.log" 2>&1 || {
   cat "$T/install.log" >&2
   echo "install.sh failed" >&2
