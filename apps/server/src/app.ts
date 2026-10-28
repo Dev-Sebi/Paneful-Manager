@@ -199,7 +199,7 @@ export function buildApp({ config, logger, sessionToken, accessKey, dev, devOrig
     registerTeamTemplates(app, { ...teamTemplates, enabled: () => store.get().experimental.agentTeams })
   }
   if (webDist !== undefined) {
-    registerStatic(app, webDist)
+    registerStatic(app, webDist, getPort)
   }
   return app
 }

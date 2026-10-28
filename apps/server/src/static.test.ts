@@ -6,7 +6,7 @@ import type { FastifyInstance } from 'fastify'
 import { pino } from 'pino'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from './app.js'
-import { CONTENT_SECURITY_POLICY, HASHED_ASSET_CACHE_CONTROL, resolveWebDist, WEB_DIST_ENV_VAR } from './static.js'
+import { contentSecurityPolicy, HASHED_ASSET_CACHE_CONTROL, resolveWebDist, WEB_DIST_ENV_VAR } from './static.js'
 
 const INDEX = '<!doctype html><title>Agent Hub</title>'
 let root: string
@@ -38,16 +38,22 @@ describe('static web app', () => {
     const response = await get('/')
     expect(response.statusCode).toBe(200)
     expect(response.body).toBe(INDEX)
-    expect(response.headers['content-security-policy']).toBe(CONTENT_SECURITY_POLICY)
+    expect(response.headers['content-security-policy']).toBe(contentSecurityPolicy(DEFAULT_CONFIG.port))
     expect(response.headers['cache-control']).toBe('no-cache')
     expect(response.headers['x-content-type-options']).toBe('nosniff')
+  })
+
+  it('limits WebSocket connections to this server port on the loopback names', () => {
+    const connect = contentSecurityPolicy(7400).split('; ').find(part => part.startsWith('connect-src'))
+    expect(connect).toBe("connect-src 'self' ws://localhost:7400 ws://127.0.0.1:7400 ws://[::1]:7400")
+    expect(contentSecurityPolicy(7400)).not.toContain('*')
   })
 
   it('falls back to index.html for client routes', async () => {
     const response = await get('/workspaces/demo?tab=1')
     expect(response.statusCode).toBe(200)
     expect(response.body).toBe(INDEX)
-    expect(response.headers['content-security-policy']).toBe(CONTENT_SECURITY_POLICY)
+    expect(response.headers['content-security-policy']).toBe(contentSecurityPolicy(DEFAULT_CONFIG.port))
   })
 
   it('caches hashed assets immutably and sends no CSP for them', async () => {
