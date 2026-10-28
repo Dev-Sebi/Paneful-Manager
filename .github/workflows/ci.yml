@@ -46,6 +46,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: sh scripts/test-install.sh
+      # install.ps1 under PowerShell 7 (preinstalled on the runner); wsl.exe and the task cmdlets are stubbed.
+      - run: pwsh -NoProfile -NonInteractive -File scripts/test-install-ps1.ps1
+
+  # install.ps1 under Windows PowerShell 5.1, which 'irm | iex' runs on a stock Windows.
+  installer-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Test install.ps1 (stubbed wsl.exe and task cmdlets)
+        shell: powershell
+        run: powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/test-install-ps1.ps1
 
   e2e:
     needs: check

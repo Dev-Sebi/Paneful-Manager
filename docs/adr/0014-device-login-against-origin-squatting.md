@@ -1,6 +1,6 @@
 # ADR 0014: Device login against origin squatting
 
-- Status: accepted
+- Status: accepted, amended by [ADR 0016](0016-systemd-socket-activation.md) (systemd socket activation holds the port while the server is down)
 - Date: 2026-10-28
 - Amends: [ADR 0013](0013-access-key-against-local-users.md)
 
@@ -48,5 +48,5 @@ These need another local user who owns the origin while the owner's browser load
 - **Receiving a device secret and importing it as a non-extractable HMAC key:** the secret passes through page code once, in a response a squatter's proxy or a later login could see; a key pair generated in the browser never leaves it.
 - **Keeping the access key in the login URL but not storing it:** the URL would still carry a permanent bearer credential, and any page that receives it (squatter, scrollback, screenshot) keeps it forever.
 - **WebAuthn / passkeys:** require an RP ID, which an IP address (`127.0.0.1`) cannot be, and a user gesture on every session.
-- **Holding the port while the server is down (systemd socket activation):** removes the squat window instead of limiting its effect, which also closes the residual risks above for installs under systemd. It does not cover the time before the user manager starts (with lingering: early boot) or setups started by hand without systemd. Recommended as a follow-up with its own ADR: an `paneful-manager.socket` unit holding `127.0.0.1:<port>` (and `[::1]:<port>`, so `localhost` cannot be squatted either), the server taking the listening socket from `LISTEN_FDS` and still checking the bound address.
+- **Holding the port while the server is down (systemd socket activation):** removes the squat window instead of limiting its effect, which also closes the residual risks above for installs under systemd. It does not cover the time before the user manager starts (with lingering: early boot) or setups started by hand without systemd. Done in [ADR 0016](0016-systemd-socket-activation.md) for Linux and WSL; macOS keeps the residual risk.
 - **Server-side kill switch for foreign service workers:** the browser only checks for a service worker update after the page it intercepted is already running, so it would not stop the first load.

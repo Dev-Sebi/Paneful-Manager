@@ -7,10 +7,12 @@ Related: [Install guide](install.md), [Configuration](configuration.md).
 Useful first checks:
 
 ```bash
-systemctl --user status paneful-manager-tmux.service paneful-manager.service
+systemctl --user status paneful-manager-tmux.service paneful-manager.socket paneful-manager.service
 curl -fsS http://127.0.0.1:<port>/api/health
 journalctl --user -u paneful-manager -n 50
 ```
+
+On macOS: `launchctl print gui/$(id -u)/dev.paneful-manager` and `tail -n 50 ~/.local/state/paneful-manager/logs/server.log`.
 
 ## Server does not start
 
@@ -21,7 +23,11 @@ journalctl --user -u paneful-manager -n 50
 | Server stops with `Invalid YAML in ...` | syntax error in `config.yaml` | fix the YAML, then `systemctl --user restart paneful-manager.service`. |
 | Server stops with `Invalid PANEFUL_MANAGER_PORT "...": expected an integer between 1 and 65535` | the environment variable is not a valid port | unset it or set a valid port. |
 | Log shows `Backup directory ... must be outside the scope ...` | the backup directory (default `~/.local/state/paneful-manager/backups`) lies inside a project or the Claude config directory | move the state directory with `XDG_STATE_HOME` or remove the project from `projects`. |
-| Health check of the installer fails: `No answer on http://127.0.0.1:<port>/api/health after 20s` | the server did not start | `systemctl --user status paneful-manager.service` and `journalctl --user -u paneful-manager -n 50`; the messages above apply. |
+| Health check of the installer fails: `No answer on http://127.0.0.1:<port>/api/health after 20s` | the server did not start | `systemctl --user status paneful-manager.service` and `journalctl --user -u paneful-manager -n 50` (macOS: the commands above); the messages above apply. |
+| `paneful-manager.socket` fails with `Address already in use` | another process holds the port | as for "already in use" above; then `~/.local/share/paneful-manager/current/install.sh --port <port>`. |
+| Server stops with `Refusing to serve on ...` or `Refusing the socket passed as fd ...` | the sockets systemd passed are not loopback (an edited `paneful-manager.socket`) | re-run the installer, which rewrites the socket unit. |
+| macOS: `No launchd GUI session for this user` | installed over SSH without a desktop login | the agents load at your next login, or log in on the desktop and re-run the installer. |
+| Opening `http://localhost:<port>/` or `http://[::1]:<port>/` shows "Paneful Manager only answers on http://127.0.0.1:<port>/" | the `[::1]` socket is held only so nobody else can take it | open `http://127.0.0.1:<port>/`. |
 
 ## tmux unavailable
 

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Installed by install.sh; @...@ placeholders are replaced at install time. Starts the tmux server that runs every -->
+<!-- Paneful Manager session (macOS). tmux daemonizes, so the job ends after start-server and the server is abandoned -->
+<!-- to run on: reloading this agent never ends sessions. KeepAlive retries only a failed start. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.paneful-manager.tmux</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>@TMUX@</string>
+    <string>-L</string>
+    <string>paneful-manager</string>
+    <string>-f</string>
+    <string>@STATE_DIR@/tmux.conf</string>
+    <string>start-server</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>@PATH@</string>
+    <key>LANG</key>
+    <string>@LANG@</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>AbandonProcessGroup</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>@LOG_DIR@/tmux.log</string>
+  <key>StandardErrorPath</key>
+  <string>@LOG_DIR@/tmux.log</string>
+</dict>
+</plist>

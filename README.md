@@ -1,10 +1,10 @@
 # Paneful Manager
 
-[![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/<repo>/actions/workflows/ci.yml)
+[![CI](https://github.com/Dev-Sebi/Paneful-Manager/actions/workflows/ci.yml/badge.svg)](https://github.com/Dev-Sebi/Paneful-Manager/actions/workflows/ci.yml)
 
 ![Status: early development](https://img.shields.io/badge/status-early%20development-orange)
 
-Paneful Manager is a local web app for running and organizing Claude Code sessions. It runs inside WSL and shows the sessions as terminal tabs with split panes in the browser.
+Paneful Manager is a local web app for running and organizing Claude Code sessions. It runs on Linux, inside WSL on Windows, and on macOS, and shows the sessions as terminal tabs with split panes in the browser.
 
 ![Paneful Manager with a preset tab of four Claude Code panes](docs/images/workspace-four-panes.png)
 
@@ -21,26 +21,32 @@ Paneful Manager is a local web app for running and organizing Claude Code sessio
 
 Agent teams build on an experimental Claude Code feature (Claude Code 2.1.309 or later) and are off by default. Set `experimental.agentTeams: true` in `~/.config/paneful-manager/config.yaml` (or through `PATCH /api/config`) to get the Teams view: a read-only task board per team and team templates (`~/.config/paneful-manager/teams/<name>.yaml`, see [examples/teams](examples/teams)). Launching a template starts the lead session; Claude Code spawns the teammates from the generated first prompt, so names and models are requests, not guarantees. Upstream changes can break this at any time; see [ADR 0010](docs/adr/0010-agent-teams.md) and [ADR 0012](docs/adr/0012-team-templates.md). Reference: [team templates and agent teams](docs/configuration.md#agent-teams-experimental).
 
-## Quick start
+## Install
 
-Inside WSL2 with systemd, Node.js 22 or later and tmux 3.2 or later (on x64 the release ships a prebuilt node-pty, so no compiler is needed):
+| System | Command |
+| --- | --- |
+| Linux, WSL2 | `curl -fsSL https://github.com/Dev-Sebi/Paneful-Manager/releases/latest/download/install.sh \| sh` |
+| macOS | `curl -fsSL https://github.com/Dev-Sebi/Paneful-Manager/releases/latest/download/install.sh \| sh` |
+| Windows (PowerShell) | `irm https://github.com/Dev-Sebi/Paneful-Manager/releases/latest/download/install.ps1 \| iex` |
+
+Prerequisites:
+
+- **Linux / WSL2:** systemd (WSL: `systemd=true` in `/etc/wsl.conf`; the installer offers to set it), Node.js 22 or later, tmux 3.2 or later (`sudo apt-get install -y tmux`), git, the Claude Code CLI (`claude`).
+- **macOS:** Node.js 22 or later (`brew install node`; `node@22` is keg-only and not on `PATH`), tmux 3.2 or later (`brew install tmux`), git (`xcode-select --install`), the Claude Code CLI. Runs as launchd user agents, so it starts when you log in.
+- **Windows:** Windows 10 2004 or later, or Windows 11. The script checks WSL 2 (and tells you how to install it, which needs an administrator PowerShell and a restart), picks or installs an Ubuntu distro, enables systemd there and runs the Linux installer inside it. Node.js, tmux and the Claude Code CLI are needed inside the distro. Options are environment variables, for example `$env:PANEFUL_MANAGER_PORT = '7400'` before the command.
+
+On x64 and arm64 (Linux and macOS) the release ships a prebuilt node-pty, so no compiler is needed; anything else compiles it on install. Every installer shows a plan and asks before it changes anything.
+
+### Open the login URL
+
+At the end the installer prints a one-time login URL such as `http://127.0.0.1:7337/#login=<code>`. Copy it into the browser you use for Paneful Manager (on Windows: your Windows browser; WSL forwards the port) within 10 minutes. It works once; the installer never opens the browser itself, because a browser started with the URL would show the code in the process list. For another browser, or later, print a new one:
 
 ```bash
-curl -fsSL https://github.com/Dev-Sebi/Paneful-Manager/releases/latest/download/install.sh | sh
+~/.local/share/paneful-manager/current/install.sh --login-url          # Linux, WSL, macOS
+wsl -- ~/.local/share/paneful-manager/current/install.sh --login-url   # Windows PowerShell
 ```
 
-The repository is private for now, so the anonymous URL answers 404. Get `install.sh` with the GitHub CLI and pass a token (a fine-grained token with read-only Contents access, or none when `gh` is logged in):
-
-```bash
-gh release download --repo Dev-Sebi/Paneful-Manager --pattern install.sh
-GITHUB_TOKEN=<token> sh install.sh
-```
-
-Or download the release with `gh release download --repo Dev-Sebi/Paneful-Manager --pattern 'paneful-manager-*.tar.gz*'` and run `sh install.sh --from-source paneful-manager-<tag>.tar.gz`. Details: [Private repository](docs/install.md#private-repository).
-
-The installer shows a plan and asks before it changes anything. It sets up the systemd user services `paneful-manager-tmux.service` and `paneful-manager.service`. Then open the login URL it prints in your browser (in WSL: your Windows browser). Each login URL works once, within 10 minutes; `install.sh --login-url` prints a new one, for example for another browser.
-
-Flags, the list of changes, upgrade, rollback and uninstall are in the [install guide](docs/install.md).
+Always use `127.0.0.1`, not `localhost`. Flags, the list of changes, upgrade, rollback and uninstall are in the [install guide](docs/install.md).
 
 ## Documentation
 
@@ -64,7 +70,7 @@ Open the URL from `pnpm login-url --port 3000` in your browser (Vite dev server;
 
 ## Requirements
 
-- WSL2 with systemd enabled (or plain Linux with systemd)
+- Linux with systemd, WSL2 with systemd enabled, or macOS
 - Node.js 22 or later
 - pnpm 11 or later
 - tmux 3.2 or later
