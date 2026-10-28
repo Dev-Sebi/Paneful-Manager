@@ -17,4 +17,7 @@ Format and process: [ADR 0001](0001-record-architecture-decisions.md).
 | [0011](0011-preset-launch-ledger.md) | Preset launch ledger for autostart | accepted |
 | [0012](0012-team-templates.md) | Team templates and launch (experimental) | proposed |
 | [0013](0013-access-key-against-local-users.md) | Access key against other local users | accepted, amended by 0014 |
-| [0014](0014-device-login-against-origin-squatting.md) | Device login against origin squatting | accepted |
+| [0014](0014-device-login-against-origin-squatting.md) | Device login against origin squatting | accepted, amended by 0016 |
+| [0015](0015-macos-launchd-and-release-targets.md) | macOS with launchd agents and release tarballs per target | accepted |
+| [0016](0016-systemd-socket-activation.md) | systemd socket activation against port squatting | accepted |
+| [0017](0017-windows-installer.md) | Windows installer that drives WSL | accepted |
