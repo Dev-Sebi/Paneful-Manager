@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, statSync, symlinkSync, writeFileSync, existsSync, chmodSync } from 'node:fs'
 import { join } from 'node:path'
-import { DEFAULT_CONFIG } from '@agent-hub/shared'
+import { DEFAULT_CONFIG } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { run } from '../process/exec.js'
 import { discoverScopes } from '../scopes/discover.js'

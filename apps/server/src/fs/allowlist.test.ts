@@ -11,7 +11,7 @@ let outside: string
 let allowlist: Allowlist
 
 beforeAll(() => {
-  base = realpathSync(mkdtempSync(join(tmpdir(), 'agent-hub-allowlist-')))
+  base = realpathSync(mkdtempSync(join(tmpdir(), 'paneful-manager-allowlist-')))
   root = join(base, 'root')
   outside = join(base, 'outside')
   mkdirSync(join(root, 'sub'), { recursive: true })

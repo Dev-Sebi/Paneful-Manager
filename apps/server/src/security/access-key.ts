@@ -1,4 +1,4 @@
-import { BIND_HOST, LOGIN_FRAGMENT_PARAM, resolveStateDir } from '@agent-hub/shared'
+import { BIND_HOST, LOGIN_FRAGMENT_PARAM, resolveStateDir } from '@paneful-manager/shared'
 import { loadConfig } from '../config/load-config.js'
 import { expandHome } from '../paths.js'
 import { resetDevices } from './device-auth.js'

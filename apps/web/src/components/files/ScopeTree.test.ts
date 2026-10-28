@@ -11,7 +11,7 @@ describe('ScopeTree', () => {
     const wrapper = mountWithVuetify(ScopeTree, { props: { scopes, entries: [], mode: 'skills' } })
     expect(wrapper.text()).toContain('Global')
     expect(wrapper.text()).toContain('feat-x')
-    const badges = wrapper.findAll('.ah-status-badge')
+    const badges = wrapper.findAll('.pm-status-badge')
     expect(badges).toHaveLength(1)
     expect(badges[0]?.text()).toBe('feat/x')
     expect(wrapper.text()).toContain('No skills')

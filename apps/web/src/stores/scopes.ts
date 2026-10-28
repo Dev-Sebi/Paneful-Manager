@@ -1,4 +1,4 @@
-import type { Scope } from '@agent-hub/shared'
+import type { Scope } from '@paneful-manager/shared'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '@/api/client'

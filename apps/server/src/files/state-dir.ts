@@ -1,6 +1,6 @@
 import { realpathSync } from 'node:fs'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import type { Scope } from '@agent-hub/shared'
+import type { Scope } from '@paneful-manager/shared'
 import { scopeRoot } from './layout.js'
 
 function forms(path: string): string[] {

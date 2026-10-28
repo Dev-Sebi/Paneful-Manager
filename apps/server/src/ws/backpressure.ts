@@ -1,4 +1,4 @@
-import type { ServerMessage } from '@agent-hub/shared'
+import type { ServerMessage } from '@paneful-manager/shared'
 
 /** At or above this `bufferedAmount`, output is coalesced per session. */
 export const COALESCE_THRESHOLD_BYTES = 1024 * 1024

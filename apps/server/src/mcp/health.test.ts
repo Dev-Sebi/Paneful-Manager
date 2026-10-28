@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { McpHealthResult } from '@agent-hub/shared'
+import type { McpHealthResult } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { checkMcpHealth, createHealthRunner, expandVars, filterEnv, type HealthTarget } from './health.js'
 
@@ -14,7 +14,7 @@ const SECRET = 'sk-health-0123456789'
 let dir: string
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'agent-hub-health-'))
+  dir = mkdtempSync(join(tmpdir(), 'paneful-manager-health-'))
 })
 
 afterEach(() => {
@@ -286,7 +286,7 @@ describe('http and sse health checks', () => {
     expect(seen[0]?.headers.authorization).toBe('Bearer')
     expect(seen[0]?.headers['x-trace']).toBe('trace-1')
     expect(seen[0]?.headers.accept).toBe('application/json, text/event-stream')
-    expect(JSON.parse(seen[0]?.body ?? '{}')).toMatchObject({ method: 'initialize', params: { clientInfo: { name: 'agent-hub' } } })
+    expect(JSON.parse(seen[0]?.body ?? '{}')).toMatchObject({ method: 'initialize', params: { clientInfo: { name: 'paneful-manager' } } })
   })
 
   it('blanks credential-named variables in the url', async () => {

@@ -6,7 +6,7 @@
           <span class="scope-tree__name">{{ scopeLabel(scope) }}</span>
           <span class="scope-tree__kind">{{ scope.kind }}</span>
 
-          <AhStatusBadge
+          <PmStatusBadge
             v-if="scope.kind === 'worktree' && scope.branch"
             class="scope-tree__branch"
             :label="scope.branch"
@@ -57,7 +57,7 @@
             <template v-else>
               <span class="scope-tree__missing">{{ item.fileName }}</span>
 
-              <AhButton
+              <PmButton
                 :ariaLabel="`Create ${item.fileName} in ${scopeLabel(scope)}`"
                 :disabled="busy"
                 :loading="busy"
@@ -65,7 +65,7 @@
                 @click="emit('create', scope, item.kind)"
               >
                 Create
-              </AhButton>
+              </PmButton>
             </template>
           </li>
         </ul>
@@ -76,8 +76,8 @@
 
 <script lang="ts" setup>
   import type { FilesMode } from './scopeLabel'
-  import type { FileEntry, ManagedFileKind, Scope } from '@agent-hub/shared'
-  import { AhButton, AhStatusBadge } from '@/components/ah'
+  import type { FileEntry, ManagedFileKind, Scope } from '@paneful-manager/shared'
+  import { PmButton, PmStatusBadge } from '@/components/pm'
   import { CLAUDE_MD_KINDS, scopeLabel, skillFileLabel } from './scopeLabel'
 
   const props = defineProps<{
@@ -136,42 +136,42 @@
 .scope-tree__scopes {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-3);
-  padding: var(--ah-space-3);
+  gap: var(--pm-space-3);
+  padding: var(--pm-space-3);
 }
 
 .scope-tree__scope {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-1);
-  padding: var(--ah-space-2);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-surface);
+  gap: var(--pm-space-1);
+  padding: var(--pm-space-2);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-surface);
 }
 
 .scope-tree__head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
 }
 
 .scope-tree__name {
-  font-weight: var(--ah-font-weight-semibold);
+  font-weight: var(--pm-font-weight-semibold);
   overflow-wrap: anywhere;
 }
 
 .scope-tree__kind {
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-xs);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-xs);
   text-transform: uppercase;
 }
 
 .scope-tree__path {
   overflow: hidden;
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-xs);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-xs);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -179,48 +179,48 @@
 .scope-tree__none,
 .scope-tree__missing {
   margin: 0;
-  padding: var(--ah-space-1) var(--ah-space-2);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  padding: var(--pm-space-1) var(--pm-space-2);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .scope-tree__skill {
   display: block;
-  padding: var(--ah-space-1) 0;
-  font-size: var(--ah-font-size-sm);
-  font-weight: var(--ah-font-weight-medium);
+  padding: var(--pm-space-1) 0;
+  font-size: var(--pm-font-size-sm);
+  font-weight: var(--pm-font-weight-medium);
 }
 
-.scope-tree__files { padding-left: var(--ah-space-2); }
+.scope-tree__files { padding-left: var(--pm-space-2); }
 
 .scope-tree__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   min-height: 28px;
 }
 
 .scope-tree__file {
   display: block;
   width: 100%;
-  padding: var(--ah-space-1) var(--ah-space-2);
+  padding: var(--pm-space-1) var(--pm-space-2);
   border: 0;
-  border-radius: var(--ah-radius-sm);
+  border-radius: var(--pm-radius-sm);
   background: transparent;
-  color: var(--ah-color-fg-primary);
+  color: var(--pm-color-fg-primary);
   font: inherit;
-  font-size: var(--ah-font-size-sm);
+  font-size: var(--pm-font-size-sm);
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--ah-motion-duration-fast) var(--ah-motion-easing-standard);
+  transition: background-color var(--pm-motion-duration-fast) var(--pm-motion-easing-standard);
 }
 
-.scope-tree__file:hover { background: var(--ah-color-bg-hover); }
-.scope-tree__file--selected { background: var(--ah-color-bg-selected); }
+.scope-tree__file:hover { background: var(--pm-color-bg-hover); }
+.scope-tree__file--selected { background: var(--pm-color-bg-selected); }
 
 .scope-tree__file:focus-visible {
-  outline: 2px solid var(--ah-color-border-focus);
+  outline: 2px solid var(--pm-color-border-focus);
   outline-offset: 1px;
 }
 </style>

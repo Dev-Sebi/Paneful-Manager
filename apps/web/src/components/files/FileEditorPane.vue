@@ -16,7 +16,7 @@
           <code :id="titleId" class="file-pane__path" :title="file.path">{{ file.relPath }}</code>
           <span class="file-pane__chip">{{ scopeLabel(file.scope) }}</span>
 
-          <AhStatusBadge
+          <PmStatusBadge
             v-if="file.scope.kind === 'worktree' && file.scope.branch"
             :label="file.scope.branch"
             size="sm"
@@ -25,7 +25,7 @@
         </div>
 
         <div class="file-pane__actions">
-          <AhButton
+          <PmButton
             :disabled="!files.dirty"
             :loading="files.saving"
             shortcut="Ctrl+S"
@@ -33,9 +33,9 @@
             @click="save"
           >
             Save
-          </AhButton>
+          </PmButton>
 
-          <AhButton :disabled="files.saving" variant="danger" @click="emit('delete')">Delete</AhButton>
+          <PmButton :disabled="files.saving" variant="danger" @click="emit('delete')">Delete</PmButton>
         </div>
       </header>
 
@@ -62,7 +62,7 @@
         </ul>
       </section>
 
-      <AhCodeEditor
+      <PmCodeEditor
         :ariaLabel="`Editing ${file.relPath}`"
         class="file-pane__editor"
         :language="language"
@@ -76,12 +76,12 @@
 </template>
 
 <script lang="ts" setup>
-  import type { EditorLanguage } from '@/components/editor/AhCodeEditor.vue'
+  import type { EditorLanguage } from '@/components/editor/PmCodeEditor.vue'
   import { computed, useId } from 'vue'
-  import { AhButton, AhStatusBadge } from '@/components/ah'
-  import AhCodeEditor from '@/components/editor/AhCodeEditor.vue'
   import { parseFrontmatter } from '@/components/editor/frontmatter'
+  import PmCodeEditor from '@/components/editor/PmCodeEditor.vue'
   import EmptyState from '@/components/EmptyState.vue'
+  import { PmButton, PmStatusBadge } from '@/components/pm'
   import { useFilesStore } from '@/stores/files'
   import { useUiStore } from '@/stores/ui'
   import ConflictBanner from './ConflictBanner.vue'
@@ -157,7 +157,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--ah-space-3);
+  gap: var(--pm-space-3);
   min-width: 0;
   min-height: 0;
 }
@@ -167,14 +167,14 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--ah-space-3);
+  gap: var(--pm-space-3);
 }
 
 .file-pane__title {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   min-width: 0;
 }
 
@@ -183,52 +183,52 @@
 .file-pane__dot {
   width: 8px;
   height: 8px;
-  border-radius: var(--ah-radius-full);
-  background: var(--ah-color-status-waiting);
+  border-radius: var(--pm-radius-full);
+  background: var(--pm-color-status-waiting);
 }
 
 .file-pane__chip {
-  padding: 0 var(--ah-space-2);
-  border-radius: var(--ah-radius-full);
-  background: var(--ah-color-bg-elevated);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  padding: 0 var(--pm-space-2);
+  border-radius: var(--pm-radius-full);
+  background: var(--pm-color-bg-elevated);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .file-pane__actions {
   display: flex;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
 }
 
 .file-pane__error {
   margin: 0;
-  color: var(--ah-color-status-error);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-status-error);
+  font-size: var(--pm-font-size-sm);
 }
 
 .file-pane__preview {
-  padding: var(--ah-space-2) var(--ah-space-3);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-surface);
+  padding: var(--pm-space-2) var(--pm-space-3);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-surface);
 }
 
 .file-pane__fields {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: var(--ah-space-1) var(--ah-space-3);
+  gap: var(--pm-space-1) var(--pm-space-3);
   margin: 0;
-  font-size: var(--ah-font-size-sm);
+  font-size: var(--pm-font-size-sm);
 }
 
-.file-pane__fields dt { color: var(--ah-color-fg-muted); }
+.file-pane__fields dt { color: var(--pm-color-fg-muted); }
 .file-pane__fields dd { margin: 0; overflow-wrap: anywhere; }
 
 .file-pane__hints {
-  margin: var(--ah-space-2) 0 0;
+  margin: var(--pm-space-2) 0 0;
   padding: 0;
-  color: var(--ah-color-status-waiting);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-status-waiting);
+  font-size: var(--pm-font-size-sm);
   list-style: none;
 }
 

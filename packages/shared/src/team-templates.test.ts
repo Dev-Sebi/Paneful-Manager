@@ -52,7 +52,7 @@ describe('TeamTemplateSchema', () => {
 
   it('refuses env keys outside the allowlist', () => {
     expect(TeamTemplateSchema.parse({ ...base, env: { CLAUDE_CODE_SUBAGENT_MODEL: 'sonnet' } }).env).toEqual({ CLAUDE_CODE_SUBAGENT_MODEL: 'sonnet' })
-    for (const key of ['PATH', 'LD_PRELOAD', 'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS', 'CLAUDE_CODE_TASK_LIST_ID', 'AGENT_HUB_TOKEN']) {
+    for (const key of ['PATH', 'LD_PRELOAD', 'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS', 'CLAUDE_CODE_TASK_LIST_ID', 'PANEFUL_MANAGER_TOKEN']) {
       expect(TeamTemplateSchema.safeParse({ ...base, env: { [key]: '1' } }).success, key).toBe(false)
     }
     expect(TeamTemplateSchema.safeParse({ ...base, env: { ANTHROPIC_MODEL: 'a\nb' } }).success).toBe(false)

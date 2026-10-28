@@ -1,9 +1,9 @@
-import { SessionIdSchema } from '@agent-hub/shared'
+import { SessionIdSchema } from '@paneful-manager/shared'
 import { AppError } from '../errors.js'
 import { run as defaultRun, RunError, type RunOptions } from '../process/exec.js'
 
-export const TMUX_SOCKET_NAME = 'agent-hub'
-export const TMUX_SESSION_PREFIX = 'ah-'
+export const TMUX_SOCKET_NAME = 'paneful-manager'
+export const TMUX_SESSION_PREFIX = 'pm-'
 export const TMUX_TIMEOUT_MS = 5000
 export const TMUX_MAX_BUFFER_BYTES = 32 * 1024 * 1024
 /** TERM of the attach pty; matches xterm.js in the browser. */
@@ -26,7 +26,7 @@ export type RunFn = (file: string, args: readonly string[], options: RunOptions)
 
 export interface TmuxSessionInfo {
   name: string
-  /** Agent Hub session id, or undefined for names without the `ah-` prefix or an invalid id. */
+  /** Paneful Manager session id, or undefined for names without the `pm-` prefix or an invalid id. */
   id: string | undefined
   createdAt: Date
   path: string
@@ -140,7 +140,7 @@ export interface TmuxPaneInfo {
   /** tmux pane id such as `%3`; unique per tmux server only. */
   paneId: string
   sessionName: string
-  /** Agent Hub session id of the owning `ah-` session, undefined for other sessions. */
+  /** Paneful Manager session id of the owning `pm-` session, undefined for other sessions. */
   sessionId: string | undefined
 }
 
@@ -224,7 +224,7 @@ export class Tmux {
     return parseSessionList(await this.exec(['list-sessions', '-F', SESSION_FORMAT]))
   }
 
-  /** Every pane on the Agent Hub server with its owning session. */
+  /** Every pane on the Paneful Manager server with its owning session. */
   async listPanes(): Promise<TmuxPaneInfo[]> {
     return parsePaneList(await this.exec(['list-panes', '-a', '-F', '#{pane_id}\t#{session_name}']))
   }

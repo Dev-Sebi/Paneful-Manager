@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { API_ROUTES, ApiErrorSchema, DEFAULT_CONFIG, ListMcpServersResponseSchema, McpHealthListResponseSchema, McpHealthResultSchema } from '@agent-hub/shared'
+import { API_ROUTES, ApiErrorSchema, DEFAULT_CONFIG, ListMcpServersResponseSchema, McpHealthListResponseSchema, McpHealthResultSchema } from '@paneful-manager/shared'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../app.js'
@@ -29,7 +29,7 @@ const fakeRunner: HealthRunner = {
 function send(options: InjectOptions, token = TOKEN) {
   return app.inject({
     ...options,
-    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-agent-hub-key': TOKEN, ...(token ? { 'x-agent-hub-token': token } : {}), ...options.headers },
+    headers: { host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}`, 'x-paneful-key': TOKEN, ...(token ? { 'x-paneful-token': token } : {}), ...options.headers },
   })
 }
 

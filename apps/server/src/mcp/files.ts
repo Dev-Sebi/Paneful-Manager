@@ -2,7 +2,7 @@ import { constants } from 'node:fs'
 import { mkdir, open } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
-import { McpServerNameSchema, type McpScope, type McpServerConfig } from '@agent-hub/shared'
+import { McpServerNameSchema, type McpScope, type McpServerConfig } from '@paneful-manager/shared'
 import { applyEdits, modify, parse as parseJsonc, printParseErrorCode, type FormattingOptions, type ParseError } from 'jsonc-parser'
 import { AppError } from '../errors.js'
 import { createBackupStore, type BackupStore } from '../files/backups.js'
@@ -32,7 +32,7 @@ export interface McpFileEntry {
 export interface McpScopeRead {
   /** Lexical path of the file that holds the scope. */
   path: string
-  /** Every native entry under the scope's `mcpServers`, including ones Agent Hub cannot parse. */
+  /** Every native entry under the scope's `mcpServers`, including ones Paneful Manager cannot parse. */
   raw: Map<string, NativeServer>
   /** Entries with a valid name and a supported transport. */
   entries: McpFileEntry[]
@@ -71,7 +71,7 @@ export function resolveClaudeJsonPath(env: Record<string, string | undefined>, h
 }
 
 const invalidJson = (path: string, reason: string): AppError =>
-  new AppError(`${path} is not valid JSON (${reason}); fix it by hand, Agent Hub does not overwrite it`, 409, 'conflict', { path })
+  new AppError(`${path} is not valid JSON (${reason}); fix it by hand, Paneful Manager does not overwrite it`, 409, 'conflict', { path })
 
 /** Position and error code only: `JSON.parse` messages quote file content, which may hold tokens. */
 function describeSyntaxError(text: string): string {

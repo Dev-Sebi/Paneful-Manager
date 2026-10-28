@@ -4,14 +4,14 @@
     <p class="empty-state__text">{{ message }}</p>
 
     <div v-if="actionLabel || $slots.actions" class="empty-state__actions">
-      <AhButton v-if="actionLabel" variant="primary" @click="emit('action')">{{ actionLabel }}</AhButton>
+      <PmButton v-if="actionLabel" variant="primary" @click="emit('action')">{{ actionLabel }}</PmButton>
       <slot name="actions" />
     </div>
   </section>
 </template>
 
 <script lang="ts" setup>
-  import { AhButton } from '@/components/ah'
+  import { PmButton } from '@/components/pm'
 
   defineProps<{
     icon: string
@@ -31,21 +31,21 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--ah-space-4);
+  gap: var(--pm-space-4);
   min-height: 240px;
-  padding: var(--ah-space-8);
+  padding: var(--pm-space-8);
   text-align: center;
 }
 
-.empty-state__icon { color: var(--ah-color-fg-muted); }
+.empty-state__icon { color: var(--pm-color-fg-muted); }
 
 .empty-state__text {
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-md);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-md);
 }
 
 .empty-state__actions {
   display: flex;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
 }
 </style>

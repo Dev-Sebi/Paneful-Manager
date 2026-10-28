@@ -5,8 +5,8 @@
       <span class="mcp-detail__chip">{{ config.transport }}</span>
       <slot :entry="entry" name="health" />
       <span class="mcp-detail__spacer" />
-      <AhButton prepend-icon="mdi-pencil-outline" @click="emit('edit')">Edit</AhButton>
-      <AhButton prepend-icon="mdi-delete-outline" variant="danger" @click="emit('remove')">Remove</AhButton>
+      <PmButton prepend-icon="mdi-pencil-outline" @click="emit('edit')">Edit</PmButton>
+      <PmButton prepend-icon="mdi-delete-outline" variant="danger" @click="emit('remove')">Remove</PmButton>
     </header>
 
     <dl class="mcp-detail__facts">
@@ -70,9 +70,9 @@
 </template>
 
 <script lang="ts" setup>
-  import type { McpServerEntryMasked } from '@agent-hub/shared'
+  import type { McpServerEntryMasked } from '@paneful-manager/shared'
   import { computed } from 'vue'
-  import { AhButton } from '@/components/ah'
+  import { PmButton } from '@/components/pm'
   import { scopeLabel } from '@/stores/mcp'
 
   const props = defineProps<{ entry: McpServerEntryMasked }>()
@@ -98,41 +98,41 @@
 .mcp-detail {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-4);
+  gap: var(--pm-space-4);
   min-width: 0;
 }
 
 .mcp-detail__header {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   align-items: center;
 }
 
 .mcp-detail__title {
   margin: 0;
-  font-size: var(--ah-font-size-lg);
-  font-weight: var(--ah-font-weight-semibold);
+  font-size: var(--pm-font-size-lg);
+  font-weight: var(--pm-font-weight-semibold);
 }
 
 .mcp-detail__spacer { flex: 1; }
 
 .mcp-detail__chip {
-  padding: 0 var(--ah-space-2);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-full);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  padding: 0 var(--pm-space-2);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-full);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .mcp-detail__facts {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: var(--ah-space-2) var(--ah-space-4);
+  gap: var(--pm-space-2) var(--pm-space-4);
   margin: 0;
 }
 
-.mcp-detail__facts dt { color: var(--ah-color-fg-muted); }
+.mcp-detail__facts dt { color: var(--pm-color-fg-muted); }
 .mcp-detail__facts dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 
 .mcp-detail__args {
@@ -142,9 +142,9 @@
 }
 
 .mcp-detail__subtitle {
-  margin: 0 0 var(--ah-space-2);
-  font-size: var(--ah-font-size-md);
-  font-weight: var(--ah-font-weight-semibold);
+  margin: 0 0 var(--pm-space-2);
+  font-size: var(--pm-font-size-md);
+  font-weight: var(--pm-font-weight-semibold);
 }
 
 .mcp-detail__hidden {
@@ -156,7 +156,7 @@
   white-space: nowrap;
 }
 
-.mcp-detail__muted { color: var(--ah-color-fg-muted); }
+.mcp-detail__muted { color: var(--pm-color-fg-muted); }
 
 .mcp-detail__table {
   width: 100%;
@@ -165,14 +165,14 @@
 
 .mcp-detail__table th,
 .mcp-detail__table td {
-  padding: var(--ah-space-1) var(--ah-space-2);
-  border-bottom: 1px solid var(--ah-color-border-default);
+  padding: var(--pm-space-1) var(--pm-space-2);
+  border-bottom: 1px solid var(--pm-color-border-default);
   text-align: left;
 }
 
 .mcp-detail__table th {
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
-  font-weight: var(--ah-font-weight-medium);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
+  font-weight: var(--pm-font-weight-medium);
 }
 </style>

@@ -1,5 +1,5 @@
 import type { AttachClient, AttachTerminal } from './attach'
-import type { ClientMessageInput, ServerMessage, ServerMessageType } from '@agent-hub/shared'
+import type { ClientMessageInput, ServerMessage, ServerMessageType } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope } from 'vue'
 import { INPUT_FRAME_LIMIT_BYTES, INPUT_QUEUE_LIMIT_BYTES, RESIZE_DEBOUNCE_MS, splitInput, useSessionAttach } from './attach'

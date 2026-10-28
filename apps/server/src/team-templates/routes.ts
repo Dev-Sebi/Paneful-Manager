@@ -10,7 +10,7 @@ import {
   type LaunchTeamTemplateResponse,
   type ListTeamTemplatesResponse,
   type TeamTemplateResponse,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import { AppError } from '../errors.js'
 import type { TeamTemplateLauncher } from './launch.js'

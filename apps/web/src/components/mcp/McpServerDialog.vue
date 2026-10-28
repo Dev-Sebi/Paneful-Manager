@@ -1,5 +1,5 @@
 <template>
-  <AhDialog
+  <PmDialog
     v-model="open"
     confirm-text="Save"
     :initial-focus="initialFocus"
@@ -58,8 +58,8 @@
 
       <div v-if="pendingTransport" class="mcp-form__confirm" role="alert">
         <span>Switching the transport drops the {{ rowsLabel.toLowerCase() }} you entered.</span>
-        <AhButton size="sm" variant="danger" @click="confirmTransport">Switch</AhButton>
-        <AhButton size="sm" @click="pendingTransport = undefined">Keep</AhButton>
+        <PmButton size="sm" variant="danger" @click="confirmTransport">Switch</PmButton>
+        <PmButton size="sm" @click="pendingTransport = undefined">Keep</PmButton>
       </div>
 
       <template v-if="form.transport === 'stdio'">
@@ -139,7 +139,7 @@
             @update:model-value="setClear(row, Boolean($event))"
           />
 
-          <AhButton
+          <PmButton
             v-else
             :ariaLabel="`Remove row ${row.key || ''}`.trim()"
             icon="mdi-close"
@@ -149,21 +149,21 @@
           />
         </div>
 
-        <AhButton prepend-icon="mdi-plus" size="sm" @click="form.rows.push(newRow())">Add row</AhButton>
+        <PmButton prepend-icon="mdi-plus" size="sm" @click="form.rows.push(newRow())">Add row</PmButton>
       </fieldset>
 
       <p v-if="serverError" class="mcp-form__error" role="alert">{{ serverError }}</p>
     </form>
-  </AhDialog>
+  </PmDialog>
 </template>
 
 <script lang="ts" setup>
   import type { KvRow } from './mcpForm'
-  import type { McpScope, McpServerEntryMasked, McpTransport } from '@agent-hub/shared'
-  import { MCP_MASKED_PLACEHOLDER, MCP_PLAIN_KEYS } from '@agent-hub/shared'
+  import type { McpScope, McpServerEntryMasked, McpTransport } from '@paneful-manager/shared'
+  import { MCP_MASKED_PLACEHOLDER, MCP_PLAIN_KEYS } from '@paneful-manager/shared'
   import { computed, reactive, ref, watch } from 'vue'
   import { ApiClientError } from '@/api/client'
-  import { AhButton, AhDialog } from '@/components/ah'
+  import { PmButton, PmDialog } from '@/components/pm'
   import { useMcpStore } from '@/stores/mcp'
   import { buildRequest, emptyForm, errorsFromApi, formFromEntry, hasErrors, newRow, validateForm } from './mcpForm'
 
@@ -353,46 +353,46 @@
 .mcp-form {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-3);
-  padding: var(--ah-space-2) 0;
+  gap: var(--pm-space-3);
+  padding: var(--pm-space-2) 0;
 }
 
 .mcp-form__rows {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   align-items: flex-start;
   min-width: 0;
-  padding: var(--ah-space-3);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
+  padding: var(--pm-space-3);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
 }
 
 .mcp-form__rows legend {
-  padding: 0 var(--ah-space-1);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  padding: 0 var(--pm-space-1);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .mcp-form__row {
   display: grid;
   grid-template-columns: 1fr 2fr auto;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   align-items: start;
   width: 100%;
 }
 
 .mcp-form__confirm {
   display: flex;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   align-items: center;
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .mcp-form__error {
   margin: 0;
-  color: var(--ah-color-danger-default);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-danger-default);
+  font-size: var(--pm-font-size-sm);
 }
 </style>

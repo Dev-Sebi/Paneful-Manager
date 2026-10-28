@@ -47,7 +47,7 @@ async function setup () {
   })
   await router.push('/skills')
   const wrapper = mountWithVuetify(defineComponent({ render: () => h(RouterView) }), {
-    global: { plugins: [router], stubs: { AhCodeEditor: EditorStub } },
+    global: { plugins: [router], stubs: { PmCodeEditor: EditorStub } },
   })
   await flushPromises()
   return { wrapper, router }
@@ -92,8 +92,8 @@ describe('FilesWorkbench unsaved guard', () => {
     await wrapper.find('textarea').setValue('edited')
     await tree(wrapper, 'two')?.trigger('click')
     await flushPromises()
-    expect(document.querySelector('.ah-dialog__panel')?.textContent).toContain('Unsaved changes')
-    await dialogButton('[data-ah-cancel]')
+    expect(document.querySelector('.pm-dialog__panel')?.textContent).toContain('Unsaved changes')
+    await dialogButton('[data-pm-cancel]')
     expect(useFilesStore().current?.path).toBe(first.path)
     expect(useFilesStore().buffer).toBe('edited')
   })
@@ -105,7 +105,7 @@ describe('FilesWorkbench unsaved guard', () => {
     await wrapper.find('textarea').setValue('edited')
     await tree(wrapper, 'two')?.trigger('click')
     await flushPromises()
-    await dialogButton('[data-ah-confirm]')
+    await dialogButton('[data-pm-confirm]')
     expect(useFilesStore().current?.path).toBe(second.path)
     expect(useFilesStore().dirty).toBe(false)
   })
@@ -119,13 +119,13 @@ describe('FilesWorkbench unsaved guard', () => {
     const navigation = router.push('/other')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/skills')
-    await dialogButton('[data-ah-cancel]')
+    await dialogButton('[data-pm-cancel]')
     await navigation
     expect(router.currentRoute.value.path).toBe('/skills')
 
     const second_ = router.push('/other')
     await flushPromises()
-    await dialogButton('[data-ah-confirm]')
+    await dialogButton('[data-pm-confirm]')
     await second_
     expect(router.currentRoute.value.path).toBe('/other')
   })

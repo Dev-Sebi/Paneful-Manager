@@ -11,7 +11,7 @@ import {
   RegisterDeviceResponseSchema,
   SESSION_TOKEN_HEADER,
   SessionTokenResponseSchema,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import { pino } from 'pino'
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
@@ -32,16 +32,16 @@ const rootPackage = createRequire(import.meta.url)('../../../package.json') as {
 /** tmux wrapper whose server is never running, so tests never touch a real socket. */
 function missingTmux(): Tmux {
   return new Tmux({ run: async () => {
-    throw new RunError('failed', 'exit', 1, '', 'no server running on /tmp/tmux-1000/agent-hub\n')
+    throw new RunError('failed', 'exit', 1, '', 'no server running on /tmp/tmux-1000/paneful-manager\n')
   } })
 }
 
 describe('startServer', () => {
   it('listens on loopback with an ephemeral port and shuts down', async () => {
-    const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
+    const stateHome = await mkdtemp(join(tmpdir(), 'paneful-manager-start-'))
     const env = { ...process.env, XDG_STATE_HOME: stateHome, XDG_CONFIG_HOME: join(stateHome, 'config') }
     const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env, tmux: missingTmux() })
-    expect(await readdir(join(stateHome, 'agent-hub'))).toContain('sessions')
+    expect(await readdir(join(stateHome, 'paneful-manager'))).toContain('sessions')
     expect(server.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/)
     const response = await fetch(`${server.url}${API_ROUTES.health}`)
     expect(HealthResponseSchema.safeParse(await response.json()).success).toBe(true)
@@ -125,16 +125,16 @@ describe('shutdown timeout', () => {
 })
 
 async function accessKeyOf(stateHome: string): Promise<string> {
-  return (await readFile(join(stateHome, 'agent-hub', ACCESS_KEY_FILE), 'utf8')).trim()
+  return (await readFile(join(stateHome, 'paneful-manager', ACCESS_KEY_FILE), 'utf8')).trim()
 }
 
 describe('access key', () => {
   it('is created owner-only and guards the API', async () => {
-    const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
+    const stateHome = await mkdtemp(join(tmpdir(), 'paneful-manager-start-'))
     const env = { CLAUDE_CONFIG_DIR: '/nonexistent/claude', XDG_STATE_HOME: stateHome, XDG_CONFIG_HOME: stateHome }
     const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env, tmux: missingTmux() })
     try {
-      const file = join(stateHome, 'agent-hub', ACCESS_KEY_FILE)
+      const file = join(stateHome, 'paneful-manager', ACCESS_KEY_FILE)
       expect((await stat(file)).mode & 0o777).toBe(0o600)
       const key = await accessKeyOf(stateHome)
       expect(key).toMatch(/^[\w-]{43}$/)
@@ -148,19 +148,19 @@ describe('access key', () => {
   })
 
   it('login URL carries a one-time code, not the key, and needs no running server', async () => {
-    const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
+    const stateHome = await mkdtemp(join(tmpdir(), 'paneful-manager-start-'))
     const env = { XDG_STATE_HOME: stateHome, XDG_CONFIG_HOME: stateHome }
     const url = await resolveLoginUrl(env, ['--port', '3000'])
-    const code = (await readFile(join(stateHome, 'agent-hub', LOGIN_CODE_FILE), 'utf8')).split(' ')[0]
+    const code = (await readFile(join(stateHome, 'paneful-manager', LOGIN_CODE_FILE), 'utf8')).split(' ')[0]
     expect(url).toBe(`http://127.0.0.1:3000/#login=${code}`)
-    expect(await resolveLoginUrl({ ...env, AGENT_HUB_PORT: '7399' }, [])).toMatch(/^http:\/\/127\.0\.0\.1:7399\/#login=[\w-]{43}$/)
+    expect(await resolveLoginUrl({ ...env, PANEFUL_MANAGER_PORT: '7399' }, [])).toMatch(/^http:\/\/127\.0\.0\.1:7399\/#login=[\w-]{43}$/)
     expect(() => portArgument(['--port', 'x'])).toThrow(/--port/)
     expect(portArgument([])).toBeUndefined()
     await rm(stateHome, { recursive: true, force: true })
   })
 
   it('logs a browser in through the login URL, and out again on reset', async () => {
-    const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
+    const stateHome = await mkdtemp(join(tmpdir(), 'paneful-manager-start-'))
     const env = { CLAUDE_CONFIG_DIR: '/nonexistent/claude', XDG_STATE_HOME: stateHome, XDG_CONFIG_HOME: stateHome }
     const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env, tmux: missingTmux() })
     const post = (route: string, body: object) =>
@@ -170,12 +170,12 @@ describe('access key', () => {
       return post(API_ROUTES.authSession, { deviceId, nonce, signature: await sign(nonce) })
     }
     try {
-      const code = new URL(await resolveLoginUrl({ ...env, AGENT_HUB_PORT: String(server.port) }, [])).hash.slice('#login='.length)
+      const code = new URL(await resolveLoginUrl({ ...env, PANEFUL_MANAGER_PORT: String(server.port) }, [])).hash.slice('#login='.length)
       const device = await createTestDevice()
       const { deviceId } = RegisterDeviceResponseSchema.parse(await (await post(API_ROUTES.authRegister, { code, publicKey: device.publicKey })).json())
       const { key } = AuthSessionResponseSchema.parse(await (await signIn(deviceId, device.sign)).json())
       expect((await fetch(`${server.url}${API_ROUTES.files}`, { headers: { [ACCESS_KEY_HEADER]: key } })).status).toBe(200)
-      expect(await readdir(join(stateHome, 'agent-hub'))).not.toContain(LOGIN_CODE_FILE)
+      expect(await readdir(join(stateHome, 'paneful-manager'))).not.toContain(LOGIN_CODE_FILE)
       await logOutAllDevices(env)
       expect((await signIn(deviceId, device.sign)).status).toBe(401)
     } finally {
@@ -187,7 +187,7 @@ describe('access key', () => {
 
 describe('file service wiring', () => {
   it('serves the file and MCP routes and refuses a backup dir inside a scope', async () => {
-    const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
+    const stateHome = await mkdtemp(join(tmpdir(), 'paneful-manager-start-'))
     const env = { CLAUDE_CONFIG_DIR: '/nonexistent/claude', XDG_STATE_HOME: stateHome }
     const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env, tmux: missingTmux() })
     const headers = { [ACCESS_KEY_HEADER]: await accessKeyOf(stateHome) }
@@ -206,8 +206,8 @@ describe('file service wiring', () => {
 
 describe('hook token rotation', () => {
   it('renews a token from an older build on start and rotates it on an explicit install', async () => {
-    const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
-    const state = join(stateHome, 'agent-hub')
+    const stateHome = await mkdtemp(join(tmpdir(), 'paneful-manager-start-'))
+    const state = join(stateHome, 'paneful-manager')
     const legacy = 'l'.repeat(43)
     await mkdir(state, { recursive: true, mode: 0o700 })
     await writeFile(join(state, HOOK_TOKEN_FILE), `${legacy}\n`, { mode: 0o600 })
@@ -223,7 +223,7 @@ describe('hook token rotation', () => {
       const renewed = await tokenOnDisk()
       expect(renewed).not.toBe(legacy)
       expect(await readFile(join(state, HOOK_TOKEN_VERSION_FILE), 'utf8')).toBe(`${RELEASE_VERSION}\n`)
-      expect(rootPackage.name).toBe('agent-hub')
+      expect(rootPackage.name).toBe('paneful-manager')
       expect((await hook(legacy)).status).toBe(401)
       expect((await hook(renewed)).status).toBe(204)
 

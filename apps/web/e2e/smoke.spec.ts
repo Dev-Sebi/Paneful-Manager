@@ -11,7 +11,7 @@ const SECTIONS = [
 test('app loads and redirects to workspaces with its empty state', async ({ page }) => {
   await page.goto('/')
   await expect(page).toHaveURL(/\/workspaces$/)
-  await expect(page).toHaveTitle('Workspaces - Agent Hub')
+  await expect(page).toHaveTitle('Workspaces - Paneful Manager')
   await expect(page.getByText('No sessions yet')).toBeVisible()
   await expect(page.getByRole('button', { name: 'New preset' })).toBeVisible()
 })

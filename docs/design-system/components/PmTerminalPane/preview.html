@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PmTerminalPane preview</title>
+<style>
+/* Fallback values generated from tokens.json (dark theme). */
+:root {
+  --pm-color-bg-canvas: #12151a;
+  --pm-color-bg-surface: #1a1e24;
+  --pm-color-bg-elevated: #22272e;
+  --pm-color-fg-primary: #eef1f4;
+  --pm-color-fg-muted: #9aa4b0;
+  --pm-color-border-default: #3f4752;
+  --pm-color-border-focus: #6496f7;
+  --pm-color-status-working: #6496f7;
+  --pm-color-status-waiting: #e3b341;
+  --pm-color-status-error: #f47067;
+  --pm-color-status-idle: #9aa4b0;
+  --pm-color-terminal-black: #2b313a;
+  --pm-color-terminal-red: #f47067;
+  --pm-color-terminal-green: #57c26b;
+  --pm-color-terminal-yellow: #e3b341;
+  --pm-color-terminal-blue: #6496f7;
+  --pm-color-terminal-magenta: #c58af9;
+  --pm-color-terminal-cyan: #39c5cf;
+  --pm-color-terminal-white: #c3cad3;
+  --pm-color-terminal-bright-black: #747f8c;
+  --pm-color-terminal-bright-red: #ff938a;
+  --pm-color-terminal-bright-green: #7ee08f;
+  --pm-color-terminal-bright-yellow: #f2cc60;
+  --pm-color-terminal-bright-blue: #8db2fc;
+  --pm-color-terminal-bright-magenta: #dcb0ff;
+  --pm-color-terminal-bright-cyan: #6fdde5;
+  --pm-color-terminal-bright-white: #f6f8fa;
+  --pm-color-terminal-fg: #dde2e8;
+  --pm-color-terminal-bg: #12151a;
+  --pm-color-terminal-cursor: #6496f7;
+  --pm-color-terminal-selection: #3f7cf066;
+  --pm-space-1: 4px;
+  --pm-space-2: 8px;
+  --pm-space-4: 16px;
+  --pm-space-6: 24px;
+  --pm-radius-sm: 4px;
+  --pm-radius-md: 6px;
+  --pm-radius-full: 9999px;
+  --pm-shadow-2: 0px 4px 12px 0px #00000080;
+  --pm-font-family-ui: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --pm-font-family-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --pm-font-size-xs: 11px;
+  --pm-font-size-sm: 12px;
+  --pm-font-size-md: 13px;
+  --pm-font-weight-medium: 500;
+  --pm-font-line-height-normal: 1.4;
+}
+body { margin: 0; padding: var(--pm-space-6); background: var(--pm-color-bg-canvas); color: var(--pm-color-fg-primary); font-family: var(--pm-font-family-ui); font-size: var(--pm-font-size-md); }
+.layout { display: grid; grid-template-columns: 1fr 1fr; gap: var(--pm-space-1); height: 420px; }
+.right { display: grid; grid-template-rows: 1fr 1fr; gap: var(--pm-space-1); }
+.pane { display: flex; flex-direction: column; min-height: 0; background: var(--pm-color-terminal-bg); border: 1px solid var(--pm-color-border-default); border-radius: var(--pm-radius-sm); overflow: hidden; }
+.pane.focused { border-color: var(--pm-color-border-focus); }
+.hd { display: flex; align-items: center; gap: var(--pm-space-2); height: 28px; padding: 0 var(--pm-space-2); background: var(--pm-color-bg-surface); font-size: var(--pm-font-size-sm); font-weight: var(--pm-font-weight-medium); color: var(--pm-color-fg-muted); }
+.focused .hd { color: var(--pm-color-fg-primary); }
+.cwd { flex: 1; font-family: var(--pm-font-family-mono); font-size: var(--pm-font-size-xs); color: var(--pm-color-fg-muted); font-weight: normal; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.act { width: 24px; height: 24px; background: none; border: 0; color: var(--pm-color-fg-muted); cursor: pointer; border-radius: var(--pm-radius-sm); }
+.m { --c: var(--pm-color-status-idle); width: 8px; height: 8px; border-radius: var(--pm-radius-full); background: var(--c); flex: none; box-sizing: border-box; }
+.working { --c: var(--pm-color-status-working); }
+.waiting { --c: var(--pm-color-status-waiting); box-shadow: 0 0 0 2px var(--pm-color-bg-surface), 0 0 0 3px var(--c); }
+.idle { background: transparent; border: 1.5px solid var(--c); }
+.vp { position: relative; flex: 1; padding: var(--pm-space-2); font-family: var(--pm-font-family-mono); font-size: var(--pm-font-size-md); line-height: var(--pm-font-line-height-normal); color: var(--pm-color-terminal-fg); white-space: pre; overflow: hidden; }
+.cur { background: var(--pm-color-terminal-cursor); color: var(--pm-color-terminal-bg); }
+.unfocused-cur { outline: 1px solid var(--pm-color-terminal-cursor); }
+.sel { background: var(--pm-color-terminal-selection); }
+.ov { position: absolute; inset: 0; display: grid; place-items: center; }
+.card { background: var(--pm-color-bg-elevated); border-radius: var(--pm-radius-md); box-shadow: var(--pm-shadow-2); padding: var(--pm-space-4); font-family: var(--pm-font-family-ui); color: var(--pm-color-fg-primary); text-align: center; }
+.sw { display: inline-block; width: 2ch; }
+</style>
+</head>
+<body>
+<h1 style="font-size: var(--pm-font-size-md)">PmTerminalPane (spec preview)</h1>
+<div class="layout">
+  <section class="pane focused" role="group" aria-label="Terminal: api-server">
+    <div class="hd"><span class="m working" role="img" aria-label="Working"></span>api-server<span class="cwd">~/projects/api</span><button class="act" aria-label="Split vertical">&#8646;</button><button class="act" aria-label="Split horizontal">&#8645;</button><button class="act" aria-label="Maximize">&#10530;</button><button class="act" aria-label="Close pane">&times;</button></div>
+    <div class="vp">$ npm test
+<span style="color: var(--pm-color-terminal-green)">PASS</span>  src/session.test.ts
+<span style="color: var(--pm-color-terminal-red)">FAIL</span>  src/layout.test.ts
+<span style="color: var(--pm-color-terminal-yellow)">warn</span>  <span class="sel">deprecated option</span>
+<span style="color: var(--pm-color-terminal-bright-black)">// focused pane, selection, block cursor</span>
+$ <span class="cur"> </span>
+
+<span style="background: var(--pm-color-terminal-black)" class="sw"></span><span style="background: var(--pm-color-terminal-red)" class="sw"></span><span style="background: var(--pm-color-terminal-green)" class="sw"></span><span style="background: var(--pm-color-terminal-yellow)" class="sw"></span><span style="background: var(--pm-color-terminal-blue)" class="sw"></span><span style="background: var(--pm-color-terminal-magenta)" class="sw"></span><span style="background: var(--pm-color-terminal-cyan)" class="sw"></span><span style="background: var(--pm-color-terminal-white)" class="sw"></span>
+<span style="background: var(--pm-color-terminal-bright-black)" class="sw"></span><span style="background: var(--pm-color-terminal-bright-red)" class="sw"></span><span style="background: var(--pm-color-terminal-bright-green)" class="sw"></span><span style="background: var(--pm-color-terminal-bright-yellow)" class="sw"></span><span style="background: var(--pm-color-terminal-bright-blue)" class="sw"></span><span style="background: var(--pm-color-terminal-bright-magenta)" class="sw"></span><span style="background: var(--pm-color-terminal-bright-cyan)" class="sw"></span><span style="background: var(--pm-color-terminal-bright-white)" class="sw"></span></div>
+  </section>
+  <div class="right">
+    <section class="pane" role="group" aria-label="Terminal: frontend">
+      <div class="hd"><span class="m waiting" role="img" aria-label="Waiting for input"></span>frontend<span class="cwd">~/projects/web</span><button class="act" aria-label="Close pane">&times;</button></div>
+      <div class="vp">Proceed with edit? (y/n) <span class="unfocused-cur"> </span></div>
+    </section>
+    <section class="pane" role="group" aria-label="Terminal: docs">
+      <div class="hd"><span class="m idle" role="img" aria-label="Idle"></span>docs<span class="cwd">~/projects/docs</span><button class="act" aria-label="Close pane">&times;</button></div>
+      <div class="vp">$ exit
+<div class="ov"><div class="card">Process exited (code 0)<br><span style="color: var(--pm-color-status-error); font-size: var(--pm-font-size-sm)">failed state uses status.error text</span></div></div></div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

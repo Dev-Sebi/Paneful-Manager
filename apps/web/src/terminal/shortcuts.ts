@@ -12,7 +12,7 @@ export interface PaneShortcut {
   label: string
 }
 
-/** Defaults from the AhTerminalPane spec; they avoid browser-reserved combos. Kept as data so a settings UI can override them. */
+/** Defaults from the PmTerminalPane spec; they avoid browser-reserved combos. Kept as data so a settings UI can override them. */
 export const PANE_SHORTCUTS: readonly PaneShortcut[] = [
   { action: 'copy', code: 'Insert', ctrl: true, label: 'Control+Insert' },
   { action: 'split-vertical', code: 'Equal', alt: true, shift: true, label: 'Alt+Shift+=' },

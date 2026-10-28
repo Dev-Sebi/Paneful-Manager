@@ -1,4 +1,4 @@
-import type { Team, TeamTask } from '@agent-hub/shared'
+import type { Team, TeamTask } from '@paneful-manager/shared'
 
 export function makeTask (id: string, overrides: Partial<TeamTask> = {}): TeamTask {
   return { id, subject: `Task ${id}`, status: 'pending', blocks: [], blockedBy: [], blocked: false, ...overrides }

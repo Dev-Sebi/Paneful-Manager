@@ -7,7 +7,7 @@ import { createBackupStore, encodeBackupPath } from './backups.js'
 let dir: string
 
 beforeEach(() => {
-  dir = realpathSync(mkdtempSync(join(tmpdir(), 'agent-hub-backups-')))
+  dir = realpathSync(mkdtempSync(join(tmpdir(), 'paneful-manager-backups-')))
 })
 
 afterEach(() => {

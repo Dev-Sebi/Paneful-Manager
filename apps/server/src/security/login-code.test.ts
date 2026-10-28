@@ -7,7 +7,7 @@ import { consumeLoginCode, createLoginCode, LOGIN_CODE_FILE, LOGIN_CODE_TTL_SEC 
 let dir: string
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'agent-hub-login-code-'))
+  dir = await mkdtemp(join(tmpdir(), 'paneful-manager-login-code-'))
 })
 
 afterEach(async () => {

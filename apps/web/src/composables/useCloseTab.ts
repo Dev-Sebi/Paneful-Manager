@@ -1,4 +1,4 @@
-import type { Session } from '@agent-hub/shared'
+import type { Session } from '@paneful-manager/shared'
 import { computed, ref } from 'vue'
 import { api, ApiClientError } from '@/api/client'
 import { useConfigStore } from '@/stores/config'

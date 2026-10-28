@@ -1,4 +1,4 @@
-import { deviceSignatureMessage, type DevicePublicKey } from '@agent-hub/shared'
+import { deviceSignatureMessage, type DevicePublicKey } from '@paneful-manager/shared'
 
 /** A device key made the way the browser makes it: WebCrypto, private half not extractable. */
 export async function createTestDevice(): Promise<{ publicKey: DevicePublicKey, sign: (nonce: string) => Promise<string> }> {

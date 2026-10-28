@@ -1,4 +1,4 @@
-import { UpsertMcpServerRequestSchema } from '@agent-hub/shared'
+import { UpsertMcpServerRequestSchema } from '@paneful-manager/shared'
 import { describe, expect, it } from 'vitest'
 import { makeMcpEntry } from '@/test/fixtures'
 import { buildRequest, emptyForm, errorsFromApi, formFromEntry, hasErrors, nameError, newRow, urlError, validateForm } from './mcpForm'

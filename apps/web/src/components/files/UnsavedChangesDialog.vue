@@ -1,5 +1,5 @@
 <template>
-  <AhDialog
+  <PmDialog
     cancel-text="Keep editing"
     confirm-text="Discard changes"
     :model-value="modelValue"
@@ -10,12 +10,12 @@
     @update:model-value="forward"
   >
     The open file has changes that are not saved yet.
-  </AhDialog>
+  </PmDialog>
 </template>
 
 <script lang="ts" setup>
 
-  import { AhDialog } from '@/components/ah'
+  import { PmDialog } from '@/components/pm'
 
   defineProps<{ modelValue: boolean }>()
 

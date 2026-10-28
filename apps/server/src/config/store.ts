@@ -1,6 +1,6 @@
 import { mkdir, readFile, realpath, stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { applyConfigPatch, type AppConfig, type ConfigPatch } from '@agent-hub/shared'
+import { applyConfigPatch, type AppConfig, type ConfigPatch } from '@paneful-manager/shared'
 import { isMap, parseDocument } from 'yaml'
 import { AppError } from '../errors.js'
 import { atomicWrite } from '../files/service.js'

@@ -44,19 +44,19 @@ export const API_ROUTES = {
 // Security
 
 /** Header carrying the per-boot token on every mutating request. */
-export const SESSION_TOKEN_HEADER = 'x-agent-hub-token'
+export const SESSION_TOKEN_HEADER = 'x-paneful-token'
 
 /**
  * Header carrying the persisted access key (scripts) or a browser session key on every API request,
  * except health, the hook route and the device login routes.
  */
-export const ACCESS_KEY_HEADER = 'x-agent-hub-key'
+export const ACCESS_KEY_HEADER = 'x-paneful-key'
 
 /** Login URL fragment parameter: `http://127.0.0.1:<port>/#login=<one-time code>`; the fragment never reaches the server. */
 export const LOGIN_FRAGMENT_PARAM = 'login'
 
-/** Prefix of the message a device signs, so its signature is valid for nothing but an Agent Hub session. */
-export const DEVICE_SIGNATURE_CONTEXT = 'agent-hub.session.v1'
+/** Prefix of the message a device signs, so its signature is valid for nothing but a Paneful Manager session. */
+export const DEVICE_SIGNATURE_CONTEXT = 'paneful-manager.session.v1'
 
 /** Exact bytes a device signs to answer a challenge. */
 export function deviceSignatureMessage(nonce: string): string {
@@ -64,9 +64,9 @@ export function deviceSignatureMessage(nonce: string): string {
 }
 
 /** WS subprotocol echoed by the server; the client also offers `token.<token>` and `key.<session key>`. */
-export const WS_SUBPROTOCOL = 'agent-hub.v1'
+export const WS_SUBPROTOCOL = 'paneful-manager.v1'
 export const WS_TOKEN_PROTOCOL_PREFIX = 'token.'
-/** Browsers cannot set headers on a WebSocket, so they offer the session key as a subprotocol; scripts may send `X-Agent-Hub-Key`. */
+/** Browsers cannot set headers on a WebSocket, so they offer the session key as a subprotocol; scripts may send `X-Paneful-Key`. */
 export const WS_KEY_PROTOCOL_PREFIX = 'key.'
 
 // Errors
@@ -160,7 +160,7 @@ export const CreateAuthSessionRequestSchema = z.strictObject({
   signature: Base64UrlSchema.max(128),
 })
 export type CreateAuthSessionRequest = z.infer<typeof CreateAuthSessionRequestSchema>
-/** Short-lived session key, kept only in the page's memory and sent as `X-Agent-Hub-Key`. */
+/** Short-lived session key, kept only in the page's memory and sent as `X-Paneful-Key`. */
 export const AuthSessionResponseSchema = z.strictObject({ key: SecretSchema, expiresInSec: z.int().positive() })
 export type AuthSessionResponse = z.infer<typeof AuthSessionResponseSchema>
 

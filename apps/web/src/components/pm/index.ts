@@ -1,0 +1,8 @@
+export { default as PmButton } from './PmButton.vue'
+export { default as PmDialog } from './PmDialog.vue'
+export { default as PmSplitLayout } from './PmSplitLayout.vue'
+export { default as PmStatusBadge } from './PmStatusBadge.vue'
+export { default as PmTab } from './PmTab.vue'
+export { default as PmTabPanel } from './PmTabPanel.vue'
+export { default as PmTabs } from './PmTabs.vue'
+export * from './types'

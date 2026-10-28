@@ -4,7 +4,7 @@
       <h2 class="team-templates__title">Templates</h2>
       <span class="team-templates__badge">Experimental</span>
       <span class="team-templates__spacer" />
-      <AhButton prepend-icon="mdi-plus" variant="primary" @click="openCreate">New template</AhButton>
+      <PmButton prepend-icon="mdi-plus" variant="primary" @click="openCreate">New template</PmButton>
     </header>
 
     <p v-if="store.error" class="team-templates__error" role="alert">Could not load team templates: {{ store.error }}</p>
@@ -22,16 +22,16 @@
             <span v-if="template.description" class="team-templates__description">{{ template.description }}</span>
           </div>
 
-          <AhButton
+          <PmButton
             :ariaLabel="`Launch ${template.name}`"
             :loading="launching === template.name"
             prepend-icon="mdi-play"
             size="sm"
             variant="primary"
             @click="launch(template.name)"
-          >Launch</AhButton>
+          >Launch</PmButton>
 
-          <AhButton
+          <PmButton
             :ariaLabel="`Edit ${template.name}`"
             icon="mdi-pencil-outline"
             size="sm"
@@ -39,7 +39,7 @@
             @click="openEdit(template)"
           />
 
-          <AhButton
+          <PmButton
             :ariaLabel="`Delete ${template.name}`"
             icon="mdi-delete-outline"
             size="sm"
@@ -61,7 +61,7 @@
 
             <span v-else class="team-templates__waiting">Waiting for the team to appear</span>
 
-            <AhButton :ariaLabel="`Open lead of ${item.team}`" size="sm" variant="ghost" @click="openTab(item)">Open lead</AhButton>
+            <PmButton :ariaLabel="`Open lead of ${item.team}`" size="sm" variant="ghost" @click="openTab(item)">Open lead</PmButton>
           </li>
         </ul>
       </li>
@@ -69,9 +69,9 @@
 
     <TeamTemplateDialog v-model="editOpen" :template="editing" @saved="ui.notify('Team template saved', 'success')" />
 
-    <AhDialog
+    <PmDialog
       confirm-text="Delete"
-      initial-focus="[data-ah-cancel]"
+      initial-focus="[data-pm-cancel]"
       :loading="removing"
       :model-value="deleting !== undefined"
       :title="`Delete team template ${deleting?.name ?? ''}?`"
@@ -80,15 +80,15 @@
       @update:model-value="deleting = undefined"
     >
       <p>The file {{ deleting?.name }}.yaml is removed. Running sessions stay open.</p>
-    </AhDialog>
+    </PmDialog>
   </section>
 </template>
 
 <script lang="ts" setup>
-  import type { TeamLaunch, TeamTemplate } from '@agent-hub/shared'
+  import type { TeamLaunch, TeamTemplate } from '@paneful-manager/shared'
   import { ref } from 'vue'
   import { useRouter } from 'vue-router'
-  import { AhButton, AhDialog } from '@/components/ah'
+  import { PmButton, PmDialog } from '@/components/pm'
   import { useTabsStore } from '@/stores/tabs'
   import { useTeamsStore } from '@/stores/teams'
   import { useTeamTemplatesStore } from '@/stores/teamTemplates'
@@ -183,37 +183,37 @@
 .team-templates {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-3);
+  gap: var(--pm-space-3);
 }
 
 .team-templates__toolbar {
   display: flex;
   align-items: center;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
 }
 
 .team-templates__title {
   margin: 0;
-  color: var(--ah-color-fg-primary);
-  font-size: var(--ah-font-size-lg);
-  font-weight: var(--ah-font-weight-semibold);
+  color: var(--pm-color-fg-primary);
+  font-size: var(--pm-font-size-lg);
+  font-weight: var(--pm-font-weight-semibold);
 }
 
 .team-templates__spacer { flex: 1; }
 
 .team-templates__badge {
-  padding: 0 var(--ah-space-2);
-  border: 1px solid var(--ah-color-status-waiting);
-  border-radius: var(--ah-radius-full);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-xs);
+  padding: 0 var(--pm-space-2);
+  border: 1px solid var(--pm-color-status-waiting);
+  border-radius: var(--pm-radius-full);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-xs);
 }
 
 .team-templates__list,
 .team-templates__launches {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -222,17 +222,17 @@
 .team-templates__item {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-2);
-  padding: var(--ah-space-2) var(--ah-space-3);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-surface);
+  gap: var(--pm-space-2);
+  padding: var(--pm-space-2) var(--pm-space-3);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-surface);
 }
 
 .team-templates__row {
   display: flex;
   align-items: center;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
 }
 
 .team-templates__info {
@@ -240,44 +240,44 @@
   flex: 1;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   min-width: 0;
 }
 
 .team-templates__name {
-  color: var(--ah-color-fg-primary);
-  font-weight: var(--ah-font-weight-medium);
+  color: var(--pm-color-fg-primary);
+  font-weight: var(--pm-font-weight-medium);
 }
 
 .team-templates__meta,
 .team-templates__waiting {
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .team-templates__description {
   flex-basis: 100%;
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .team-templates__launch {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ah-space-3);
-  padding-top: var(--ah-space-2);
-  border-top: 1px solid var(--ah-color-border-default);
-  font-size: var(--ah-font-size-sm);
+  gap: var(--pm-space-3);
+  padding-top: var(--pm-space-2);
+  border-top: 1px solid var(--pm-color-border-default);
+  font-size: var(--pm-font-size-sm);
 }
 
 .team-templates__team {
-  color: var(--ah-color-fg-primary);
-  font-family: var(--ah-font-family-mono);
+  color: var(--pm-color-fg-primary);
+  font-family: var(--pm-font-family-mono);
 }
 
-.team-templates__link { color: var(--ah-color-accent-default); }
+.team-templates__link { color: var(--pm-color-accent-default); }
 
-.team-templates__empty { margin: 0; color: var(--ah-color-fg-muted); font-size: var(--ah-font-size-sm); }
-.team-templates__error { margin: 0; color: var(--ah-color-status-error); font-size: var(--ah-font-size-sm); }
+.team-templates__empty { margin: 0; color: var(--pm-color-fg-muted); font-size: var(--pm-font-size-sm); }
+.team-templates__error { margin: 0; color: var(--pm-color-status-error); font-size: var(--pm-font-size-sm); }
 </style>

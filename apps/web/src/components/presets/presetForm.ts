@@ -1,5 +1,5 @@
-import type { AppTab, Layout, LayoutKind, Session, WorkspacePreset, WorkspacePresetInput } from '@agent-hub/shared'
-import { DEFAULT_COMMAND, WorkspacePresetSchema } from '@agent-hub/shared'
+import type { AppTab, Layout, LayoutKind, Session, WorkspacePreset, WorkspacePresetInput } from '@paneful-manager/shared'
+import { DEFAULT_COMMAND, WorkspacePresetSchema } from '@paneful-manager/shared'
 
 export const LAYOUT_OPTIONS: readonly LayoutKind[] = ['single', 'row', 'column', 'grid-2x2']
 

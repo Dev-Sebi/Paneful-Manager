@@ -5,7 +5,7 @@ import {
   type CreateSessionResponse,
   type KillSessionResponse,
   type ListSessionsResponse,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import type { SessionEngine } from './engine.js'
 

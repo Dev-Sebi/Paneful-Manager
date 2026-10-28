@@ -19,7 +19,7 @@ const approval = (env: Record<string, string> = {}) => createMcpApproval({ env, 
 const check = (name = 'srv') => approval().isApproved(scope(), name)
 
 beforeEach(() => {
-  base = mkdtempSync(join(tmpdir(), 'agent-hub-approval-'))
+  base = mkdtempSync(join(tmpdir(), 'paneful-manager-approval-'))
   home = join(base, 'home')
   project = join(base, 'project')
   mkdirSync(home)

@@ -1,9 +1,11 @@
-import { ApiErrorSchema, PortSchema, API_ROUTES, DEFAULT_CONFIG, HealthResponseSchema } from '@agent-hub/shared'
+import { ApiErrorSchema, PortSchema, API_ROUTES, DEFAULT_CONFIG, HealthResponseSchema } from '@paneful-manager/shared'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { pino } from 'pino'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from './app.js'
 import { AppError } from './errors.js'
+
+vi.mock('./version.js', () => ({ RELEASE_VERSION: '1.2.3' }))
 
 let app: FastifyInstance
 
@@ -14,9 +16,9 @@ function build(): FastifyInstance {
   const inject = app.inject.bind(app)
   const local = (options: InjectOptions) =>
     inject({ ...options, headers: {
-        host: `localhost:${DEFAULT_CONFIG.port}`,
-        origin: `http://localhost:${DEFAULT_CONFIG.port}`,
-        'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN,
+        host: `127.0.0.1:${DEFAULT_CONFIG.port}`,
+        origin: `http://127.0.0.1:${DEFAULT_CONFIG.port}`,
+        'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN,
         ...options.headers,
       },
     })
@@ -28,11 +30,11 @@ afterEach(async () => {
 })
 
 describe('buildApp', () => {
-  it('answers the health route with the shared shape', async () => {
+  it('answers the health route with the shared shape and the release version', async () => {
     const response = await build().inject({ method: 'GET', url: API_ROUTES.health })
     expect(response.statusCode).toBe(200)
     const body = HealthResponseSchema.parse(response.json())
-    expect(body.version).toMatch(/^\d+\.\d+\.\d+/)
+    expect(body.version).toBe('1.2.3')
     expect(body.tmux).toBe('unavailable')
   })
 

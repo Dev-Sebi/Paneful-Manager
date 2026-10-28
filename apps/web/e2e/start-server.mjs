@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const PORT = process.env.AGENT_HUB_PORT ?? '7340'
-const PREFIX = 'agent-hub-e2e-'
-const SOCKET = 'agent-hub'
+const PORT = process.env.PANEFUL_MANAGER_PORT ?? '7340'
+const PREFIX = 'paneful-manager-e2e-'
+const SOCKET = 'paneful-manager'
 const serverEntry = resolve(dirname(fileURLToPath(import.meta.url)), '../../server/dist/index.js')
 const hasTmux = spawnSync('tmux', ['-V'], { stdio: 'ignore' }).status === 0
 
@@ -45,23 +45,23 @@ for (const dir of Object.values(dirs)) {
 }
 writeFileSync(join(root, 'pid'), String(process.pid))
 // The server keeps an existing access key, so the specs know it up front (see e2e/access.ts).
-if (process.env.AGENT_HUB_E2E_ACCESS_KEY) {
-  mkdirSync(join(dirs.state, 'agent-hub'), { recursive: true, mode: 0o700 })
-  writeFileSync(join(dirs.state, 'agent-hub', 'access-key'), `${process.env.AGENT_HUB_E2E_ACCESS_KEY}\n`, { mode: 0o600 })
+if (process.env.PANEFUL_MANAGER_E2E_ACCESS_KEY) {
+  mkdirSync(join(dirs.state, 'paneful-manager'), { recursive: true, mode: 0o700 })
+  writeFileSync(join(dirs.state, 'paneful-manager', 'access-key'), `${process.env.PANEFUL_MANAGER_E2E_ACCESS_KEY}\n`, { mode: 0o600 })
 }
 // Specs run in other processes; this file tells them where the isolated state lives.
-const pathsFile = join(tmpdir(), 'ah-e2e-paths.json')
-writeFileSync(pathsFile, JSON.stringify({ state: join(dirs.state, 'agent-hub'), config: join(dirs.config, 'agent-hub') }), { mode: 0o600 })
+const pathsFile = join(tmpdir(), 'pm-e2e-paths.json')
+writeFileSync(pathsFile, JSON.stringify({ state: join(dirs.state, 'paneful-manager'), config: join(dirs.config, 'paneful-manager') }), { mode: 0o600 })
 
 const env = {
   ...process.env,
-  AGENT_HUB_PORT: PORT,
+  PANEFUL_MANAGER_PORT: PORT,
   HOME: dirs.home,
   XDG_STATE_HOME: dirs.state,
   XDG_CONFIG_HOME: dirs.config,
   CLAUDE_CONFIG_DIR: dirs.claude,
   TMUX_TMPDIR: dirs.tmux,
-  // Dev mode makes the server honor AGENT_HUB_DEV_ORIGINS, which lists the e2e Vite origin.
+  // Dev mode makes the server honor PANEFUL_MANAGER_DEV_ORIGINS, which lists the e2e Vite origin.
   NODE_ENV: 'development',
 }
 // An inherited $TMUX would point the private server's clients at the caller's tmux.

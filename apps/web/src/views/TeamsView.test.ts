@@ -63,7 +63,7 @@ describe('TeamsView', () => {
     listTeams.mockResolvedValue({ enabled: true, teams: [makeTeam('alpha')], warnings: [] })
     const { wrapper } = await mountView()
     expect(wrapper.html()).not.toContain('javascript:')
-    expect(wrapper.find('.team-board__dot').attributes('style')).toMatch(/var\(--ah-color-/)
+    expect(wrapper.find('.team-board__dot').attributes('style')).toMatch(/var\(--pm-color-/)
   })
 
   it('expands and collapses the description', async () => {
@@ -107,7 +107,7 @@ describe('TeamsView', () => {
     listTeams.mockRejectedValue(new Error('offline'))
     const { wrapper } = await mountView()
     expect(wrapper.find('[role="alert"]').text()).toBe('offline')
-    expect(wrapper.find('.ah-status-badge--error').exists()).toBe(true)
+    expect(wrapper.find('.pm-status-badge--error').exists()).toBe(true)
   })
 
   it('shows only open blockers and an Unknown column for unrecognized statuses', async () => {

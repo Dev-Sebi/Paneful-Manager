@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { SKILL_FILE_EXTENSIONS, SkillNameSchema, type ManagedFileKind, type Scope } from '@agent-hub/shared'
+import { SKILL_FILE_EXTENSIONS, SkillNameSchema, type ManagedFileKind, type Scope } from '@paneful-manager/shared'
 
 /** Deepest nesting below a skill directory that is still managed (`<skill>/a/b/c/file.md`). */
 export const MAX_SKILL_DEPTH = 4

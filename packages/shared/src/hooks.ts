@@ -5,15 +5,15 @@ import { PathSchema } from './scope.js'
 import { SessionIdSchema, type SessionState } from './session.js'
 
 /** Header carrying the persisted hook token on `POST /api/hooks`. */
-export const HOOK_TOKEN_HEADER = 'x-agent-hub-hook-token'
-/** Header carrying the Agent Hub session id on `POST /api/hooks`. */
-export const HOOK_SESSION_HEADER = 'x-agent-hub-session-id'
+export const HOOK_TOKEN_HEADER = 'x-paneful-hook-token'
+/** Header carrying the Paneful Manager session id on `POST /api/hooks`. */
+export const HOOK_SESSION_HEADER = 'x-paneful-hook-session'
 
 /** Environment variables every new session gets: the token through a sourced owner-only tmux file, the others through `new-session -e`. */
 export const HOOK_ENV = {
-  sessionId: 'AGENT_HUB_SESSION_ID',
-  token: 'AGENT_HUB_HOOK_TOKEN',
-  url: 'AGENT_HUB_URL',
+  sessionId: 'PANEFUL_MANAGER_SESSION_ID',
+  token: 'PANEFUL_MANAGER_HOOK_TOKEN',
+  url: 'PANEFUL_MANAGER_URL',
 } as const
 
 /** Seconds Claude Code waits for the hook endpoint; failures and timeouts never block Claude Code. */
@@ -52,7 +52,7 @@ export const HOOK_EVENTS = [...Object.keys(HOOK_EVENT_STATES), 'Notification'] a
 export const HOOK_POLL_EVENTS: readonly string[] = ['SessionEnd']
 
 /**
- * Claude Code hook input; only the fields Agent Hub reads are validated, everything else passes through.
+ * Claude Code hook input; only the fields Paneful Manager reads are validated, everything else passes through.
  * See the hook input reference: common fields plus per-event fields such as `notification_type`.
  */
 export const HookPayloadSchema = z.looseObject({
@@ -79,12 +79,12 @@ export function hookTriggersPoll(eventName: string): boolean {
   return HOOK_POLL_EVENTS.includes(eventName)
 }
 
-/** URL baked into the installed hook entries; its exact form identifies Agent Hub's entries. */
+/** URL baked into the installed hook entries; its exact form identifies Paneful Manager's entries. */
 export function hookUrl(port: number): string {
   return `http://${BIND_HOST}:${port}${API_ROUTES.hooks}`
 }
 
-/** Matches Agent Hub's hook URL for any port, so entries from an old port are found and updated. */
+/** Matches Paneful Manager's hook URL for any port, so entries from an old port are found and updated. */
 export const HOOK_URL_PATTERN = /^http:\/\/127\.0\.0\.1:\d{1,5}\/api\/hooks$/
 
 // REST: hook installation
@@ -112,9 +112,9 @@ export type HookBlockReason = z.infer<typeof HookBlockReasonSchema>
 /** GET /api/hooks/status */
 export const HookStatusSchema = z.strictObject({
   settingsPath: PathSchema,
-  /** Every event in `HOOK_EVENTS` has an Agent Hub entry pointing at the current port. */
+  /** Every event in `HOOK_EVENTS` has a Paneful Manager entry pointing at the current port. */
   installed: z.boolean(),
-  /** All Agent Hub entries found point at the current port (true when none exist). */
+  /** All Paneful Manager entries found point at the current port (true when none exist). */
   portMatches: z.boolean(),
   installedEvents: z.array(z.string()),
   /** Installed and no setting found that blocks the hook requests. */

@@ -1,7 +1,7 @@
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { HOOK_EVENTS, HOOK_NOTIFICATION_MATCHER, hookUrl } from '@agent-hub/shared'
+import { HOOK_EVENTS, HOOK_NOTIFICATION_MATCHER, hookUrl } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../errors.js'
 import { createBackupStore, type BackupStore } from '../files/backups.js'
@@ -14,7 +14,7 @@ let backups: BackupStore
 let managedDir: string
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'agent-hub-hooks-install-'))
+  dir = await mkdtemp(join(tmpdir(), 'paneful-manager-hooks-install-'))
   settingsPath = join(dir, 'claude', 'settings.json')
   backupDir = join(dir, 'backups')
   managedDir = join(dir, 'managed')
@@ -77,8 +77,8 @@ describe('installHooks', () => {
     expect(hookHandler(7337)).toEqual({
       type: 'http',
       url: 'http://127.0.0.1:7337/api/hooks',
-      headers: { 'X-Agent-Hub-Session-Id': '$AGENT_HUB_SESSION_ID', 'X-Agent-Hub-Hook-Token': '$AGENT_HUB_HOOK_TOKEN' },
-      allowedEnvVars: ['AGENT_HUB_SESSION_ID', 'AGENT_HUB_HOOK_TOKEN'],
+      headers: { 'X-Paneful-Hook-Session': '$PANEFUL_MANAGER_SESSION_ID', 'X-Paneful-Hook-Token': '$PANEFUL_MANAGER_HOOK_TOKEN' },
+      allowedEnvVars: ['PANEFUL_MANAGER_SESSION_ID', 'PANEFUL_MANAGER_HOOK_TOKEN'],
       timeout: 5,
     })
     expect(await readdir(dir)).not.toContain('backups')
@@ -111,7 +111,7 @@ describe('installHooks', () => {
     expect(await uninstall()).toEqual({ changed: false })
   })
 
-  it('removes the hooks key again when it only held Agent Hub entries', async () => {
+  it('removes the hooks key again when it only held Paneful Manager entries', async () => {
     const original = '{\n\t"theme": "dark"\n}'
     await writeFile(settingsPath, original)
     await install()
@@ -201,7 +201,7 @@ describe('getHookStatus', () => {
     await writeFile(settingsPath, JSON.stringify({ ...settings, disableAllHooks: true, allowedHttpHookUrls: ['http://localhost:*'] }))
     await mkdir(join(managedDir, 'managed-settings.d'), { recursive: true })
     await writeFile(join(managedDir, 'managed-settings.json'), JSON.stringify({ allowManagedHooksOnly: true }))
-    await writeFile(join(managedDir, 'managed-settings.d', '10-hooks.json'), JSON.stringify({ httpHookAllowedEnvVars: ['AGENT_HUB_SESSION_ID'] }))
+    await writeFile(join(managedDir, 'managed-settings.d', '10-hooks.json'), JSON.stringify({ httpHookAllowedEnvVars: ['PANEFUL_MANAGER_SESSION_ID'] }))
     const result = await status()
     expect(result.installed).toBe(true)
     expect(result.statusAvailable).toBe(false)
@@ -236,7 +236,7 @@ describe('getHookStatus', () => {
     await writeFile(settingsPath, JSON.stringify({
       ...settings,
       allowedHttpHookUrls: ['http://127.0.0.1:*'],
-      httpHookAllowedEnvVars: ['AGENT_HUB_SESSION_ID', 'AGENT_HUB_HOOK_TOKEN'],
+      httpHookAllowedEnvVars: ['PANEFUL_MANAGER_SESSION_ID', 'PANEFUL_MANAGER_HOOK_TOKEN'],
     }))
     expect((await status()).statusAvailable).toBe(true)
   })

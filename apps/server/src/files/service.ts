@@ -14,7 +14,7 @@ import {
   type Scope,
   type SkillDeleteBlockedDetails,
   type WriteFileRequest,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import { AppError } from '../errors.js'
 import { createAllowlist, type Allowlist } from '../fs/allowlist.js'
@@ -122,7 +122,7 @@ async function fsyncDir(dir: string): Promise<void> {
 /** Temp file in the target directory (`O_EXCL`), fsync, `verify`, rename; the temp file never survives a failure. */
 export async function atomicWrite(target: string, content: string, mode: number | undefined, verify: () => Promise<void>): Promise<void> {
   const dir = dirname(target)
-  const temp = join(dir, `.${basename(target)}.agent-hub-${randomBytes(6).toString('hex')}.tmp`)
+  const temp = join(dir, `.${basename(target)}.paneful-manager-${randomBytes(6).toString('hex')}.tmp`)
   const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW
   try {
     const handle = await open(temp, flags, mode ?? 0o644)
@@ -395,7 +395,7 @@ export function createFileService(options: FileServiceOptions): FileService {
     const { files, blocked } = await inspectSkillDir(dir)
     if (blocked.length > 0) {
       const details: SkillDeleteBlockedDetails = { blocked }
-      throw new AppError('Skill directory contains files Agent Hub does not manage', 409, 'conflict', details)
+      throw new AppError('Skill directory contains files Paneful Manager does not manage', 409, 'conflict', details)
     }
     for (const file of files) {
       const current = await readCurrent(file)

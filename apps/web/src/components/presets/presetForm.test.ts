@@ -1,4 +1,4 @@
-import { WorkspacePresetSchema } from '@agent-hub/shared'
+import { WorkspacePresetSchema } from '@paneful-manager/shared'
 import { describe, expect, it } from 'vitest'
 import { makeSession } from '@/test/fixtures'
 import { emptyForm, formToPreset, presetToForm, tabsToForm, validateForm } from './presetForm'

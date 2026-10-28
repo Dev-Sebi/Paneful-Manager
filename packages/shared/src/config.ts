@@ -14,7 +14,7 @@ export const ExperimentalConfigSchema = z.looseObject({
   agentTeams: z.boolean().default(false),
 })
 
-/** App config file `~/.config/agent-hub/config.yaml`; an empty file yields `DEFAULT_CONFIG`. */
+/** App config file `~/.config/paneful-manager/config.yaml`; an empty file yields `DEFAULT_CONFIG`. */
 export const AppConfigSchema = z.looseObject({
   port: PortSchema.default(DEFAULT_PORT),
   experimental: ExperimentalConfigSchema.prefault({}),
@@ -51,7 +51,7 @@ export function applyConfigPatch(config: AppConfig, patch: ConfigPatch): AppConf
   })
 }
 
-/** Effective port: `AGENT_HUB_PORT` (digits only, 1-65535) wins over the config file. */
+/** Effective port: `PANEFUL_MANAGER_PORT` (digits only, 1-65535) wins over the config file. */
 export function resolvePort(configPort: number, envValue: string | undefined): number {
   if (envValue === undefined || envValue.trim() === '') {
     return configPort
@@ -59,7 +59,7 @@ export function resolvePort(configPort: number, envValue: string | undefined): n
   const value = envValue.trim()
   const port = /^\d+$/.test(value) ? Number(value) : Number.NaN
   if (!PortSchema.safeParse(port).success) {
-    throw new Error(`Invalid AGENT_HUB_PORT "${envValue}": expected an integer between 1 and 65535`)
+    throw new Error(`Invalid PANEFUL_MANAGER_PORT "${envValue}": expected an integer between 1 and 65535`)
   }
   return port
 }
@@ -70,12 +70,12 @@ function resolveXdgDir(value: string | undefined, fallback: string): string {
   return `${base}/${CONFIG_DIR_NAME}`
 }
 
-/** Config directory: `$XDG_CONFIG_HOME/agent-hub`, falling back to `~/.config/agent-hub` (a relative value is ignored per the XDG spec). */
+/** Config directory: `$XDG_CONFIG_HOME/paneful-manager`, falling back to `~/.config/paneful-manager` (a relative value is ignored per the XDG spec). */
 export function resolveConfigDir(env: Record<string, string | undefined>): string {
   return resolveXdgDir(env.XDG_CONFIG_HOME, '~/.config')
 }
 
-/** State directory: `$XDG_STATE_HOME/agent-hub`, falling back to `~/.local/state/agent-hub` (relative values are ignored). */
+/** State directory: `$XDG_STATE_HOME/paneful-manager`, falling back to `~/.local/state/paneful-manager` (relative values are ignored). */
 export function resolveStateDir(env: Record<string, string | undefined>): string {
   return resolveXdgDir(env.XDG_STATE_HOME, '~/.local/state')
 }

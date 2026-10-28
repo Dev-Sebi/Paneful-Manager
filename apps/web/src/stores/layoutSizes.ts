@@ -1,9 +1,9 @@
-import { z } from '@agent-hub/shared'
+import { z } from '@paneful-manager/shared'
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { readStorage, writeStorage } from './storage'
 
-export const LAYOUT_SIZES_STORAGE_KEY = 'agent-hub.layout-sizes.v1'
+export const LAYOUT_SIZES_STORAGE_KEY = 'paneful-manager.layout-sizes.v1'
 
 /** Sizes in percent of the panes of one split node. */
 const SizesSchema = z.array(z.number().positive()).min(2)

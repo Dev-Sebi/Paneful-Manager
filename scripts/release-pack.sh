@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds Agent Hub and packs agent-hub-<tag>.tar.gz (with prebuilt production node_modules) plus its .sha256 file.
+# Builds Paneful Manager and packs paneful-manager-<tag>.tar.gz (with prebuilt production node_modules) plus its .sha256 file.
 # Usage: scripts/release-pack.sh [--skip-build] [--no-deps] [--out <dir>] [--tag <tag>]
 set -eu
 
@@ -48,7 +48,7 @@ done
 [ -f "$ROOT/apps/server/dist/index.js" ] || { echo "Missing apps/server/dist/index.js" >&2; exit 1; }
 [ -f "$ROOT/apps/web/dist/index.html" ] || { echo "Missing apps/web/dist/index.html" >&2; exit 1; }
 
-NAME="agent-hub-$TAG"
+NAME="paneful-manager-$TAG"
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT INT TERM
 mkdir -p "$STAGE/$NAME"
@@ -62,7 +62,7 @@ printf '%s\n' "$TAG" > "$STAGE/$NAME/VERSION"
 # Ships the server's production dependencies with node-pty compiled on this machine, so installing on the
 # same platform needs no compiler. install.sh falls back to compiling when the shipped node-pty does not load.
 if [ "$NO_DEPS" -eq 0 ]; then
-  (cd "$STAGE/$NAME" && CI=true pnpm install --prod --frozen-lockfile --filter '@agent-hub/server...' >/dev/null)
+  (cd "$STAGE/$NAME" && CI=true pnpm install --prod --frozen-lockfile --filter '@paneful-manager/server...' >/dev/null)
   PTY_DIR=$(cd "$STAGE/$NAME/apps/server" && node -p "require('path').dirname(require.resolve('node-pty/package.json'))")
   (cd "$STAGE/$NAME/apps/server" && node -e "require('node-pty')") || { echo "The bundled node-pty does not load" >&2; exit 1; }
   # Keeps only the compiled addon: sources, other platforms' prebuilds, the build tree and pnpm's state files

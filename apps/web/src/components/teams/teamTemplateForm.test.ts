@@ -1,4 +1,4 @@
-import { TeamTemplateSchema } from '@agent-hub/shared'
+import { TeamTemplateSchema } from '@paneful-manager/shared'
 import { describe, expect, it } from 'vitest'
 import { emptyTemplateForm, formToTemplate, templateToForm, validateTemplateForm } from './teamTemplateForm'
 

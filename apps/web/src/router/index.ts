@@ -48,7 +48,7 @@ export function createAppRouter (history: RouterHistory = createWebHistory()) {
   })
 
   router.afterEach(to => {
-    document.title = to.meta.title ? `${to.meta.title} - Agent Hub` : 'Agent Hub'
+    document.title = to.meta.title ? `${to.meta.title} - Paneful Manager` : 'Paneful Manager'
   })
 
   return router

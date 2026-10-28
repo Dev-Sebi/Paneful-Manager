@@ -84,14 +84,14 @@ describe('ws client', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(getToken).toHaveBeenCalledTimes(1)
     expect(last().url).toBe('ws://host/ws?v=1')
-    expect(last().protocols).toEqual(['agent-hub.v1', 'token.cached'])
+    expect(last().protocols).toEqual(['paneful-manager.v1', 'token.cached'])
   })
 
   it('offers the session key as a key subprotocol when the page has one', async () => {
     const { client } = setup(async () => 'session-key')
     client.connect()
     await vi.advanceTimersByTimeAsync(0)
-    expect(last().protocols).toEqual(['agent-hub.v1', 'token.cached', 'key.session-key'])
+    expect(last().protocols).toEqual(['paneful-manager.v1', 'token.cached', 'key.session-key'])
   })
 
   it('reconnects with growing delays and a fresh token each time', async () => {

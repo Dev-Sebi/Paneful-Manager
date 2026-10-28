@@ -1,4 +1,4 @@
-# Example workspace preset with two tabs. Copy to ~/.config/agent-hub/workspaces/ and adapt.
+# Example workspace preset with two tabs. Copy to ~/.config/paneful-manager/workspaces/ and adapt.
 name: two-projects
 tabs:
   - title: grid

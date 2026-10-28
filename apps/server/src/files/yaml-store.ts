@@ -1,6 +1,6 @@
 import { lstat, mkdir, readdir, readFile, realpath, rm } from 'node:fs/promises'
 import { basename, dirname, join, sep } from 'node:path'
-import type { z } from '@agent-hub/shared'
+import type { z } from '@paneful-manager/shared'
 import { Document, isMap, isScalar, parseDocument } from 'yaml'
 import type { BaseLogger } from 'pino'
 import { AppError } from '../errors.js'

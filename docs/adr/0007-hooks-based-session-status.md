@@ -9,8 +9,8 @@ The UI shows whether each Claude Code session is working, waiting for the user, 
 
 ## Decision
 
-- Session status comes from Claude Code hooks. Agent Hub merges `http` hook handlers into `$CLAUDE_CONFIG_DIR/settings.json` (default `~/.claude`; never overwriting other entries) that POST to `http://127.0.0.1:<port>/api/hooks` with a 5 s `timeout`. Non-2xx responses and connection failures are non-blocking for Claude Code (verified).
-- Sessions spawned by Agent Hub get `AGENT_HUB_SESSION_ID` and `AGENT_HUB_HOOK_TOKEN` in their tmux environment; the hook headers carry both, so the server maps events to its session and ignores everything else.
+- Session status comes from Claude Code hooks. Paneful Manager merges `http` hook handlers into `$CLAUDE_CONFIG_DIR/settings.json` (default `~/.claude`; never overwriting other entries) that POST to `http://127.0.0.1:<port>/api/hooks` with a 5 s `timeout`. Non-2xx responses and connection failures are non-blocking for Claude Code (verified).
+- Sessions spawned by Paneful Manager get `PANEFUL_MANAGER_SESSION_ID` and `PANEFUL_MANAGER_HOOK_TOKEN` in their tmux environment; the hook headers carry both, so the server maps events to its session and ignores everything else.
 - Mapping (amended in T26):
 
   | Event | State |
@@ -56,14 +56,14 @@ The UI shows whether each Claude Code session is working, waiting for the user, 
 
 ### Marker strategy
 
-Handlers carry no marker key. Agent Hub's handlers are identified by their exact URL `http://127.0.0.1:<port>/api/hooks` (any port, `HOOK_URL_PATTERN`). Install updates them in place when the port changes, removes duplicates and entries for events no longer mapped; uninstall removes only them plus the groups, event keys or `hooks` key they leave empty.
+Handlers carry no marker key. Paneful Manager's handlers are identified by their exact URL `http://127.0.0.1:<port>/api/hooks` (any port, `HOOK_URL_PATTERN`). Install updates them in place when the port changes, removes duplicates and entries for events no longer mapped; uninstall removes only them plus the groups, event keys or `hooks` key they leave empty.
 
 ### Changes to the decision
 
-- Header names are `X-Agent-Hub-Session-Id` and `X-Agent-Hub-Hook-Token`; sessions also get `AGENT_HUB_URL`. A wrong hook token is `401`; a request with both headers empty (Claude sessions not started by Agent Hub) is `204` and ignored.
-- Mapping as in the Decision table: `SessionStart` dropped (no `http` support), `SubagentStart` and `SubagentStop` change nothing, `elicitation_url_dialog` added to `waiting`, `SessionEnd` sets `idle` and triggers the exit poll. `mapHookEvent` in `packages/shared/src/hooks.ts` holds the table; install removes Agent Hub entries from events no longer listed.
+- Header names are `X-Paneful-Hook-Session` and `X-Paneful-Hook-Token`; sessions also get `PANEFUL_MANAGER_URL`. A wrong hook token is `401`; a request with both headers empty (Claude sessions not started by Paneful Manager) is `204` and ignored.
+- Mapping as in the Decision table: `SessionStart` dropped (no `http` support), `SubagentStart` and `SubagentStop` change nothing, `elicitation_url_dialog` added to `waiting`, `SessionEnd` sets `idle` and triggers the exit poll. `mapHookEvent` in `packages/shared/src/hooks.ts` holds the table; install removes Paneful Manager entries from events no longer listed.
 - `allowedHttpHookUrls` patterns are matched case-sensitively (the hook URL is always lower case); invalid managed settings files are reported as `settings_invalid`, hidden drop-ins are skipped.
-- The hook token file is written to an `O_EXCL` temp file (`wx`, mode 0600) and renamed into place, never truncated. Creating or replacing it (missing or corrupt file) happens under the lock file `hook-token.lock` (exclusive create, holder `pid:nonce`, broken when its process is gone or it is older than 10 s), so concurrent server starts agree on one token. Temp files left by interrupted writes (`.hook-token.*.tmp`, `session-env.tmux.*.tmp`) older than 60 s are removed on start.
+- The hook token file is written to an `O_EXCL` temp file (`wx`, mode 0600) and renamed into place, never truncated. Creating or replacing it (missing or corrupt file) happens under the lock file `hook-token.lock` (exclusive create, holder `pid:nonce`, refreshed by its holder while held and broken when its process is gone or it went 10 s without a refresh; one starter at a time breaks it under `hook-token.lock.break`, and breaking or releasing renames it to a unique name and puts it back unless it holds the expected holder), so concurrent server starts agree on one token. Temp files left by interrupted writes (`.hook-token.*.tmp`, `session-env.tmux.*.tmp`) older than 60 s are removed on start.
 - `Session` gains `stateSince`, set when `state` changes; `state` frames carry it.
 - Re-adopted sessions keep their original environment; they report status only if they were started with the current token and port.
 
@@ -71,4 +71,4 @@ Handlers carry no marker key. Agent Hub's handlers are identified by their exact
 
 - Earlier builds passed the hook token in tmux's argv, readable by other local users. The token is now renewed when the installed version differs from `$STATE/hook-token.version` (a missing file counts as different), and rotated after an install or uninstall in Settings that changed the settings file.
 - Running sessions cannot receive a new environment. Their hooks fail closed with `401` (non-blocking for Claude Code; the session keeps its last state, the server is unaffected). The server lists them in `staleSessions` of `GET /api/hooks/status`, and Settings asks to restart them. New sessions get the current token because `session-env.tmux` is rewritten before every `new-session`.
-- A session id is visible in argv (`-e AGENT_HUB_SESSION_ID`), so any local user can make a known session appear in `staleSessions` by sending a wrong token; the next valid hook clears it. The list is a hint only and changes no state.
+- A session id is visible in argv (`-e PANEFUL_MANAGER_SESSION_ID`), so any local user can make a known session appear in `staleSessions` by sending a wrong token; the next valid hook clears it. The list is a hint only and changes no state.

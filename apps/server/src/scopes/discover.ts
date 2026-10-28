@@ -1,7 +1,7 @@
 import { realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
-import type { AppConfig, Scope } from '@agent-hub/shared'
+import type { AppConfig, Scope } from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import { parseWorktreeList } from './porcelain.js'
 import { runFile, type RunFn } from './run-git.js'

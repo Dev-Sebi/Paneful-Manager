@@ -1,6 +1,6 @@
 import { relative, sep } from 'node:path'
 import { realpath } from 'node:fs/promises'
-import type { TeamChangedMessage } from '@agent-hub/shared'
+import type { TeamChangedMessage } from '@paneful-manager/shared'
 import { watch, type FSWatcher } from 'chokidar'
 import type { BaseLogger } from 'pino'
 

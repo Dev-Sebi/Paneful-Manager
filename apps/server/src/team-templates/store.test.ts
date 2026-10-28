@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { TeamTemplateSchema, type TeamTemplate } from '@agent-hub/shared'
+import { TeamTemplateSchema, type TeamTemplate } from '@paneful-manager/shared'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
@@ -16,7 +16,7 @@ function template(name: string, extra: Record<string, unknown> = {}): TeamTempla
 }
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'ah-team-templates-'))
+  root = await mkdtemp(join(tmpdir(), 'pm-team-templates-'))
   dir = join(root, 'teams')
   store = createTeamTemplateStore({ dir, logger: pino({ level: 'silent' }) })
 })

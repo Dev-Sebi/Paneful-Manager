@@ -1,4 +1,4 @@
-import { McpServerConfigSchema, type McpServerConfig } from '@agent-hub/shared'
+import { McpServerConfigSchema, type McpServerConfig } from '@paneful-manager/shared'
 
 /** One entry under `mcpServers` in Claude Code's own format (`type` instead of `transport`). */
 export type NativeServer = Record<string, unknown>
@@ -16,7 +16,7 @@ function nativeTransport(raw: NativeServer): string | undefined {
   return type === 'streamable-http' ? 'http' : typeof type === 'string' ? type : undefined
 }
 
-/** Parses a native entry; `undefined` for transports or shapes Agent Hub does not manage (e.g. `ws`). */
+/** Parses a native entry; `undefined` for transports or shapes Paneful Manager does not manage (e.g. `ws`). */
 export function fromNative(raw: unknown): McpServerConfig | undefined {
   if (!isRecord(raw)) {
     return undefined
@@ -30,7 +30,7 @@ export function fromNative(raw: unknown): McpServerConfig | undefined {
 }
 
 /**
- * Builds the native entry for `config`. Keys Agent Hub does not know (`oauth`, `timeout`, ...) and the key order
+ * Builds the native entry for `config`. Keys Paneful Manager does not know (`oauth`, `timeout`, ...) and the key order
  * of `existing` are kept as long as the transport family (stdio vs. remote) stays the same.
  */
 export function toNative(config: McpServerConfig, existing?: unknown): NativeServer {

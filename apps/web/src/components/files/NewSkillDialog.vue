@@ -1,5 +1,5 @@
 <template>
-  <AhDialog
+  <PmDialog
     confirm-text="Create skill"
     initial-focus="input"
     :loading="loading"
@@ -35,15 +35,15 @@
 
       <p v-if="error" class="new-skill__hint new-skill__hint--error" role="alert">{{ error }}</p>
     </form>
-  </AhDialog>
+  </PmDialog>
 </template>
 
 <script lang="ts" setup>
 
-  import type { CreateFileRequest, Scope } from '@agent-hub/shared'
-  import { SkillNameSchema } from '@agent-hub/shared'
+  import type { CreateFileRequest, Scope } from '@paneful-manager/shared'
+  import { SkillNameSchema } from '@paneful-manager/shared'
   import { computed, ref, useId, watch } from 'vue'
-  import { AhDialog } from '@/components/ah'
+  import { PmDialog } from '@/components/pm'
   import { scopeLabel } from './scopeLabel'
 
   const props = defineProps<{
@@ -109,38 +109,38 @@
 .new-skill {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-1);
+  gap: var(--pm-space-1);
 }
 
 .new-skill__label {
-  margin-top: var(--ah-space-2);
-  font-size: var(--ah-font-size-sm);
-  font-weight: var(--ah-font-weight-medium);
+  margin-top: var(--pm-space-2);
+  font-size: var(--pm-font-size-sm);
+  font-weight: var(--pm-font-weight-medium);
 }
 
 .new-skill__field {
   height: 28px;
-  padding: 0 var(--ah-space-2);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-canvas);
-  color: var(--ah-color-fg-primary);
+  padding: 0 var(--pm-space-2);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-canvas);
+  color: var(--pm-color-fg-primary);
   font: inherit;
 }
 
 .new-skill__field:focus-visible {
-  outline: 2px solid var(--ah-color-border-focus);
+  outline: 2px solid var(--pm-color-border-focus);
   outline-offset: 1px;
 }
 
-.new-skill__field[aria-invalid="true"] { border-color: var(--ah-color-status-error); }
+.new-skill__field[aria-invalid="true"] { border-color: var(--pm-color-status-error); }
 
 .new-skill__hint {
   min-height: 1.4em;
   margin: 0;
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-xs);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-xs);
 }
 
-.new-skill__hint--error { color: var(--ah-color-status-error); }
+.new-skill__hint--error { color: var(--pm-color-status-error); }
 </style>

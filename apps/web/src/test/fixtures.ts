@@ -1,4 +1,4 @@
-import type { AppTab, FileContent, FileEntry, McpServerEntryMasked, Scope, Session } from '@agent-hub/shared'
+import type { AppTab, FileContent, FileEntry, McpServerEntryMasked, Scope, Session } from '@paneful-manager/shared'
 
 export function makeSession (id: string, overrides: Partial<Session> = {}): Session {
   return {
@@ -8,7 +8,7 @@ export function makeSession (id: string, overrides: Partial<Session> = {}): Sess
     cwd: '/work/project',
     command: 'claude',
     args: [],
-    tmuxSession: `ah-${id}`,
+    tmuxSession: `pm-${id}`,
     createdAt: '2026-01-01T00:00:00.000Z',
     state: 'idle',
     lifecycle: 'running',

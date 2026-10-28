@@ -22,7 +22,7 @@
 
       <template #append>
         <div class="shell__rail-toggle">
-          <AhButton
+          <PmButton
             :ariaLabel="ui.rail ? 'Expand sidebar' : 'Collapse sidebar'"
             :icon="ui.rail ? 'mdi-chevron-right' : 'mdi-chevron-left'"
             variant="ghost"
@@ -33,12 +33,12 @@
     </v-navigation-drawer>
 
     <v-app-bar class="shell__bar" flat>
-      <span class="shell__name">Agent Hub</span>
+      <span class="shell__name">Paneful Manager</span>
       <v-spacer />
-      <AhStatusBadge :label="connectionLabel" :state="connectionState" />
+      <PmStatusBadge :label="connectionLabel" :state="connectionState" />
 
       <div aria-label="Theme" class="shell__theme" role="group">
-        <AhButton
+        <PmButton
           v-for="option in themeOptions"
           :key="option.value"
           :ariaLabel="`${option.label} theme`"
@@ -77,16 +77,16 @@
 
 <script lang="ts" setup>
   import type { ConnectionState } from '@/api/connection'
-  import type { AhStatusBadgeState } from '@/components/ah'
-  import { BIND_HOST, type Theme } from '@agent-hub/shared'
+  import type { PmStatusBadgeState } from '@/components/pm'
+  import { BIND_HOST, type Theme } from '@paneful-manager/shared'
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { useTheme } from 'vuetify'
   import { loginCodeRejected, loginRequired, untrustedHost } from '@/api/access'
   import { connection } from '@/api/connection'
   import { wsClient } from '@/api/ws'
-  import { AhButton, AhStatusBadge } from '@/components/ah'
   import EmptyState from '@/components/EmptyState.vue'
+  import { PmButton, PmStatusBadge } from '@/components/pm'
   import { SECTIONS } from '@/layouts/sections'
   import { useConfigStore } from '@/stores/config'
   import { useSessionsStore } from '@/stores/sessions'
@@ -110,13 +110,13 @@
   const activeTheme = computed(() => ui.theme ?? config.theme)
   const loginMessage = computed(() => {
     if (untrustedHost.value) {
-      return `Open Agent Hub at http://${BIND_HOST}:${location.port}/ instead: on this host name another local user's server can answer. Then open a login URL.`
+      return `Open Paneful Manager at http://${BIND_HOST}:${location.port}/ instead: on this host name another local user's server can answer. Then open a login URL.`
     }
     const hint = 'Print a new one with install.sh --login-url (or pnpm login-url in a checkout); it works once and expires after 10 minutes.'
     return loginCodeRejected.value ? `This login URL was already used or has expired. ${hint}` : `Open a login URL in this browser to log in. ${hint}`
   })
 
-  const CONNECTION_BADGES: Record<ConnectionState, { state: AhStatusBadgeState, label: string }> = {
+  const CONNECTION_BADGES: Record<ConnectionState, { state: PmStatusBadgeState, label: string }> = {
     connected: { state: 'idle', label: 'Connected' },
     connecting: { state: 'working', label: 'Connecting' },
     disconnected: { state: 'error', label: 'Disconnected' },
@@ -190,47 +190,47 @@
 <style scoped>
 .shell__drawer,
 .shell__bar {
-  border-color: var(--ah-color-border-default);
-  background: var(--ah-color-bg-surface);
-  color: var(--ah-color-fg-primary);
+  border-color: var(--pm-color-border-default);
+  background: var(--pm-color-bg-surface);
+  color: var(--pm-color-fg-primary);
 }
 
 .shell__skip {
   position: absolute;
-  z-index: var(--ah-z-toast);
-  padding: var(--ah-space-2) var(--ah-space-4);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-accent-default);
-  color: var(--ah-color-fg-on-accent);
-  inset-block-start: var(--ah-space-2);
-  inset-inline-start: var(--ah-space-2);
+  z-index: var(--pm-z-toast);
+  padding: var(--pm-space-2) var(--pm-space-4);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-accent-default);
+  color: var(--pm-color-fg-on-accent);
+  inset-block-start: var(--pm-space-2);
+  inset-inline-start: var(--pm-space-2);
   transform: translateY(-200%);
 }
 
 .shell__skip:focus { transform: none; }
 
 .shell__name {
-  padding-inline: var(--ah-space-4);
-  font-size: var(--ah-font-size-lg);
-  font-weight: var(--ah-font-weight-semibold);
+  padding-inline: var(--pm-space-4);
+  font-size: var(--pm-font-size-lg);
+  font-weight: var(--pm-font-weight-semibold);
 }
 
 .shell__theme {
   display: flex;
-  gap: var(--ah-space-1);
-  margin-inline: var(--ah-space-3) var(--ah-space-4);
+  gap: var(--pm-space-1);
+  margin-inline: var(--pm-space-3) var(--pm-space-4);
 }
 
 .shell__rail-toggle {
   display: flex;
   justify-content: center;
-  padding: var(--ah-space-2);
+  padding: var(--pm-space-2);
 }
 
 .shell__main {
   display: flex;
   flex-direction: column;
-  background: var(--ah-color-bg-canvas);
-  color: var(--ah-color-fg-primary);
+  background: var(--pm-color-bg-canvas);
+  color: var(--pm-color-fg-primary);
 }
 </style>

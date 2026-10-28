@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { FileChangedMessage, Scope } from '@agent-hub/shared'
+import type { FileChangedMessage, Scope } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createSandbox, silentLogger } from './test-helpers.js'
 import { createFileWatcher, type FileWatcher } from './watcher.js'
@@ -30,7 +30,7 @@ async function waitFor(predicate: (message: FileChangedMessage) => boolean): Pro
 }
 
 beforeEach(async () => {
-  base = realpathSync(mkdtempSync(join(tmpdir(), 'agent-hub-watch-')))
+  base = realpathSync(mkdtempSync(join(tmpdir(), 'paneful-manager-watch-')))
   mkdirSync(join(base, 'claude'))
   mkdirSync(join(base, 'project', 'src'), { recursive: true })
   const scopes: Scope[] = [

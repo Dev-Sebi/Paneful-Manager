@@ -3,7 +3,7 @@ import Vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 
-const apiTarget = `http://127.0.0.1:${process.env.AGENT_HUB_PORT ?? '7337'}`
+const apiTarget = `http://127.0.0.1:${process.env.PANEFUL_MANAGER_PORT ?? '7337'}`
 
 // https://vitejs.dev/config/
 export default defineConfig({

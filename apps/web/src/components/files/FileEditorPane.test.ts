@@ -58,7 +58,7 @@ async function mountPane (content = GOOD) {
   await files.open(entry.path)
   const wrapper = mountWithVuetify(FileEditorPane, {
     props: { emptyIcon: 'mdi-file', emptyMessage: 'Nothing open' },
-    global: { stubs: { AhCodeEditor: EditorStub } },
+    global: { stubs: { PmCodeEditor: EditorStub } },
   })
   return { wrapper, files }
 }
@@ -91,7 +91,7 @@ describe('FileEditorPane', () => {
   it('shows the empty state without an open file', () => {
     const wrapper = mountWithVuetify(FileEditorPane, {
       props: { emptyIcon: 'mdi-file', emptyMessage: 'Nothing open' },
-      global: { stubs: { AhCodeEditor: EditorStub } },
+      global: { stubs: { PmCodeEditor: EditorStub } },
     })
     expect(wrapper.text()).toContain('Nothing open')
     expect(wrapper.find('textarea').exists()).toBe(false)
@@ -158,7 +158,7 @@ describe('FileEditorPane', () => {
     await button(wrapper, 'Overwrite').trigger('click')
     await flushPromises()
     expect(api.writeFile).toHaveBeenCalledTimes(1)
-    document.querySelector<HTMLElement>('[data-ah-confirm]')?.click()
+    document.querySelector<HTMLElement>('[data-pm-confirm]')?.click()
     await flushPromises()
     expect(api.writeFile).toHaveBeenLastCalledWith({ path: entry.path, content: 'mine', expectedHash: HASH_C })
     expect(wrapper.find('.conflict-banner').exists()).toBe(false)

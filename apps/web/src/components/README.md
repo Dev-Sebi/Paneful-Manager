@@ -36,4 +36,4 @@ When your template is rendered, the component's import will automatically be inl
 
 ## Editor (Monaco)
 
-`editor/AhCodeEditor.vue` loads Monaco lazily via `editor/monacoLoader.ts` (dynamic import on mount), so only the editor chunk carries it. `pnpm --filter @agent-hub/web build` runs `scripts/check-chunks.ts`, which fails if the entry script contains Monaco code. Tab focus escape: `Ctrl+M`.
+`editor/PmCodeEditor.vue` loads Monaco lazily via `editor/monacoLoader.ts` (dynamic import on mount), so only the editor chunk carries it. `pnpm --filter @paneful-manager/web build` runs `scripts/check-chunks.ts`, which fails if the entry script contains Monaco code. Tab focus escape: `Ctrl+M`.

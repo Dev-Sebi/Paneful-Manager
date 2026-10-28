@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PmDialog preview</title>
+<style>
+/* Fallback values generated from tokens.json (dark theme). */
+:root {
+  --pm-color-bg-scrim: #0b0d10;
+  --pm-color-bg-canvas: #12151a;
+  --pm-color-bg-elevated: #22272e;
+  --pm-color-bg-hover: #2b313a;
+  --pm-color-fg-primary: #eef1f4;
+  --pm-color-fg-muted: #9aa4b0;
+  --pm-color-fg-on-accent: #0b0d10;
+  --pm-color-fg-on-danger: #0b0d10;
+  --pm-color-accent-default: #6496f7;
+  --pm-color-danger-default: #f47067;
+  --pm-color-border-default: #3f4752;
+  --pm-color-border-focus: #6496f7;
+  --pm-space-2: 8px;
+  --pm-space-3: 12px;
+  --pm-space-4: 16px;
+  --pm-space-6: 24px;
+  --pm-space-12: 48px;
+  --pm-radius-md: 6px;
+  --pm-radius-lg: 10px;
+  --pm-shadow-3: 0px 12px 32px 0px #00000099;
+  --pm-font-family-ui: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --pm-font-size-sm: 12px;
+  --pm-font-size-md: 13px;
+  --pm-font-size-lg: 15px;
+  --pm-font-weight-medium: 500;
+  --pm-font-weight-semibold: 600;
+  --pm-font-line-height-normal: 1.4;
+  --pm-opacity-scrim: 0.6;
+}
+body { margin: 0; padding: var(--pm-space-6); background: var(--pm-color-bg-canvas); color: var(--pm-color-fg-primary); font-family: var(--pm-font-family-ui); font-size: var(--pm-font-size-md); }
+h2 { font-size: var(--pm-font-size-sm); color: var(--pm-color-fg-muted); font-weight: var(--pm-font-weight-medium); margin: var(--pm-space-6) 0 var(--pm-space-2); }
+.stage { position: relative; display: grid; place-items: center; padding: var(--pm-space-6); border-radius: var(--pm-radius-md); overflow: hidden; }
+.scrim { position: absolute; inset: 0; background: var(--pm-color-bg-scrim); opacity: var(--pm-opacity-scrim); }
+.panel { position: relative; width: 100%; max-width: 400px; background: var(--pm-color-bg-elevated); border: 1px solid var(--pm-color-border-default); border-radius: var(--pm-radius-lg); box-shadow: var(--pm-shadow-3); line-height: var(--pm-font-line-height-normal); }
+.panel.md { max-width: 560px; }
+.hd { display: flex; align-items: center; gap: var(--pm-space-2); padding: var(--pm-space-4) var(--pm-space-12) var(--pm-space-2) var(--pm-space-4); }
+.hint { padding: 0 var(--pm-space-4) var(--pm-space-2); font-size: var(--pm-font-size-sm); color: var(--pm-color-fg-muted); }
+.hd h3 { flex: 1; margin: 0; font-size: var(--pm-font-size-lg); font-weight: var(--pm-font-weight-semibold); }
+.hd .ico { color: var(--pm-color-danger-default); font-weight: var(--pm-font-weight-semibold); }
+.x { position: absolute; top: var(--pm-space-3); right: var(--pm-space-3); background: none; border: 0; color: var(--pm-color-fg-muted); font: inherit; cursor: pointer; border-radius: var(--pm-radius-md); width: 24px; height: 24px; }
+.x:hover { background: var(--pm-color-bg-hover); }
+.bd { padding: 0 var(--pm-space-4); color: var(--pm-color-fg-muted); }
+.bd label { display: block; color: var(--pm-color-fg-primary); margin: var(--pm-space-2) 0; }
+.bd input { width: 100%; box-sizing: border-box; height: 28px; padding: 0 var(--pm-space-2); background: var(--pm-color-bg-canvas); color: var(--pm-color-fg-primary); border: 1px solid var(--pm-color-border-default); border-radius: var(--pm-radius-md); font: inherit; }
+.bd input:focus { outline: 2px solid var(--pm-color-border-focus); outline-offset: -1px; }
+.ac { display: flex; justify-content: flex-end; gap: var(--pm-space-2); padding: var(--pm-space-4); }
+.btn { height: 28px; padding: 0 var(--pm-space-3); border-radius: var(--pm-radius-md); border: 1px solid transparent; font: inherit; font-weight: var(--pm-font-weight-medium); cursor: pointer; }
+.sec { background: var(--pm-color-bg-elevated); color: var(--pm-color-fg-primary); border-color: var(--pm-color-border-default); }
+.pri { background: var(--pm-color-accent-default); color: var(--pm-color-fg-on-accent); }
+.dan { background: var(--pm-color-danger-default); color: var(--pm-color-fg-on-danger); }
+.is-focus { outline: 2px solid var(--pm-color-border-focus); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<h1 style="font-size: var(--pm-font-size-md)">PmDialog</h1>
+
+<h2>tone="default", size="md", form body, initial focus on first field</h2>
+<div class="stage">
+  <div class="scrim"></div>
+  <div class="panel md" role="dialog" aria-modal="true" aria-labelledby="d1">
+    <div class="hd"><h3 id="d1">Save workspace preset</h3></div>
+    <div class="bd">
+      Stores the current tabs, split layout and working directories.
+      <label for="n">Preset name</label>
+      <input id="n" value="backend + docs" autofocus>
+    </div>
+    <div class="ac"><button class="btn sec">Cancel</button><button class="btn pri">Save preset</button></div>
+    <button class="x" aria-label="Close">&times;</button>
+  </div>
+</div>
+
+<h2>tone="danger", size="sm", initial focus on cancel</h2>
+<div class="stage">
+  <div class="scrim"></div>
+  <div class="panel" role="alertdialog" aria-modal="true" aria-labelledby="d2" aria-describedby="d2b">
+    <div class="hd"><span class="ico" aria-hidden="true">!</span><h3 id="d2">Close session?</h3></div>
+    <div class="bd" id="d2b">The agent in "api-server" is still working. Unsent input will be lost.</div>
+    <div class="ac"><button class="btn sec is-focus">Cancel</button><button class="btn dan">Close session</button></div>
+    <button class="x" aria-label="Close">&times;</button>
+  </div>
+</div>
+
+<h2>persistent, after a blocked close attempt (no close button, helper line)</h2>
+<div class="stage">
+  <div class="scrim"></div>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="d3">
+    <div class="hd"><h3 id="d3">Unsaved instruction file changes</h3></div>
+    <div class="hint" role="status">Save or discard your changes first</div>
+    <div class="bd">Save or discard your changes before switching workspace.</div>
+    <div class="ac"><button class="btn sec">Discard</button><button class="btn pri is-focus">Save</button></div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { API_ROUTES, ApiErrorSchema, DEFAULT_CONFIG, ListSessionsResponseSchema, SESSION_TOKEN_HEADER } from '@agent-hub/shared'
+import { API_ROUTES, ApiErrorSchema, DEFAULT_CONFIG, ListSessionsResponseSchema, SESSION_TOKEN_HEADER } from '@paneful-manager/shared'
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -15,9 +15,9 @@ let dir: string
 let app: FastifyInstance
 const TOKEN = 'test-token'
 const local = {
-  host: `localhost:${DEFAULT_CONFIG.port}`,
-  origin: `http://localhost:${DEFAULT_CONFIG.port}`,
-  'x-agent-hub-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN,
+  host: `127.0.0.1:${DEFAULT_CONFIG.port}`,
+  origin: `http://127.0.0.1:${DEFAULT_CONFIG.port}`,
+  'x-paneful-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN,
 }
 
 function inject(options: InjectOptions): Promise<LightMyRequestResponse> {
@@ -25,9 +25,9 @@ function inject(options: InjectOptions): Promise<LightMyRequestResponse> {
 }
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'agent-hub-routes-'))
+  dir = await mkdtemp(join(tmpdir(), 'paneful-manager-routes-'))
   const tmux = new Tmux({ run: async () => {
-    throw new RunError('failed', 'exit', 1, '', 'no server running on /tmp/tmux-1000/agent-hub\n')
+    throw new RunError('failed', 'exit', 1, '', 'no server running on /tmp/tmux-1000/paneful-manager\n')
   } })
   const engine = new SessionEngine({ stateDir: join(dir, 'state'), logger, tmux })
   await engine.start()

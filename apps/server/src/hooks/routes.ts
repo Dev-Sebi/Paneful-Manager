@@ -10,7 +10,7 @@ import {
   type HookChangeResponse,
   type HookStatus,
   type SessionState,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import { AppError } from '../errors.js'
 import { tokenMatches } from '../security/token.js'
@@ -60,7 +60,7 @@ function registerReceiver(app: FastifyInstance, engine: HookTarget, token: () =>
       onRequest: async (request, reply) => {
         const candidate = single(request.headers[HOOK_TOKEN_HEADER])
         const sessionId = single(request.headers[HOOK_SESSION_HEADER])
-        // Claude sessions not started by Agent Hub send both headers empty; they cannot change anything.
+        // Claude sessions not started by Paneful Manager send both headers empty; they cannot change anything.
         if (candidate === '' && sessionId === '') {
           return reply.code(204).send()
         }

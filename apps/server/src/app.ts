@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { createRequire } from 'node:module'
 import {
   API_ROUTES,
   APP_NAME,
@@ -10,7 +9,7 @@ import {
   type ApiErrorCode,
   type AppConfig,
   type HealthResponse,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import { registerConfig } from './config/routes.js'
 import { createConfigStore, type ConfigStore } from './config/store.js'
@@ -34,6 +33,7 @@ import type { SessionEngine } from './sessions/engine.js'
 import { registerSessions } from './sessions/routes.js'
 import { registerStatic } from './static.js'
 import { registerTeams } from './teams/routes.js'
+import { RELEASE_VERSION } from './version.js'
 import { createTeamsService } from './teams/service.js'
 import type { TeamTemplateLauncher } from './team-templates/launch.js'
 import { registerTeamTemplates } from './team-templates/routes.js'
@@ -42,8 +42,6 @@ import { registerWorktrees, type WorktreeDeps } from './worktrees/routes.js'
 import { registerWs, type WsHub } from './ws/plugin.js'
 
 export const BODY_LIMIT_BYTES = 1024 * 1024
-
-const { version } = createRequire(import.meta.url)('../package.json') as { version: string }
 
 export interface BuildAppOptions {
   config: AppConfig
@@ -88,7 +86,7 @@ function registerCore(app: FastifyInstance, engine: SessionEngine | undefined): 
   app.get(API_ROUTES.health, (): HealthResponse => ({
     status: 'ok',
     name: APP_NAME,
-    version,
+    version: RELEASE_VERSION,
     protocolVersion: WS_PROTOCOL_VERSION,
     uptimeSec: process.uptime(),
     tmux: engine?.available === true ? 'available' : 'unavailable',

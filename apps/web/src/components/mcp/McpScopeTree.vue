@@ -17,7 +17,7 @@
           <div v-if="group.kind !== 'user'" class="mcp-tree__section-head">
             <h3 class="mcp-tree__section-title">{{ section.label }}</h3>
 
-            <AhButton
+            <PmButton
               :ariaLabel="`Add server to ${group.label} ${section.label}`"
               icon="mdi-plus"
               size="sm"
@@ -56,8 +56,8 @@
 
 <script lang="ts" setup>
   import type { McpGroup } from '@/stores/mcp'
-  import type { McpScope, McpServerEntryMasked } from '@agent-hub/shared'
-  import { AhButton } from '@/components/ah'
+  import type { McpScope, McpServerEntryMasked } from '@paneful-manager/shared'
+  import { PmButton } from '@/components/pm'
   import { entryKey } from '@/stores/mcp'
 
   defineProps<{
@@ -76,7 +76,7 @@
 .mcp-tree {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-3);
+  gap: var(--pm-space-3);
   overflow-y: auto;
 }
 
@@ -89,15 +89,15 @@
 .mcp-tree__groups {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-4);
+  gap: var(--pm-space-4);
 }
 
 .mcp-tree__heading {
   display: flex;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   align-items: center;
-  color: var(--ah-color-fg-primary);
-  font-weight: var(--ah-font-weight-semibold);
+  color: var(--pm-color-fg-primary);
+  font-weight: var(--pm-font-weight-semibold);
 }
 
 .mcp-tree__label {
@@ -107,7 +107,7 @@
   white-space: nowrap;
 }
 
-.mcp-tree__section { padding-left: var(--ah-space-4); }
+.mcp-tree__section { padding-left: var(--pm-space-4); }
 
 .mcp-tree__section-head {
   display: flex;
@@ -116,38 +116,38 @@
 }
 
 .mcp-tree__section-title {
-  margin: var(--ah-space-1) 0;
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-xs);
-  font-weight: var(--ah-font-weight-medium);
+  margin: var(--pm-space-1) 0;
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-xs);
+  font-weight: var(--pm-font-weight-medium);
 }
 
 .mcp-tree__none,
 .mcp-tree__hint {
   margin: 0;
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .mcp-tree__server {
   display: flex;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   align-items: center;
   width: 100%;
-  padding: var(--ah-space-1) var(--ah-space-2);
+  padding: var(--pm-space-1) var(--pm-space-2);
   border: 0;
-  border-radius: var(--ah-radius-md);
+  border-radius: var(--pm-radius-md);
   background: transparent;
-  color: var(--ah-color-fg-primary);
+  color: var(--pm-color-fg-primary);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--ah-motion-duration-fast) var(--ah-motion-easing-standard);
+  transition: background-color var(--pm-motion-duration-fast) var(--pm-motion-easing-standard);
 }
 
-.mcp-tree__server:hover { background: var(--ah-color-bg-elevated); }
-.mcp-tree__server:focus-visible { outline: 2px solid var(--ah-color-border-focus); }
-.mcp-tree__server--active { background: var(--ah-color-bg-elevated); font-weight: var(--ah-font-weight-semibold); }
+.mcp-tree__server:hover { background: var(--pm-color-bg-elevated); }
+.mcp-tree__server:focus-visible { outline: 2px solid var(--pm-color-border-focus); }
+.mcp-tree__server--active { background: var(--pm-color-bg-elevated); font-weight: var(--pm-font-weight-semibold); }
 
 .mcp-tree__name {
   flex: 1;
@@ -158,16 +158,16 @@
 }
 
 .mcp-tree__chip {
-  padding: 0 var(--ah-space-2);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-full);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-xs);
-  font-weight: var(--ah-font-weight-regular);
+  padding: 0 var(--pm-space-2);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-full);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-xs);
+  font-weight: var(--pm-font-weight-regular);
 }
 
 .mcp-tree__source {
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-xs);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-xs);
 }
 </style>

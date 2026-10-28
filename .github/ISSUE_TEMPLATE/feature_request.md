@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an improvement for Agent Hub
+about: Suggest an improvement for Paneful Manager
 labels: enhancement
 ---
 

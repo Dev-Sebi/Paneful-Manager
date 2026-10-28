@@ -5,7 +5,7 @@
 
 ## Context
 
-Agent Hub wants to support Claude Code agent teams:
+Paneful Manager wants to support Claude Code agent teams:
 
 - (a) launch a team from a YAML template (roles, prompts, model per role),
 - (b) show a read-only live task board from the team's task files,
@@ -53,8 +53,8 @@ Marks: **docs** = verified in the official docs, **changelog** = verified in the
 ```mermaid
 sequenceDiagram
     participant U as User (UI)
-    participant S as Agent Hub server
-    participant T as tmux session ah-id
+    participant S as Paneful Manager server
+    participant T as tmux session pm-id
     participant L as Lead claude
     participant M as Teammate claude
     U->>S: launch template (flag on)
@@ -65,7 +65,7 @@ sequenceDiagram
     L->>T: split-window per teammate
     T->>M: claude --agent-id name@team --agent-name ...
     L-->>S: hooks TaskCreated / TaskCompleted / TeammateIdle
-    M-->>S: hooks with own session_id, same Agent Hub header
+    M-->>S: hooks with own session_id, same Paneful Manager header
     S->>S: read ~/.claude/tasks/session-xxxx/*.json
     S-->>U: task board + pane map
 ```
@@ -77,7 +77,7 @@ sequenceDiagram
 - **T51 (template + launch) may rely on:** `--teammate-mode tmux`; a generated first prompt that names each teammate and its agent type; env passed as `claude --settings '{"env":{"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS":"1","CLAUDE_CODE_ENABLE_TODO_TOOLS":"1","CLAUDE_CODE_TASK_LIST_ID":"<per-launch id>"}}'` so it reaches split-pane teammates (plain process env does not reliably). Roles are written as `.claude/agents/<role>.md` (prompt = body, `model`, `tools`) into the project through the file service (allowlisted path, backup before overwrite, removed when the team ends). The project folder must be trusted, otherwise respawned teammates lose the definition. Roles from agent files must be verified in a real run before T51 relies on them; `--agents` is not used. T51 must not write `~/.claude/teams/` and must not rely on a team-creation API.
 - **T52 (task board) may rely on:** `~/.claude/tasks/<dir>/`, where `<dir>` is the `CLAUDE_CODE_TASK_LIST_ID` set by T51, else the team name derived from the lead's Claude session id; the three statuses; `blockedBy`. It reads only, with the tolerant parser below. Refresh: a chokidar watcher on `<claudeDir>/teams` and `<claudeDir>/tasks` (200 ms debounce, `team.changed` WS frame) plus a 10 s poll as fallback for file systems that miss events; hooks are not used as a trigger. The watcher and poll run only while `experimental.agentTeams` is on and follow a live config change without restart.
 - **T53 (pane mapping) may rely on:** split-pane teammates being separate processes in tmux panes. Mapping uses `members[].tmuxPaneId` and `name` from `config.json`, cross-checked with `tmux list-panes -F '#{pane_id} #{pane_pid}'`; members with `backendType: "in-process"` get no pane and show as "in lead".
-- **Teammate hooks (T26 handler, used by T52/T53):** split-pane teammates inherit the `AGENT_HUB_*` env and fire hooks with their own `session_id`. The handler attributes events to the lead's Agent Hub session by `X-Agent-Hub-Session-Id`. Only events whose payload `session_id` equals the lead's known Claude session id drive the session status (ADR 0007); others are routed into a per-teammate status map keyed by `teammate_name` or `agent_id` (T53), or ignored when neither is present.
+- **Teammate hooks (T26 handler, used by T52/T53):** split-pane teammates inherit the `PANEFUL_MANAGER_*` env and fire hooks with their own `session_id`. The handler attributes events to the lead's Paneful Manager session by `X-Paneful-Hook-Session`. Only events whose payload `session_id` equals the lead's known Claude session id drive the session status (ADR 0007); others are routed into a per-teammate status map keyed by `teammate_name` or `agent_id` (T53), or ignored when neither is present.
 
 ## Tolerant parser contract (T52)
 
@@ -109,7 +109,7 @@ sequenceDiagram
 
 ## Amendment (T53): pane mapping as implemented
 
-What the data on disk allows: `config.json` gives per member `name`, `agentType`, `backendType`, `cwd` and `tmuxPaneId`, plus `leadSessionId` (a Claude Code session id). Agent Hub does not know Claude Code session ids (no hook handler stores them yet), so `leadSessionId` cannot be joined with an Agent Hub session. Agent Hub does know its own tmux server (socket `agent-hub`) and that every `ah-<id>` tmux session is Agent Hub session `<id>`. Teammates started by a lead inside an `ah-` session use the lead's `$TMUX`, so their panes live on the same server.
+What the data on disk allows: `config.json` gives per member `name`, `agentType`, `backendType`, `cwd` and `tmuxPaneId`, plus `leadSessionId` (a Claude Code session id). Paneful Manager does not know Claude Code session ids (no hook handler stores them yet), so `leadSessionId` cannot be joined with a Paneful Manager session. Paneful Manager does know its own tmux server (socket `paneful-manager`) and that every `pm-<id>` tmux session is Paneful Manager session `<id>`. Teammates started by a lead inside a `pm-` session use the lead's `$TMUX`, so their panes live on the same server.
 
 Mapping (deterministic, `apps/server/src/teams/links.ts`):
 
@@ -123,16 +123,16 @@ flowchart TD
     L -- no --> U2[unlinked: no-pane]
     P -- yes --> T{tmux list-panes ok?}
     T -- no --> U3[unlinked: tmux-unavailable]
-    T -- yes --> F{pane on agent-hub server?}
+    T -- yes --> F{pane on paneful-manager server?}
     F -- no --> U4[unlinked: pane-not-found]
-    F -- yes --> S{pane in a known ah- session?}
-    S -- no --> U5[unlinked: not-agent-hub]
+    F -- yes --> S{pane in a known pm- session?}
+    S -- no --> U5[unlinked: not-paneful-manager]
     S -- yes --> C{member cwd inside session cwd?}
     C -- no --> U6[unlinked: cwd-mismatch]
     C -- yes / no cwd --> LP[linked via pane]
 ```
 
-- Panes come from `tmux -N -L agent-hub list-panes -a -F '#{pane_id}\t#{session_name}'` through the existing `run()` wrapper; only while the flag is on and at least one team has members.
+- Panes come from `tmux -N -L paneful-manager list-panes -a -F '#{pane_id}\t#{session_name}'` through the existing `run()` wrapper; only while the flag is on and at least one team has members.
 - The result is an optional `link` per member in `GET /api/teams`. `TeamMemberSchema` stays strict and the web parses with it, so an older web bundle rejects the new field: web and server ship together, reload the page after an upgrade.
 - Linking applies the `cwd` check to the inferred `lead-window` link as well; a relative `cwd` never matches (`cwd-mismatch`).
 - Updates: links are part of the poll signature, so a pane appearing or vanishing sends `team.changed` within one poll interval; `session.created` and `session.removed` trigger an immediate re-check.
@@ -140,8 +140,8 @@ flowchart TD
 
 Limits:
 
-- Pane ids (`%N`) are unique per tmux server only. A team whose lead runs in another tmux server can carry a pane id that also exists on the Agent Hub server; the `cwd` check rejects most of these, but two teams in the same directory can still collide. Members without `cwd` are not cross-checked.
-- Teammates split the lead's window (assumed upstream behavior), so lead and teammates usually map to the same Agent Hub session. A browser pane shows a whole tmux session, not a single tmux pane, so "Open as tab" shows that session once and lists the other members in the pane header; it does not break panes out of the window (that would change Claude Code's layout).
+- Pane ids (`%N`) are unique per tmux server only. A team whose lead runs in another tmux server can carry a pane id that also exists on the Paneful Manager server; the `cwd` check rejects most of these, but two teams in the same directory can still collide. Members without `cwd` are not cross-checked.
+- Teammates split the lead's window (assumed upstream behavior), so lead and teammates usually map to the same Paneful Manager session. A browser pane shows a whole tmux session, not a single tmux pane, so "Open as tab" shows that session once and lists the other members in the pane header; it does not break panes out of the window (that would change Claude Code's layout).
 - The lead without `tmuxPaneId` is only inferred when its teammates sit in exactly one session; with no tmux teammates (all in-process) the lead stays unlinked.
 - Works only while the lead runs: `config.json` is removed at session end.
 - Team tabs (`team-` id) only show sessions owned elsewhere: closing one never kills a session, and closing any tab spares sessions another tab still shows. They are hidden while the flag is off. Their placeholder reasons are fixed when the tab is built and only refresh when the team is opened as a tab again.
@@ -149,12 +149,12 @@ Limits:
 
 ## Risks and re-verification at implementation time
 
-- Everything marked **local** or **assumed** comes from string search, not from a running team. T51 must run one real team (tmux mode, inside an `ah-` session) and confirm: the task file naming, the config keys, the inside-tmux split behavior, and the teammate argv.
+- Everything marked **local** or **assumed** comes from string search, not from a running team. T51 must run one real team (tmux mode, inside a `pm-` session) and confirm: the task file naming, the config keys, the inside-tmux split behavior, and the teammate argv.
 - The team config is removed at session end, so pane mapping only works while the lead runs; the task directory survives.
 - `team_name` in hooks is deprecated; prefer deriving the name from the lead's `session_id` and fall back to `team_name`. Teammate hook payloads carry the teammate's `session_id`, never use it to derive the team name.
 - `CLAUDE_CODE_TASK_LIST_ID` redirects the task directory (assumed). An inherited value from the user's environment would point the board at the wrong list, so T51 always sets it explicitly per launch (or unsets it); verify the redirect in a real run.
-- Split-pane teammates firing Agent Hub hooks: without the `session_id` filter, a teammate going idle would flip the lead's status. Verify the inherited headers and payloads in a real run.
-- Teammate panes created by Claude Code split the lead's tmux window (assumed); Agent Hub's own pane layout and resize rule (one size per tmux session) may conflict. Verify before T53.
+- Split-pane teammates firing Paneful Manager hooks: without the `session_id` filter, a teammate going idle would flip the lead's status. Verify the inherited headers and payloads in a real run.
+- Teammate panes created by Claude Code split the lead's tmux window (assumed); Paneful Manager's own pane layout and resize rule (one size per tmux session) may conflict. Verify before T53.
 - Model-dependent task tools: if `CLAUDE_CODE_ENABLE_TODO_TOOLS` changes name or default, the board stays empty; show "no task list found" instead of an error.
 - Hidden `--teammate-mode` flag may change without notice; fall back to `teammateMode` in a `--settings` JSON payload.
 - Permission prompts of all teammates surface in the lead pane; the UI must make that pane obvious.
@@ -162,7 +162,7 @@ Limits:
 
 ## Consequences
 
-- Team support is opt-in and read-only towards Claude Code state; Agent Hub never writes team or task files.
+- Team support is opt-in and read-only towards Claude Code state; Paneful Manager never writes team or task files.
 - A Claude Code upgrade can break the board or the pane map silently; the version gate and the tolerant parser limit the blast radius.
 
 ## Alternatives considered

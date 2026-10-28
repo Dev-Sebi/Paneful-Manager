@@ -8,7 +8,7 @@ import {
   type WorktreeCopyApplyResponse,
   type WorktreeDiffResponse,
   type WorktreeSkipped,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import { AppError } from '../errors.js'
 import type { BackupStore } from '../files/backups.js'
 import { errnoCode, readCurrent } from '../files/read.js'

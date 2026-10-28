@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a problem with Agent Hub
+about: Report a problem with Paneful Manager
 labels: bug
 ---
 
@@ -26,6 +26,6 @@ A clear description of the problem.
 - Claude Code version (`claude --version`):
 - tmux version (`tmux -V`):
 - Browser:
-- Agent Hub commit or version:
+- Paneful Manager commit or version:
 
 ## Logs or screenshots

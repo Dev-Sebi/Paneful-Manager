@@ -1,13 +1,13 @@
 /** Token-based accent palette; member colors from team files are never used as CSS. */
 export const MEMBER_COLOR_TOKENS = [
-  '--ah-color-accent-default',
-  '--ah-color-status-waiting',
-  '--ah-color-status-error',
-  '--ah-color-status-success',
-  '--ah-color-status-idle',
-  '--ah-color-terminal-magenta',
-  '--ah-color-terminal-cyan',
-  '--ah-color-terminal-green',
+  '--pm-color-accent-default',
+  '--pm-color-status-waiting',
+  '--pm-color-status-error',
+  '--pm-color-status-success',
+  '--pm-color-status-idle',
+  '--pm-color-terminal-magenta',
+  '--pm-color-terminal-cyan',
+  '--pm-color-terminal-green',
 ] as const
 
 /** Stable palette index for a member name (FNV-1a). */

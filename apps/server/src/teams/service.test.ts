@@ -1,6 +1,6 @@
 import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { DEFAULT_CONFIG, type TeamChangedMessage } from '@agent-hub/shared'
+import { DEFAULT_CONFIG, type TeamChangedMessage } from '@paneful-manager/shared'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createConfigStore } from '../config/store.js'
@@ -109,7 +109,7 @@ describe.skipIf(process.platform !== 'linux')('teams service', () => {
     await service.refresh()
     expect(messages).toEqual([])
 
-    panes = [{ paneId: '%2', sessionName: 'ah-s1', sessionId: 's1' }]
+    panes = [{ paneId: '%2', sessionName: 'pm-s1', sessionId: 's1' }]
     await service.refresh()
     expect(messages).toEqual([{ type: 'team.changed', team: 'alpha' }])
     const after = await service.list()

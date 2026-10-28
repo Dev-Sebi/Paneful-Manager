@@ -17,7 +17,7 @@ import {
   parseServerMessage,
   type ClientMessageInput,
   type ServerMessage,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import { pino } from 'pino'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -41,7 +41,7 @@ const hasTmux = (): boolean => has('tmux', '-V')
 const WAIT_MS = 5000
 const TOKEN = randomBytes(32).toString('hex')
 const HOOK_TOKEN = randomBytes(32).toString('base64url')
-const socketName = `agent-hub-test-${randomBytes(4).toString('hex')}`
+const socketName = `paneful-manager-test-${randomBytes(4).toString('hex')}`
 const logger = pino({ level: 'silent' })
 let dir: string
 let stateDir: string
@@ -55,8 +55,8 @@ function tmux(...args: string[]): string {
 }
 
 function newEngine(): SessionEngine {
-  const sessionEnv = (): Record<string, string> => ({ AGENT_HUB_URL: baseUrl })
-  const secretEnv = (): Record<string, string> => ({ AGENT_HUB_HOOK_TOKEN: HOOK_TOKEN })
+  const sessionEnv = (): Record<string, string> => ({ PANEFUL_MANAGER_URL: baseUrl })
+  const secretEnv = (): Record<string, string> => ({ PANEFUL_MANAGER_HOOK_TOKEN: HOOK_TOKEN })
   // Records every tmux argv, so the test can prove the hook token never appears in a process command line.
   const run: RunFn = async (file, args, options) => {
     tmuxArgv.push([...args])
@@ -132,7 +132,7 @@ class Client {
 }
 
 function mutationHeaders(json = false): Record<string, string> {
-  return { ...(json ? { 'content-type': 'application/json' } : {}), 'origin': baseUrl, 'x-agent-hub-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
+  return { ...(json ? { 'content-type': 'application/json' } : {}), 'origin': baseUrl, 'x-paneful-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
 }
 
 async function createSession(body: Record<string, unknown>): Promise<string> {
@@ -147,7 +147,7 @@ async function createSession(body: Record<string, unknown>): Promise<string> {
 
 describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
   beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'agent-hub-int-'))
+    dir = await mkdtemp(join(tmpdir(), 'paneful-manager-int-'))
     stateDir = join(dir, 'state')
     const conf = join(dir, 'tmux.conf')
     await writeFile(conf, 'set -g exit-empty off\nset -g remain-on-exit on\nset -g status off\nset -g history-limit 10000\n')
@@ -183,14 +183,14 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     await client.waitForText(id, 'hello')
 
     client.send({ type: 'resize', sessionId: id, cols: 100, rows: 40 })
-    await waitFor(() => tmux('display-message', '-p', '-t', `=ah-${id}:`, '#{window_width}x#{window_height}').trim() === '100x40', 'resize')
+    await waitFor(() => tmux('display-message', '-p', '-t', `=pm-${id}:`, '#{window_width}x#{window_height}').trim() === '100x40', 'resize')
     expect(engine.get(id)).toMatchObject({ cols: 100, rows: 40 })
 
     client.send({ type: 'input', sessionId: id, data: 'seq 1 80; echo do""ne\r' })
     await client.waitForText(id, 'done')
     client.send({ type: 'detach', sessionId: id })
     await waitFor(() => !engine.isAttached(id), 'pty closed after last detach')
-    expect(tmux('list-sessions', '-F', '#{session_name}')).toContain(`ah-${id}`)
+    expect(tmux('list-sessions', '-F', '#{session_name}')).toContain(`pm-${id}`)
 
     const second = await Client.connect()
     second.send({ type: 'attach', sessionId: id, cols: 100, rows: 40, scrollback: true })
@@ -290,7 +290,7 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     const response = await fetch(`${baseUrl}${API_ROUTES.sessions}/${id}`, { method: 'DELETE', headers: mutationHeaders() })
     expect(KillSessionResponseSchema.parse(await response.json())).toEqual({ id, killed: true })
     await watcher.waitForMessage('session.removed', m => m.sessionId === id)
-    expect(tmux('list-sessions', '-F', '#{session_name}')).not.toContain(`ah-${id}`)
+    expect(tmux('list-sessions', '-F', '#{session_name}')).not.toContain(`pm-${id}`)
     expect(await readdir(join(stateDir, 'sessions'))).not.toContain(`${id}.json`)
     const again = await fetch(`${baseUrl}${API_ROUTES.sessions}/${id}`, { method: 'DELETE', headers: mutationHeaders() })
     expect(again.status).toBe(404)
@@ -317,9 +317,9 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
 
   it('re-adopts sessions in a new engine, adopts orphans and prunes stale records', async () => {
     const kept = await createSession({ cwd: dir, command: 'sh', title: 'kept' })
-    tmux('new-session', '-d', '-s', 'ah-orphan01', '-c', dir, 'sh')
+    tmux('new-session', '-d', '-s', 'pm-orphan01', '-c', dir, 'sh')
     tmux('new-session', '-d', '-s', 'foreign', 'sh')
-    await writeFile(join(stateDir, 'sessions', 'stale01.json'), JSON.stringify({ ...engine.get(kept), id: 'stale01', tmuxSession: 'ah-stale01' }))
+    await writeFile(join(stateDir, 'sessions', 'stale01.json'), JSON.stringify({ ...engine.get(kept), id: 'stale01', tmuxSession: 'pm-stale01' }))
 
     const second = newEngine()
     await second.start()
@@ -330,7 +330,7 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
       expect(ids.some(id => id.length === 0)).toBe(false)
       expect(second.get(kept)).toMatchObject({ title: 'kept', state: 'idle', lifecycle: 'running' })
       expect(second.get('orphan01')).toMatchObject({ title: 'Recovered', command: 'tmux', args: [], cwd: dir, cols: 80, rows: 24 })
-      expect(second.list().every(s => s.tmuxSession.startsWith('ah-'))).toBe(true)
+      expect(second.list().every(s => s.tmuxSession.startsWith('pm-'))).toBe(true)
       const files = await readdir(join(stateDir, 'sessions'))
       expect(files).toContain('orphan01.json')
       expect(files).not.toContain('stale01.json')
@@ -338,7 +338,7 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     } finally {
       await second.close()
     }
-    const response = await fetch(`${baseUrl}${API_ROUTES.sessions}`, { headers: { 'x-agent-hub-key': TOKEN } })
+    const response = await fetch(`${baseUrl}${API_ROUTES.sessions}`, { headers: { 'x-paneful-key': TOKEN } })
     expect(ListSessionsResponseSchema.parse(await response.json()).sessions.map(s => s.id)).toContain(kept)
   })
 
@@ -350,13 +350,13 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     expect(other.isAttached(id)).toBe(true)
     await other.close()
     expect(other.isAttached(id)).toBe(false)
-    expect(tmux('list-sessions', '-F', '#{session_name}')).toContain(`ah-${id}`)
+    expect(tmux('list-sessions', '-F', '#{session_name}')).toContain(`pm-${id}`)
   })
 
   it.skipIf(!has('curl', '--version'))('turns hook requests sent with the injected environment into state frames', async () => {
     const post = (event: string): string =>
-      `curl -s -X POST -H "X-Agent-Hub-Hook-Token: $AGENT_HUB_HOOK_TOKEN" -H "X-Agent-Hub-Session-Id: $AGENT_HUB_SESSION_ID" `
-      + `-H "content-type: application/json" -d '{"hook_event_name":"${event}"}' "$AGENT_HUB_URL/api/hooks"`
+      `curl -s -X POST -H "X-Paneful-Hook-Token: $PANEFUL_MANAGER_HOOK_TOKEN" -H "X-Paneful-Hook-Session: $PANEFUL_MANAGER_SESSION_ID" `
+      + `-H "content-type: application/json" -d '{"hook_event_name":"${event}"}' "$PANEFUL_MANAGER_URL/api/hooks"`
     const gate = join(dir, 'hook-gate')
     const client = await Client.connect()
     const script = `${post('UserPromptSubmit')}; while [ ! -f '${gate}' ]; do sleep 0.05; done; ${post('Stop')}; sleep 30`

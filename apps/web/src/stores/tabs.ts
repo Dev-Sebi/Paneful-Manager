@@ -1,10 +1,10 @@
-import type { AppTab } from '@agent-hub/shared'
-import { AppTabSchema, z } from '@agent-hub/shared'
+import type { AppTab } from '@paneful-manager/shared'
+import { AppTabSchema, z } from '@paneful-manager/shared'
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { readStorage, writeStorage } from './storage'
 
-export const TABS_STORAGE_KEY = 'agent-hub.tabs.v1'
+export const TABS_STORAGE_KEY = 'paneful-manager.tabs.v1'
 /** Tabs opened from the Teams view; they only show sessions owned elsewhere. */
 export const TEAM_TAB_PREFIX = 'team-'
 

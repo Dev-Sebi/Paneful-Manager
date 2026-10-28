@@ -20,7 +20,7 @@ async function registered(): Promise<{ id: string, device: Awaited<ReturnType<ty
 }
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'agent-hub-devices-'))
+  dir = await mkdtemp(join(tmpdir(), 'paneful-manager-devices-'))
   now = Date.now()
   auth = new DeviceAuth(dir, () => now)
 })

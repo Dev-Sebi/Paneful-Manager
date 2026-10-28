@@ -13,7 +13,7 @@ vi.mock('node:fs/promises', async importOriginal => {
   return {
     ...actual,
     open: async (...args: Parameters<typeof actual.open>) => {
-      if (String(args[0]).includes('.agent-hub-')) {
+      if (String(args[0]).includes('.paneful-manager-')) {
         onTempOpen.hook?.()
       }
       return actual.open(...args)

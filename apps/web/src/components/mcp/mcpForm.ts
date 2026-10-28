@@ -6,8 +6,8 @@ import type {
   McpServerEntryMasked,
   McpTransport,
   UpsertMcpServerRequestInput,
-} from '@agent-hub/shared'
-import { McpServerNameSchema, McpUrlSchema, RESERVED_MCP_NAMES } from '@agent-hub/shared'
+} from '@paneful-manager/shared'
+import { McpServerNameSchema, McpUrlSchema, RESERVED_MCP_NAMES } from '@paneful-manager/shared'
 
 export interface KvRow {
   id: number

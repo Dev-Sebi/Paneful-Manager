@@ -9,7 +9,7 @@ import { E2E_ACCESS_KEY } from './access'
 /** Direct server origin of the e2e fixture (see playwright.config.ts). */
 const SERVER = 'http://127.0.0.1:7340'
 const WEB_ORIGIN = 'http://127.0.0.1:3001'
-export const TABS_KEY = 'agent-hub.tabs.v1'
+export const TABS_KEY = 'paneful-manager.tabs.v1'
 
 interface E2ePaths {
   state: string
@@ -24,7 +24,7 @@ export interface AppTabFixture {
 }
 
 export function readPaths (): E2ePaths {
-  return JSON.parse(readFileSync(join(tmpdir(), 'ah-e2e-paths.json'), 'utf8')) as E2ePaths
+  return JSON.parse(readFileSync(join(tmpdir(), 'pm-e2e-paths.json'), 'utf8')) as E2ePaths
 }
 
 /** Writes a one-time login code into the server's state dir, as `pnpm login-url` does, and returns it. */
@@ -49,7 +49,7 @@ export class ServerApi {
   private constructor (private readonly ctx: APIRequestContext, private readonly token: string) {}
 
   static async create (): Promise<ServerApi> {
-    const ctx = await request.newContext({ baseURL: SERVER, extraHTTPHeaders: { 'origin': WEB_ORIGIN, 'x-agent-hub-key': E2E_ACCESS_KEY } })
+    const ctx = await request.newContext({ baseURL: SERVER, extraHTTPHeaders: { 'origin': WEB_ORIGIN, 'x-paneful-key': E2E_ACCESS_KEY } })
     const response = await ctx.get('/api/session-token')
     expect(response.ok()).toBe(true)
     const { token } = await response.json() as { token: string }
@@ -89,7 +89,7 @@ export class ServerApi {
   }
 
   private headers () {
-    return { 'x-agent-hub-token': this.token }
+    return { 'x-paneful-token': this.token }
   }
 }
 
@@ -98,7 +98,7 @@ export async function postHook (sessionId: string, event: string): Promise<numbe
   const ctx = await request.newContext({ baseURL: SERVER })
   try {
     const response = await ctx.post('/api/hooks', {
-      headers: { 'x-agent-hub-hook-token': hookToken(), 'x-agent-hub-session-id': sessionId },
+      headers: { 'x-paneful-hook-token': hookToken(), 'x-paneful-hook-session': sessionId },
       data: { hook_event_name: event },
     })
     return response.status()

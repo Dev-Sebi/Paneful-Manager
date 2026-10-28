@@ -10,7 +10,7 @@
   <div v-else class="teams-view">
     <header class="teams-view__bar">
       <h1 class="teams-view__title">Teams</h1>
-      <AhStatusBadge :label="badge.label" size="sm" :state="badge.state" />
+      <PmStatusBadge :label="badge.label" size="sm" :state="badge.state" />
     </header>
 
     <p v-if="store.error" class="teams-view__error" role="alert">{{ store.error }}</p>
@@ -38,14 +38,14 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhStatusBadgeState } from '@/components/ah'
-  import type { Team } from '@agent-hub/shared'
+  import type { PmStatusBadgeState } from '@/components/pm'
+  import type { Team } from '@paneful-manager/shared'
   import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import { connection } from '@/api/connection'
   import { wsClient } from '@/api/ws'
-  import { AhStatusBadge } from '@/components/ah'
   import EmptyState from '@/components/EmptyState.vue'
+  import { PmStatusBadge } from '@/components/pm'
   import TeamBoard from '@/components/teams/TeamBoard.vue'
   import { buildTeamTab } from '@/components/teams/teamTab'
   import TeamTemplatesPanel from '@/components/teams/TeamTemplatesPanel.vue'
@@ -66,7 +66,7 @@
   const ui = useUiStore()
   const now = ref(Date.now())
 
-  const badge = computed<{ label: string, state: AhStatusBadgeState }>(() => {
+  const badge = computed<{ label: string, state: PmStatusBadgeState }>(() => {
     if (store.error) {
       return { label: 'Refresh failed', state: 'error' }
     }
@@ -108,33 +108,33 @@
 .teams-view {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-4);
-  padding: var(--ah-space-4);
+  gap: var(--pm-space-4);
+  padding: var(--pm-space-4);
 }
 
 .teams-view__bar {
   display: flex;
   align-items: center;
-  gap: var(--ah-space-3);
+  gap: var(--pm-space-3);
 }
 
 .teams-view__title {
   margin: 0;
-  color: var(--ah-color-fg-primary);
-  font-size: var(--ah-font-size-2xl);
+  color: var(--pm-color-fg-primary);
+  font-size: var(--pm-font-size-2xl);
 }
 
-.teams-view__error { margin: 0; color: var(--ah-color-status-error); }
+.teams-view__error { margin: 0; color: var(--pm-color-status-error); }
 
 .teams-view__warnings {
-  padding: var(--ah-space-3);
-  border: 1px solid var(--ah-color-status-waiting);
-  border-radius: var(--ah-radius-md);
-  color: var(--ah-color-fg-primary);
-  font-size: var(--ah-font-size-sm);
+  padding: var(--pm-space-3);
+  border: 1px solid var(--pm-color-status-waiting);
+  border-radius: var(--pm-radius-md);
+  color: var(--pm-color-fg-primary);
+  font-size: var(--pm-font-size-sm);
 }
 
-.teams-view__warnings-title { margin: 0 0 var(--ah-space-1); font-weight: var(--ah-font-weight-medium); }
-.teams-view__warnings ul { margin: 0; padding-left: var(--ah-space-4); }
-.teams-view__empty { margin: 0; color: var(--ah-color-fg-muted); }
+.teams-view__warnings-title { margin: 0 0 var(--pm-space-1); font-weight: var(--pm-font-weight-medium); }
+.teams-view__warnings ul { margin: 0; padding-left: var(--pm-space-4); }
+.teams-view__empty { margin: 0; color: var(--pm-color-fg-muted); }
 </style>

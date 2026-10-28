@@ -1,6 +1,6 @@
 import type { WsEvents } from '@/api/ws'
 // @vitest-environment jsdom
-import type { ServerMessage } from '@agent-hub/shared'
+import type { ServerMessage } from '@paneful-manager/shared'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeSession } from '@/test/fixtures'

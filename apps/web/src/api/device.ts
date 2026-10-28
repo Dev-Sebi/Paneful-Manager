@@ -1,4 +1,4 @@
-import { type DevicePublicKey, deviceSignatureMessage } from '@agent-hub/shared'
+import { type DevicePublicKey, deviceSignatureMessage } from '@paneful-manager/shared'
 
 /** This browser's registration: the server's id for it and the private key, which page code can use but never read. */
 export interface StoredDevice {
@@ -11,7 +11,7 @@ export interface DeviceStore {
   save: (device: StoredDevice) => Promise<void>
 }
 
-const DB_NAME = 'agent-hub'
+const DB_NAME = 'paneful-manager'
 const STORE_NAME = 'device'
 const RECORD_KEY = 'current'
 

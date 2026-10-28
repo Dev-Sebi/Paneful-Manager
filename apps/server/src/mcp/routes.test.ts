@@ -7,7 +7,7 @@ import {
   ListMcpServersResponseSchema,
   RemoveMcpServerResponseSchema,
   UpsertMcpServerResponseSchema,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import type { Logger } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -41,7 +41,7 @@ function start(fake: FakeRun, overrides: Partial<McpServiceOptions> & { logger?:
 function send(target: FastifyInstance, options: InjectOptions) {
   return target.inject({
     ...options,
-    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-agent-hub-key': TOKEN, 'x-agent-hub-token': TOKEN, ...options.headers },
+    headers: { host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN, ...options.headers },
   })
 }
 
@@ -138,7 +138,7 @@ describe('MCP routes in file mode', () => {
 
   it('needs the token on writes', async () => {
     const target = start(createFakeRun(null))
-    const response = await send(target, { method: 'DELETE', url: API_ROUTES.mcp, payload: { name: 'x', scope: { kind: 'user' } }, headers: { 'x-agent-hub-token': 'wrong' } })
+    const response = await send(target, { method: 'DELETE', url: API_ROUTES.mcp, payload: { name: 'x', scope: { kind: 'user' } }, headers: { 'x-paneful-token': 'wrong' } })
     expect(response.statusCode).toBe(401)
   })
 

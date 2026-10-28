@@ -30,7 +30,7 @@ const serverMessages = [
       cwd: '~/git/project1',
       command: 'claude',
       args: [],
-      tmuxSession: 'agent-hub-s1',
+      tmuxSession: 'paneful-manager-s1',
       createdAt: '2026-10-27T10:00:00.000Z',
       state: 'idle',
       lifecycle: 'starting',

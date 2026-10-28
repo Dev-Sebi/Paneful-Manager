@@ -9,7 +9,7 @@ import {
   type ServerMessage,
   type Session,
   type WsErrorCode,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance } from 'fastify'
 import { WebSocketServer, type RawData, type WebSocket } from 'ws'
 import type { EngineClient, SessionEngine, StateChange } from '../sessions/engine.js'

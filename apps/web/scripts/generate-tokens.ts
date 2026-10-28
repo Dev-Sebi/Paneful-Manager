@@ -17,7 +17,7 @@ export interface ResolvedToken {
   light: TokenValue
 }
 
-export const VUETIFY_EXTENSION = 'dev.agenthub.vuetify'
+export const VUETIFY_EXTENSION = 'dev.paneful-manager.vuetify'
 const GENERATED_HEADER = '/* Generated from docs/design-system/tokens.json by scripts/generate-tokens.ts. Do not edit. */\n/* eslint-disable */\n'
 const THEMES = ['dark', 'light'] as const
 type Theme = typeof THEMES[number]
@@ -130,7 +130,7 @@ export function toCss (type: string, value: TokenValue): string {
 }
 
 export function cssVarName (path: string): string {
-  return `--ah-${path.replaceAll('.', '-')}`
+  return `--pm-${path.replaceAll('.', '-')}`
 }
 
 export function buildCss (tokens: readonly ResolvedToken[]): string {
@@ -252,7 +252,7 @@ export function writeOutputs (files: Record<string, string>, dir: string): void 
 
 /** Regenerates into a temp dir and returns the names of committed files that differ. */
 export function findStale (tokensPath = TOKENS_PATH, committedDir = OUT_DIR): string[] {
-  const tmp = mkdtempSync(join(tmpdir(), 'ah-tokens-'))
+  const tmp = mkdtempSync(join(tmpdir(), 'pm-tokens-'))
   try {
     const files = generate(readTokens(tokensPath))
     writeOutputs(files, tmp)

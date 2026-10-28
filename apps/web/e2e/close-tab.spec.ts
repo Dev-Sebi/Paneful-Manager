@@ -2,12 +2,12 @@ import type { Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 
 const CONFIG = { port: 7337, experimental: { agentTeams: false }, confirmCloseTab: true, projects: [], logLevel: 'info', theme: 'dark' }
-const TABS_KEY = 'agent-hub.tabs.v1'
+const TABS_KEY = 'paneful-manager.tabs.v1'
 const NOW = '2026-01-01T00:00:00.000Z'
 
 function session (id: string) {
   return {
-    id, hostId: 'local', title: `Session ${id}`, cwd: '/work', command: 'claude', args: [], tmuxSession: `ah-${id}`,
+    id, hostId: 'local', title: `Session ${id}`, cwd: '/work', command: 'claude', args: [], tmuxSession: `pm-${id}`,
     createdAt: NOW, state: 'idle', lifecycle: 'running', lastEventAt: NOW, cols: 80, rows: 24,
   }
 }

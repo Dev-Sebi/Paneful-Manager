@@ -11,7 +11,7 @@ import {
   type HookBlockReason,
   type HookChangeResponse,
   type HookStatus,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import { AppError } from '../errors.js'
 import type { BackupStore } from '../files/backups.js'
 import { readCurrent } from '../files/read.js'
@@ -50,8 +50,8 @@ export interface HookStatusOptions {
 }
 
 const HOOK_HEADERS = {
-  'X-Agent-Hub-Session-Id': `$${HOOK_ENV.sessionId}`,
-  'X-Agent-Hub-Hook-Token': `$${HOOK_ENV.token}`,
+  'X-Paneful-Hook-Session': `$${HOOK_ENV.sessionId}`,
+  'X-Paneful-Hook-Token': `$${HOOK_ENV.token}`,
 } as const
 
 /** `$CLAUDE_CONFIG_DIR/settings.json`, default `~/.claude/settings.json`. */
@@ -60,7 +60,7 @@ export function resolveClaudeSettingsPath(env: Record<string, string | undefined
   return join(dir ? resolve(expandHome(dir)) : join(homedir(), '.claude'), 'settings.json')
 }
 
-/** The handler Agent Hub installs for every event; extra keys are avoided because Claude Code validates handlers. */
+/** The handler Paneful Manager installs for every event; extra keys are avoided because Claude Code validates handlers. */
 export function hookHandler(port: number): JsonObject {
   return {
     type: 'http',
@@ -84,8 +84,8 @@ function isObject(value: Json | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** Agent Hub's handlers are identified by their exact URL (any port), never by an extra marker key. */
-export function isAgentHubHandler(handler: Json | undefined): boolean {
+/** Paneful Manager's handlers are identified by their exact URL (any port), never by an extra marker key. */
+export function isPanefulManagerHandler(handler: Json | undefined): boolean {
   return isObject(handler) && handler.type === 'http' && typeof handler.url === 'string' && HOOK_URL_PATTERN.test(handler.url)
 }
 
@@ -154,7 +154,7 @@ function groupsOf(hooks: JsonObject, event: string): Json[] | undefined {
   return groups
 }
 
-/** Removes Agent Hub handlers from one event; groups and the event key are dropped only when emptied by that. */
+/** Removes Paneful Manager handlers from one event; groups and the event key are dropped only when emptied by that. */
 function removeHandlers(hooks: JsonObject, event: string, keep?: { group: number, handler: number }): boolean {
   const groups = groupsOf(hooks, event)
   if (groups === undefined) {
@@ -168,7 +168,7 @@ function removeHandlers(hooks: JsonObject, event: string, keep?: { group: number
     }
     const handlers = group.hooks
     const before = handlers.length
-    const remaining = handlers.filter((handler, h) => !isAgentHubHandler(handler) || (keep?.group === g && keep.handler === h))
+    const remaining = handlers.filter((handler, h) => !isPanefulManagerHandler(handler) || (keep?.group === g && keep.handler === h))
     if (remaining.length === before) {
       continue
     }
@@ -188,7 +188,7 @@ function removeHandlers(hooks: JsonObject, event: string, keep?: { group: number
 function findHandler(groups: Json[]): { group: number, handler: number } | undefined {
   for (const [g, group] of groups.entries()) {
     if (isObject(group) && Array.isArray(group.hooks)) {
-      const h = group.hooks.findIndex(handler => isAgentHubHandler(handler))
+      const h = group.hooks.findIndex(handler => isPanefulManagerHandler(handler))
       if (h !== -1) {
         return { group: g, handler: h }
       }
@@ -235,7 +235,7 @@ function installEvent(hooks: JsonObject, event: string, port: number): boolean {
   return true
 }
 
-/** Adds or updates Agent Hub's handlers; returns whether `settings` changed. Never touches other entries. */
+/** Adds or updates Paneful Manager's handlers; returns whether `settings` changed. Never touches other entries. */
 export function applyInstall(settings: JsonObject, port: number): boolean {
   const hadHooks = settings.hooks !== undefined
   const hooks = hooksOf(settings, true) ?? {}
@@ -251,7 +251,7 @@ export function applyInstall(settings: JsonObject, port: number): boolean {
   return changed
 }
 
-/** Removes only Agent Hub's handlers; returns whether `settings` changed. */
+/** Removes only Paneful Manager's handlers; returns whether `settings` changed. */
 export function applyUninstall(settings: JsonObject): boolean {
   const hooks = hooksOf(settings, false)
   if (hooks === undefined) {
@@ -351,7 +351,7 @@ function stringList(value: Json | undefined): string[] | undefined {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : undefined
 }
 
-/** Events whose Agent Hub handler matches the current port exactly, and whether no handler points elsewhere. */
+/** Events whose Paneful Manager handler matches the current port exactly, and whether no handler points elsewhere. */
 function installedState(settings: JsonObject | undefined, port: number): { installedEvents: string[], portMatches: boolean } {
   const installedEvents: string[] = []
   let portMatches = true
@@ -361,7 +361,7 @@ function installedState(settings: JsonObject | undefined, port: number): { insta
       if (!isObject(group) || !Array.isArray(group.hooks)) {
         continue
       }
-      for (const handler of group.hooks.filter(entry => isAgentHubHandler(entry))) {
+      for (const handler of group.hooks.filter(entry => isPanefulManagerHandler(entry))) {
         if (!same(handler, hookHandler(port))) {
           portMatches &&= isObject(handler) && handler.url === hookUrl(port)
         } else if (same(group.matcher, matcherFor(event)) && !installedEvents.includes(event)) {
@@ -388,8 +388,8 @@ export async function getHookStatus({ settingsPath, port, managedDir = MANAGED_S
   const installed = HOOK_EVENTS.every(event => installedEvents.includes(event))
   if (!installed) {
     reasons.push(portMatches
-      ? { code: 'not_installed', source: settingsPath, message: 'Agent Hub hooks are not installed' }
-      : { code: 'port_mismatch', source: settingsPath, message: `Agent Hub hooks point at another port; reinstall them for port ${port}` })
+      ? { code: 'not_installed', source: settingsPath, message: 'Paneful Manager hooks are not installed' }
+      : { code: 'port_mismatch', source: settingsPath, message: `Paneful Manager hooks point at another port; reinstall them for port ${port}` })
   }
 
   const sources: { path: string, managed: boolean }[] = [

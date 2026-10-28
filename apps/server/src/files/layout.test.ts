@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import type { Scope } from '@agent-hub/shared'
+import type { Scope } from '@paneful-manager/shared'
 import { describe, expect, it } from 'vitest'
 import { allowlistRoots, isAllowedSkillFile, isWatchCandidate, matchManagedPath, matchSkillDir } from './layout.js'
 

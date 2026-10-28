@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { WorkspacePresetSchema } from '@agent-hub/shared'
+import { WorkspacePresetSchema } from '@paneful-manager/shared'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePresetsStore } from './presets'

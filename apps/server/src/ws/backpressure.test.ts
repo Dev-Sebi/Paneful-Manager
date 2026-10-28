@@ -1,4 +1,4 @@
-import { parseServerMessage } from '@agent-hub/shared'
+import { parseServerMessage } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CLOSE_SLOW_CONSUMER, OutputQueue, type OutputSocket } from './backpressure.js'
 

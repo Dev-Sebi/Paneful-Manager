@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Session } from '@agent-hub/shared'
+import type { Session } from '@paneful-manager/shared'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RunError } from '../process/exec.js'
@@ -67,7 +67,7 @@ class FakeTmuxServer {
     }
     this.calls.push(args)
     if (!this.running) {
-      throw new RunError('failed', 'exit', 1, '', 'no server running on /tmp/tmux-1000/agent-hub\n')
+      throw new RunError('failed', 'exit', 1, '', 'no server running on /tmp/tmux-1000/paneful-manager\n')
     }
     const target = args[args.indexOf('-t') + 1]?.replace(/^=/, '').replace(/:$/, '')
     switch (args[0]) {
@@ -140,7 +140,7 @@ const record = (id: string, extra: Partial<Session> = {}): Session => ({
   cwd: '/tmp',
   command: 'claude',
   args: [],
-  tmuxSession: `ah-${id}`,
+  tmuxSession: `pm-${id}`,
   createdAt: '2026-10-27T10:00:00.000Z',
   state: 'working',
   lifecycle: 'running',
@@ -151,7 +151,7 @@ const record = (id: string, extra: Partial<Session> = {}): Session => ({
 })
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'agent-hub-engine-'))
+  dir = await mkdtemp(join(tmpdir(), 'paneful-manager-engine-'))
   server = new FakeTmuxServer()
   ptys = []
   spawnFails = false
@@ -169,8 +169,8 @@ describe('SessionEngine', () => {
     await store.init()
     await store.save(record('known1'))
     await store.save(record('stale1'))
-    server.sessions.set('ah-known1', { dead: true, status: 2, path: '/tmp' })
-    server.sessions.set('ah-orphan1', { dead: false, path: '/srv/p1' })
+    server.sessions.set('pm-known1', { dead: true, status: 2, path: '/tmp' })
+    server.sessions.set('pm-orphan1', { dead: false, path: '/srv/p1' })
     server.sessions.set('scratch', { dead: false, path: '/tmp' })
 
     await engine.start()
@@ -193,7 +193,7 @@ describe('SessionEngine', () => {
     expect(await readdir(store.dir)).toEqual(['known1.json'])
 
     server.running = true
-    server.sessions.set('ah-known1', { dead: false, path: '/tmp' })
+    server.sessions.set('pm-known1', { dead: false, path: '/tmp' })
     await engine.poll()
     expect(engine.available).toBe(true)
     expect(engine.get('known1')?.lifecycle).toBe('running')
@@ -204,16 +204,16 @@ describe('SessionEngine', () => {
     const created: Session[] = []
     engine.on('session.created', session => created.push(session))
     const session = await engine.create({ cwd: dir, command: 'claude', args: ['--resume'], cols: 100, rows: 40, title: 't' })
-    expect(session).toMatchObject({ lifecycle: 'running', state: 'idle', cwd: dir, tmuxSession: `ah-${session.id}`, cols: 100, rows: 40 })
+    expect(session).toMatchObject({ lifecycle: 'running', state: 'idle', cwd: dir, tmuxSession: `pm-${session.id}`, cols: 100, rows: 40 })
     expect(session.id).toMatch(/^[\w-]{12}$/)
     expect(created).toEqual([session])
     const newSession = server.calls.find(call => call[0] === 'new-session')
-    expect(newSession).toContain(`AGENT_HUB_SESSION_ID=${session.id}`)
+    expect(newSession).toContain(`PANEFUL_MANAGER_SESSION_ID=${session.id}`)
   })
 
   it('rejects a cwd with control characters before tmux sees it', async () => {
     await engine.start()
-    for (const name of ['x\nah-forged\t1\tsrv\t1\t0\t\tsh', 'tab\there']) {
+    for (const name of ['x\npm-forged\t1\tsrv\t1\t0\t\tsh', 'tab\there']) {
       const cwd = join(dir, name)
       await mkdir(cwd)
       await expect(engine.create({ cwd, command: 'sh', args: [], cols: 80, rows: 24 })).rejects.toMatchObject({ statusCode: 400, message: /control characters/ })
@@ -229,10 +229,10 @@ describe('SessionEngine', () => {
     const removed: string[] = []
     engine.on('state', change => states.push(change))
     engine.on('session.removed', id => removed.push(id))
-    server.sessions.set(`ah-${a.id}`, { dead: true, path: dir })
-    server.sessions.delete(`ah-${b.id}`)
+    server.sessions.set(`pm-${a.id}`, { dead: true, path: dir })
+    server.sessions.delete(`pm-${b.id}`)
     await engine.poll()
-    server.sessions.set(`ah-${a.id}`, { dead: true, status: 3, path: dir })
+    server.sessions.set(`pm-${a.id}`, { dead: true, status: 3, path: dir })
     await engine.poll()
     expect(states).toEqual([
       { sessionId: a.id, state: 'idle', lifecycle: 'exited', stateSince: a.stateSince },
@@ -387,21 +387,21 @@ describe('SessionEngine', () => {
       tmux: new Tmux({ run: server.run }),
       spawnPty,
       pollIdleMs: 60_000,
-      sessionEnv: () => ({ AGENT_HUB_URL: 'http://127.0.0.1:7337' }),
-      secretEnv: () => ({ AGENT_HUB_HOOK_TOKEN: 'hook-token-value' }),
+      sessionEnv: () => ({ PANEFUL_MANAGER_URL: 'http://127.0.0.1:7337' }),
+      secretEnv: () => ({ PANEFUL_MANAGER_HOOK_TOKEN: 'hook-token-value' }),
     })
     await env.start()
     const session = await env.create({ cwd: dir, command: 'claude', args: [], cols: 80, rows: 24 })
     const args = server.calls.find(call => call[0] === 'new-session') ?? []
-    for (const pair of [`AGENT_HUB_SESSION_ID=${session.id}`, 'AGENT_HUB_URL=http://127.0.0.1:7337']) {
+    for (const pair of [`PANEFUL_MANAGER_SESSION_ID=${session.id}`, 'PANEFUL_MANAGER_URL=http://127.0.0.1:7337']) {
       expect(args[args.indexOf(pair) - 1]).toBe('-e')
     }
     expect(server.calls.flat().join(' ')).not.toContain('hook-token-value')
     const file = join(dir, 'state', SECRET_ENV_FILE)
     expect(server.calls).toContainEqual(['source-file', file])
-    expect(await readFile(file, 'utf8')).toBe("set-environment -g AGENT_HUB_HOOK_TOKEN 'hook-token-value'\n")
+    expect(await readFile(file, 'utf8')).toBe("set-environment -g PANEFUL_MANAGER_HOOK_TOKEN 'hook-token-value'\n")
     expect((await stat(file)).mode & 0o777).toBe(0o600)
-    expect(args.indexOf('--')).toBeGreaterThan(args.indexOf('AGENT_HUB_URL=http://127.0.0.1:7337'))
+    expect(args.indexOf('--')).toBeGreaterThan(args.indexOf('PANEFUL_MANAGER_URL=http://127.0.0.1:7337'))
     await env.close()
   })
 
@@ -410,7 +410,7 @@ describe('SessionEngine', () => {
     await mkdir(state, { recursive: true })
     const old = new Date(Date.now() - 120_000)
     for (const name of [`${SECRET_ENV_FILE}.0a1b2c.tmp`, `${SECRET_ENV_FILE}.3d4e5f.tmp`]) {
-      await writeFile(join(state, name), "set-environment -g AGENT_HUB_HOOK_TOKEN 'old'\n")
+      await writeFile(join(state, name), "set-environment -g PANEFUL_MANAGER_HOOK_TOKEN 'old'\n")
       if (name.includes('0a1b2c')) {
         await utimes(join(state, name), old, old)
       }
@@ -456,7 +456,7 @@ describe('SessionEngine', () => {
       pollIdleMs: 60_000,
       tmux: new Tmux({ run: async (file, args, options) => {
         if (args.includes('new-session')) {
-          id = args[args.indexOf('-s') + 1]?.replace(/^ah-/, '') ?? ''
+          id = args[args.indexOf('-s') + 1]?.replace(/^pm-/, '') ?? ''
           expect(early.applyHookState(id, 'working')).toBe(true)
         }
         return server.run(file, args, options)
@@ -482,7 +482,7 @@ describe('SessionEngine', () => {
     const store = new SessionStore(join(dir, 'state'))
     await store.init()
     await store.save(record('known1'))
-    server.sessions.set('ah-known1', { dead: false, path: '/tmp' })
+    server.sessions.set('pm-known1', { dead: false, path: '/tmp' })
     await engine.start()
     const adopted = engine.get('known1')
     expect(adopted?.state).toBe('idle')

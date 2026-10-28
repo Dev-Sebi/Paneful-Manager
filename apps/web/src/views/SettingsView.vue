@@ -53,21 +53,21 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--ah-space-3);
-  padding: var(--ah-space-6);
+  gap: var(--pm-space-3);
+  padding: var(--pm-space-6);
 }
 
 .settings__title {
-  font-size: var(--ah-font-size-xl);
-  font-weight: var(--ah-font-weight-semibold);
+  font-size: var(--pm-font-size-xl);
+  font-weight: var(--pm-font-weight-semibold);
 }
 
 .settings__config {
-  padding: var(--ah-space-4);
+  padding: var(--pm-space-4);
   overflow: auto;
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-surface);
-  font-size: var(--ah-font-size-sm);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-surface);
+  font-size: var(--pm-font-size-sm);
 }
 </style>

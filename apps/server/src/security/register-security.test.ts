@@ -7,7 +7,7 @@ import {
   DEFAULT_CONFIG,
   RegisterDeviceResponseSchema,
   SessionTokenResponseSchema,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -61,8 +61,30 @@ describe('Host check', () => {
     }
   })
 
-  it('accepts the loopback names', async () => {
+  it('accepts only 127.0.0.1 with the port in production', async () => {
     const target = build()
+    expect((await send(target, 'GET', API_ROUTES.health, { host: HOST })).statusCode).toBe(200)
+    for (const host of [`localhost:${PORT}`, `LOCALHOST:${PORT}`, 'localhost', `[::1]:${PORT}`]) {
+      await expectError(await send(target, 'GET', API_ROUTES.health, { host }), 403, 'forbidden')
+    }
+  })
+
+  it('serves a static 127.0.0.1 hint for page loads on localhost in production', async () => {
+    const target = build()
+    const response = await send(target, 'GET', '/', { host: `localhost:${PORT}`, [ACCESS_KEY_HEADER]: undefined })
+    expect(response.statusCode).toBe(403)
+    expect(response.headers['content-type']).toContain('text/html')
+    expect(response.headers['content-security-policy']).toContain("default-src 'none'")
+    expect(response.body).toContain(`href="http://127.0.0.1:${PORT}/"`)
+    expect(response.body).not.toContain(KEY)
+    expect(response.body).not.toContain(TOKEN)
+    await expectError(await send(target, 'GET', '/', { host: `[::1]:${PORT}` }), 403, 'forbidden')
+    await expectError(await send(target, 'GET', API_ROUTES.health, { host: `localhost:${PORT}` }), 403, 'forbidden')
+    await expectError(await send(target, 'GET', '/', { host: `evil.example:${PORT}` }), 403, 'forbidden')
+  })
+
+  it('accepts the loopback names in dev mode', async () => {
+    const target = build(true)
     for (const host of [`localhost:${PORT}`, `LOCALHOST:${PORT}`, 'localhost', HOST, `[::1]:${PORT}`]) {
       expect((await send(target, 'GET', API_ROUTES.health, { host })).statusCode).toBe(200)
     }
@@ -70,6 +92,19 @@ describe('Host check', () => {
 })
 
 describe('Origin check', () => {
+  it('allows only the 127.0.0.1 origin in production and the other loopback origins in dev mode', async () => {
+    const prod = build()
+    expect((await send(prod, 'GET', API_ROUTES.health, { origin: ORIGIN })).statusCode).toBe(200)
+    for (const origin of [`http://localhost:${PORT}`, `http://[::1]:${PORT}`]) {
+      await expectError(await send(prod, 'GET', API_ROUTES.health, { origin }), 403, 'forbidden')
+    }
+    await prod.close()
+    const dev = build(true)
+    for (const origin of [ORIGIN, `http://localhost:${PORT}`, `http://[::1]:${PORT}`]) {
+      expect((await send(dev, 'GET', API_ROUTES.health, { origin, host: `localhost:${PORT}` })).statusCode).toBe(200)
+    }
+  })
+
   it('allows GET without Origin', async () => {
     expect((await send(build(), 'GET', API_ROUTES.health, {})).statusCode).toBe(200)
   })
@@ -80,7 +115,7 @@ describe('Origin check', () => {
       await expectError(await send(target, 'GET', API_ROUTES.health, { origin }), 403, 'forbidden')
     }
     await expectError(
-      await send(target, 'POST', '/api/test-mutation', { origin: 'https://evil.example', 'x-agent-hub-token': TOKEN }),
+      await send(target, 'POST', '/api/test-mutation', { origin: 'https://evil.example', 'x-paneful-token': TOKEN }),
       403,
       'forbidden',
     )
@@ -104,7 +139,7 @@ describe('Origin check', () => {
     const dev = build(true, extra)
     expect((await send(dev, 'GET', API_ROUTES.health, { origin: 'http://localhost:3001' })).statusCode).toBe(200)
     await expectError(await send(dev, 'GET', API_ROUTES.health, { origin: 'http://evil.example' }), 403, 'forbidden')
-    await expectError(await send(dev, 'POST', '/api/test-mutation', { origin: 'http://evil.example', 'x-agent-hub-token': TOKEN }), 403, 'forbidden')
+    await expectError(await send(dev, 'POST', '/api/test-mutation', { origin: 'http://evil.example', 'x-paneful-token': TOKEN }), 403, 'forbidden')
   })
 
   it('derives dev mode from NODE_ENV', async () => {
@@ -125,17 +160,17 @@ describe('per-boot token', () => {
       await expectError(await send(target, method, '/api/test-mutation', { origin: ORIGIN }), 401, 'unauthorized')
     }
     for (const candidate of ['wrong', `${TOKEN}x`]) {
-      const headers = { origin: ORIGIN, 'x-agent-hub-token': candidate }
+      const headers = { origin: ORIGIN, 'x-paneful-token': candidate }
       await expectError(await send(target, 'POST', '/api/test-mutation', headers), 401, 'unauthorized')
     }
   })
 
   it('rejects mutating requests without Origin even with the correct token', async () => {
-    await expectError(await send(build(), 'POST', '/api/test-mutation', { 'x-agent-hub-token': TOKEN }), 401, 'unauthorized')
+    await expectError(await send(build(), 'POST', '/api/test-mutation', { 'x-paneful-token': TOKEN }), 401, 'unauthorized')
   })
 
   it('passes with the correct token and an allowed Origin', async () => {
-    const response = await send(build(), 'POST', '/api/test-mutation', { 'x-agent-hub-token': TOKEN, origin: ORIGIN })
+    const response = await send(build(), 'POST', '/api/test-mutation', { 'x-paneful-token': TOKEN, origin: ORIGIN })
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual({ done: true })
   })
@@ -158,7 +193,7 @@ describe('access key', () => {
       const read = await send(target, 'GET', '/api/test-read', { [ACCESS_KEY_HEADER]: key })
       await expectError(read, 401, 'login_required')
       expect(read.body).not.toContain('data')
-      const headers = { [ACCESS_KEY_HEADER]: key, origin: ORIGIN, 'x-agent-hub-token': TOKEN }
+      const headers = { [ACCESS_KEY_HEADER]: key, origin: ORIGIN, 'x-paneful-token': TOKEN }
       await expectError(await send(target, 'POST', '/api/test-mutation', headers), 401, 'login_required')
     }
   })
@@ -239,14 +274,14 @@ describe('hook route', () => {
   it('exempts only POST from the per-boot token', async () => {
     const target = build()
     await expectError(await send(target, 'DELETE', API_ROUTES.hooks, {}), 401, 'unauthorized')
-    const headers = { origin: ORIGIN, 'x-agent-hub-token': TOKEN }
+    const headers = { origin: ORIGIN, 'x-paneful-token': TOKEN }
     expect((await send(target, 'DELETE', API_ROUTES.hooks, headers)).statusCode).toBe(200)
   })
 
   it('rejects any request with an Origin, even an allowed one', async () => {
     const target = build()
     for (const origin of [ORIGIN, 'https://evil.example']) {
-      await expectError(await send(target, 'POST', API_ROUTES.hooks, { origin, 'x-agent-hub-token': TOKEN }), 403, 'forbidden')
+      await expectError(await send(target, 'POST', API_ROUTES.hooks, { origin, 'x-paneful-token': TOKEN }), 403, 'forbidden')
     }
   })
 
@@ -287,7 +322,7 @@ describe('device login', () => {
   })
 
   async function buildWithDevices(): Promise<{ target: FastifyInstance, dir: string }> {
-    const dir = await mkdtemp(join(tmpdir(), 'agent-hub-login-'))
+    const dir = await mkdtemp(join(tmpdir(), 'paneful-manager-login-'))
     stateDir = dir
     app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, accessKey: KEY, deviceAuth: new DeviceAuth(dir), dev: false })
     app.get('/api/test-read', () => ({ secret: 'data' }))

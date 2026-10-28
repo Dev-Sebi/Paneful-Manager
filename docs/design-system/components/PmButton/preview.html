@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PmButton preview</title>
+<style>
+/* Fallback values generated from tokens.json (dark theme). */
+:root {
+  --pm-color-bg-canvas: #12151a;
+  --pm-color-bg-surface: #1a1e24;
+  --pm-color-bg-elevated: #22272e;
+  --pm-color-bg-hover: #2b313a;
+  --pm-color-bg-selected: #152f63;
+  --pm-color-fg-primary: #eef1f4;
+  --pm-color-fg-muted: #9aa4b0;
+  --pm-color-fg-on-accent: #0b0d10;
+  --pm-color-fg-on-danger: #0b0d10;
+  --pm-color-accent-default: #6496f7;
+  --pm-color-accent-hover: #8db2fc;
+  --pm-color-danger-default: #f47067;
+  --pm-color-danger-hover: #ff938a;
+  --pm-color-border-default: #3f4752;
+  --pm-color-border-focus: #6496f7;
+  --pm-space-1: 4px;
+  --pm-space-2: 8px;
+  --pm-space-3: 12px;
+  --pm-space-4: 16px;
+  --pm-space-6: 24px;
+  --pm-radius-md: 6px;
+  --pm-font-family-ui: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --pm-font-size-sm: 12px;
+  --pm-font-size-md: 13px;
+  --pm-font-weight-medium: 500;
+  --pm-font-line-height-tight: 1.2;
+  --pm-motion-duration-fast: 100ms;
+  --pm-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --pm-motion-duration-spinner: 800ms;
+  --pm-opacity-disabled: 0.4;
+}
+body { margin: 0; padding: var(--pm-space-6); background: var(--pm-color-bg-canvas); color: var(--pm-color-fg-primary); font-family: var(--pm-font-family-ui); font-size: var(--pm-font-size-md); }
+h2 { font-size: var(--pm-font-size-sm); color: var(--pm-color-fg-muted); font-weight: var(--pm-font-weight-medium); margin: var(--pm-space-6) 0 var(--pm-space-2); }
+.row { display: flex; flex-wrap: wrap; gap: var(--pm-space-3); align-items: center; background: var(--pm-color-bg-surface); padding: var(--pm-space-4); border-radius: var(--pm-radius-md); }
+.btn { display: inline-flex; align-items: center; gap: var(--pm-space-2); height: 28px; padding: 0 var(--pm-space-3); border: 1px solid transparent; border-radius: var(--pm-radius-md); font: inherit; font-weight: var(--pm-font-weight-medium); line-height: var(--pm-font-line-height-tight); cursor: pointer; transition: background-color var(--pm-motion-duration-fast) var(--pm-motion-easing-standard); }
+.sm { height: 24px; padding: 0 var(--pm-space-2); gap: var(--pm-space-1); font-size: var(--pm-font-size-sm); }
+.lg { height: 32px; padding: 0 var(--pm-space-4); }
+.icon { width: 28px; padding: 0; justify-content: center; }
+.primary { background: var(--pm-color-accent-default); color: var(--pm-color-fg-on-accent); }
+.primary:hover, .primary.is-hover { background: var(--pm-color-accent-hover); }
+.secondary { background: var(--pm-color-bg-elevated); color: var(--pm-color-fg-primary); border-color: var(--pm-color-border-default); }
+.ghost { background: transparent; color: var(--pm-color-fg-primary); }
+.secondary:hover, .ghost:hover, .secondary.is-hover, .ghost.is-hover { background: var(--pm-color-bg-hover); }
+.danger { background: var(--pm-color-danger-default); color: var(--pm-color-fg-on-danger); }
+.danger:hover, .danger.is-hover { background: var(--pm-color-danger-hover); }
+.btn:focus-visible, .is-focus { outline: 2px solid var(--pm-color-border-focus); outline-offset: 2px; }
+.is-pressed { background: var(--pm-color-bg-selected); }
+.btn:disabled { opacity: var(--pm-opacity-disabled); cursor: not-allowed; }
+.pm-spinner { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: r var(--pm-motion-duration-spinner) linear infinite; }
+@keyframes r { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } } /* .pm-spinner is exempt */
+</style>
+</head>
+<body>
+<h1 style="font-size: var(--pm-font-size-md)">PmButton</h1>
+
+<h2>Variants (md)</h2>
+<div class="row">
+  <button class="btn primary">Start session</button>
+  <button class="btn secondary">Save preset</button>
+  <button class="btn ghost">Details</button>
+  <button class="btn danger">Close session</button>
+</div>
+
+<h2>Sizes (sm / md / lg)</h2>
+<div class="row">
+  <button class="btn primary sm">Small</button>
+  <button class="btn primary">Medium</button>
+  <button class="btn primary lg">Large</button>
+  <button class="btn ghost icon" aria-label="Split pane">&#9707;</button>
+</div>
+
+<h2>States (secondary)</h2>
+<div class="row">
+  <button class="btn secondary">Default</button>
+  <button class="btn secondary is-hover">Hover</button>
+  <button class="btn secondary is-focus">Focus</button>
+  <button class="btn secondary is-pressed" aria-pressed="true">Pressed</button>
+  <button class="btn secondary" disabled>Disabled</button>
+  <button class="btn secondary" aria-busy="true"><span class="pm-spinner"></span>Loading</button>
+</div>
+
+<h2>States (primary / danger)</h2>
+<div class="row">
+  <button class="btn primary is-hover">Hover</button>
+  <button class="btn primary is-focus">Focus</button>
+  <button class="btn primary" disabled>Disabled</button>
+  <button class="btn danger is-hover">Hover</button>
+  <button class="btn danger is-focus">Focus</button>
+  <button class="btn danger" disabled>Disabled</button>
+</div>
+</body>
+</html>

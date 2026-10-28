@@ -16,7 +16,7 @@ import {
   type Scope,
   type UpsertMcpServerRequest,
   type UpsertMcpServerResponse,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { BaseLogger } from 'pino'
 import { AppError } from '../errors.js'
 import { createMcpApproval, type McpApproval } from './approval.js'
@@ -273,7 +273,7 @@ export function createMcpService(options: McpServiceOptions): McpService {
         const existingRaw = (await files.read(scope)).raw.get(name)
         const existing = existingRaw === undefined ? undefined : fromNative(existingRaw)
         if (existingRaw !== undefined && !existing) {
-          throw new AppError(`MCP server "${name}" uses a format Agent Hub does not manage; edit it by hand`, 409, 'conflict')
+          throw new AppError(`MCP server "${name}" uses a format Paneful Manager does not manage; edit it by hand`, 409, 'conflict')
         }
         const config = resolveKeep(request.config, existing)
         const native = toNative(config, existingRaw)

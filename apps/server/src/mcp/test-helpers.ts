@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
-import type { Scope } from '@agent-hub/shared'
+import type { Scope } from '@paneful-manager/shared'
 import { pino, type Logger } from 'pino'
 import { RunError, type RunOptions, type RunResult } from '../process/exec.js'
 import type { CliRun } from './cli.js'
@@ -19,7 +19,7 @@ export interface McpSandbox {
 
 /** Temp HOME, one project with a worktree directory and a state dir. */
 export function createMcpSandbox(): McpSandbox {
-  const base = realpathSync(mkdtempSync(join(tmpdir(), 'agent-hub-mcp-')))
+  const base = realpathSync(mkdtempSync(join(tmpdir(), 'paneful-manager-mcp-')))
   const home = join(base, 'home')
   const project = join(base, 'project')
   const worktree = join(base, 'worktree')

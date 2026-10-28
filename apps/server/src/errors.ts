@@ -1,4 +1,4 @@
-import type { ApiErrorCode } from '@agent-hub/shared'
+import type { ApiErrorCode } from '@paneful-manager/shared'
 
 /** Error whose message is safe to show to API clients. */
 export class AppError extends Error {

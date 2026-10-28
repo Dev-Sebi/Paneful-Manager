@@ -43,7 +43,7 @@ async function waitForReady(barrier: string): Promise<void> {
 }
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'agent-hub-hook-token-'))
+  dir = await mkdtemp(join(tmpdir(), 'paneful-manager-hook-token-'))
 })
 
 afterEach(async () => {
@@ -129,6 +129,54 @@ describe('loadHookToken', () => {
     await Promise.all([withHookTokenLock(dir, task('a')), withHookTokenLock(dir, task('b'))])
     expect(order.map(entry => entry.split(':')[1])).toEqual(['start', 'end', 'start', 'end'])
     await expect(withHookTokenLock(dir, () => Promise.reject(new Error('boom')))).rejects.toThrow('boom')
+    expect(await readdir(dir)).toEqual([])
+  })
+
+  it('keeps a lock whose live holder runs longer than the stale age', async () => {
+    let active = 0
+    let overlap = false
+    const task = async () => {
+      active++
+      overlap ||= active > 1
+      await new Promise(resolve => setTimeout(resolve, 250))
+      active--
+    }
+    await Promise.all([withHookTokenLock(dir, task, { lockStaleMs: 60 }), withHookTokenLock(dir, task, { lockStaleMs: 60 })])
+    expect(overlap).toBe(false)
+    expect(await readdir(dir)).toEqual([])
+  })
+
+  it('does not remove a lock another process took over on release', async () => {
+    const lock = join(dir, HOOK_TOKEN_LOCK_FILE)
+    await withHookTokenLock(dir, async () => {
+      await rm(lock)
+      await writeFile(lock, '1:other\n')
+    })
+    expect(await readFile(lock, 'utf8')).toBe('1:other\n')
+  })
+
+  it('lets exactly one of many starters break a stale lock at a time', async () => {
+    await writeFile(join(dir, HOOK_TOKEN_LOCK_FILE), '2147483646:dead\n')
+    let active = 0
+    let overlap = false
+    const task = async () => {
+      active++
+      overlap ||= active > 1
+      await new Promise(resolve => setTimeout(resolve, 5))
+      active--
+    }
+    await Promise.all(Array.from({ length: 12 }, () => withHookTokenLock(dir, task)))
+    expect(overlap).toBe(false)
+    expect(await readdir(dir)).toEqual([])
+  })
+
+  it('removes a break lock left over from a crash', async () => {
+    const breaker = join(dir, `${HOOK_TOKEN_LOCK_FILE}.break`)
+    await writeFile(join(dir, HOOK_TOKEN_LOCK_FILE), '2147483646:dead\n')
+    await writeFile(breaker, '2147483646:crashed\n')
+    const old = new Date(Date.now() - 60_000)
+    await utimes(breaker, old, old)
+    await withHookTokenLock(dir, () => Promise.resolve())
     expect(await readdir(dir)).toEqual([])
   })
 

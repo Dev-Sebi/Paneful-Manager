@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { AppConfigSchema, resolveConfigDir, resolvePort, type AppConfig } from '@agent-hub/shared'
+import { AppConfigSchema, resolveConfigDir, resolvePort, type AppConfig } from '@paneful-manager/shared'
 import { parse } from 'yaml'
 import { expandHome } from '../paths.js'
 import type { BaseLogger } from 'pino'
@@ -67,7 +67,7 @@ export async function loadConfig({ env, configDir, logger }: LoadConfigOptions):
     throw new ConfigError(`Invalid config in ${file}:\n${issues}`)
   }
   try {
-    return { ...result.data, port: resolvePort(result.data.port, env.AGENT_HUB_PORT) }
+    return { ...result.data, port: resolvePort(result.data.port, env.PANEFUL_MANAGER_PORT) }
   } catch (error) {
     throw new ConfigError((error as Error).message)
   }

@@ -1,4 +1,4 @@
-import { ACCESS_KEY_HEADER, WS_KEY_PROTOCOL_PREFIX, WS_SUBPROTOCOL, WS_TOKEN_PROTOCOL_PREFIX, type ApiErrorCode } from '@agent-hub/shared'
+import { ACCESS_KEY_HEADER, WS_KEY_PROTOCOL_PREFIX, WS_SUBPROTOCOL, WS_TOKEN_PROTOCOL_PREFIX, type ApiErrorCode } from '@paneful-manager/shared'
 import type { IncomingHttpHeaders } from 'node:http'
 import { isAllowedHost, isAllowedOrigin } from './origin.js'
 import { tokenMatches } from './token.js'
@@ -32,7 +32,7 @@ const deny = (status: 401 | 403, message: string): UpgradeDecision => ({
 const offeredProtocols = (headers: IncomingHttpHeaders): string[] =>
   (headers['sec-websocket-protocol'] ?? '').split(',').map(part => part.trim())
 
-/** Key from `X-Agent-Hub-Key` (scripts) or exactly one `key.<key>` subprotocol (browsers). */
+/** Key from `X-Paneful-Key` (scripts) or exactly one `key.<key>` subprotocol (browsers). */
 export function upgradeKey(headers: IncomingHttpHeaders): string | undefined {
   const header = headers[ACCESS_KEY_HEADER]
   if (typeof header === 'string') {
@@ -44,10 +44,10 @@ export function upgradeKey(headers: IncomingHttpHeaders): string | undefined {
 
 /**
  * Checks a WebSocket upgrade: Host and Origin (required, browsers always send it) must be allowed,
- * and `Sec-WebSocket-Protocol` must offer `agent-hub.v1` plus `token.<token>`. Only `agent-hub.v1` is echoed back.
+ * and `Sec-WebSocket-Protocol` must offer `paneful-manager.v1` plus `token.<token>`. Only `paneful-manager.v1` is echoed back.
  */
 export function authorizeUpgrade(req: { headers: IncomingHttpHeaders }, { port, token, dev, devOrigins = [] }: SecurityContext): UpgradeDecision {
-  if (!isAllowedHost(req.headers.host, port)) {
+  if (!isAllowedHost(req.headers.host, port, dev)) {
     return deny(403, 'Host not allowed')
   }
   if (!isAllowedOrigin(req.headers.origin, port, dev, devOrigins)) {

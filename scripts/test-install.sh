@@ -28,15 +28,15 @@ export XDG_STATE_HOME="$HOME/.local/state"
 export XDG_DATA_HOME="$HOME/.local/share"
 export USER=tester
 export WSL_DISTRO_NAME=TestDistro
-export AGENT_HUB_WSL_CONF="$T/wsl.conf"
-export AGENT_HUB_PROC_VERSION="$T/proc-version"
+export PANEFUL_MANAGER_WSL_CONF="$T/wsl.conf"
+export PANEFUL_MANAGER_PROC_VERSION="$T/proc-version"
 export STUB_LOG="$T/calls.log"
 export STUB_DIR="$T/stub-state"
 export TMPDIR="$T/tmp"
 unset GITHUB_TOKEN GH_TOKEN
 mkdir -p "$HOME" "$T/bin" "$STUB_DIR" "$TMPDIR"
 : >"$STUB_LOG"
-echo "Linux version 6.0 (generic)" >"$AGENT_HUB_PROC_VERSION"
+echo "Linux version 6.0 (generic)" >"$PANEFUL_MANAGER_PROC_VERSION"
 
 cat >"$T/bin/systemctl" <<'EOF'
 #!/bin/sh
@@ -134,18 +134,19 @@ EOF
 cat >"$T/bin/powershell.exe" <<'EOF'
 #!/bin/sh
 echo "powershell.exe $*" >>"$STUB_LOG"
+task="$STUB_DIR/task-$(printf '%s' "$*" | sed -n "s/.*-TaskName '\\([^']*\\)'.*/\\1/p")"
 case "$*" in
-  *Unregister-ScheduledTask*) rm -f "$STUB_DIR/task" ;;
-  *Register-ScheduledTask*) touch "$STUB_DIR/task" ;;
-  *Get-ScheduledTask*) [ -f "$STUB_DIR/task" ] ;;
+  *Unregister-ScheduledTask*) rm -f "$task" ;;
+  *Register-ScheduledTask*) touch "$task" ;;
+  *Get-ScheduledTask*) [ -f "$task" ] ;;
 esac
 EOF
 chmod +x "$T/bin/"*
 export PATH="$T/bin:$PATH"
 
-PREFIX="$XDG_DATA_HOME/agent-hub"
-CONFIG="$XDG_CONFIG_HOME/agent-hub/config.yaml"
-STATE="$XDG_STATE_HOME/agent-hub"
+PREFIX="$XDG_DATA_HOME/paneful-manager"
+CONFIG="$XDG_CONFIG_HOME/paneful-manager/config.yaml"
+STATE="$XDG_STATE_HOME/paneful-manager"
 UNITS="$XDG_CONFIG_HOME/systemd/user"
 OUT="$T/out.log"
 
@@ -184,8 +185,8 @@ pack() {
 }
 pack --tag v1.0.0
 pack --tag v1.1.0
-V1="$T/pkg/agent-hub-v1.0.0.tar.gz"
-V2="$T/pkg/agent-hub-v1.1.0.tar.gz"
+V1="$T/pkg/paneful-manager-v1.0.0.tar.gz"
+V2="$T/pkg/paneful-manager-v1.1.0.tar.gz"
 
 # ---------- dry run ----------
 
@@ -193,7 +194,7 @@ install_sh --dry-run --yes --from-source "$V1"
 check "dry run changes nothing in HOME" test -z "$(find "$HOME" -mindepth 1 -print -quit)"
 check "dry run prints the systemctl steps" contains "$OUT" "systemctl --user enable"
 check "dry run never calls systemctl" not_contains "$STUB_LOG" "systemctl --user enable"
-check "dry run says it would install" contains "$OUT" "would install Agent Hub v1.0.0"
+check "dry run says it would install" contains "$OUT" "would install Paneful Manager v1.0.0"
 
 # ---------- prefix safety ----------
 
@@ -206,7 +207,7 @@ check "prefix outside HOME refused" contains "$OUT" "outside"
 mkdir -p "$HOME/notours"
 echo keep >"$HOME/notours/data.txt"
 install_sh_fails --yes --uninstall --prefix "$HOME/notours"
-check "uninstall without marker refused" contains "$OUT" "no Agent Hub install marker"
+check "uninstall without marker refused" contains "$OUT" "no Paneful Manager install marker"
 check "uninstall without marker deletes nothing" test -f "$HOME/notours/data.txt"
 install_sh_fails --yes --from-source "$V1" --prefix "$HOME/notours"
 check "install into a foreign non-empty dir refused" test ! -e "$HOME/notours/releases"
@@ -214,25 +215,33 @@ rm -rf "$HOME/notours"
 
 # ---------- fresh install ----------
 
+LEGACY="$XDG_DATA_HOME/agent-hub"
+mkdir -p "$LEGACY/releases/v0" "$XDG_CONFIG_HOME/systemd/user"
+: >"$LEGACY/.agent-hub-install"
+: >"$XDG_CONFIG_HOME/systemd/user/agent-hub.service"
 install_sh --yes --from-source "$V1" --no-windows-task
+check "install names the leftover agent-hub install in its plan" contains "$OUT" "remove the pre-rename install in $LEGACY"
+check "install stops the leftover agent-hub units" contains "$STUB_LOG" "systemctl --user disable --now agent-hub.service agent-hub-tmux.service"
+check "install removes the leftover agent-hub prefix" test ! -e "$LEGACY"
+check "install removes the leftover agent-hub unit" test ! -e "$XDG_CONFIG_HOME/systemd/user/agent-hub.service"
 check "release extracted" test -f "$PREFIX/releases/v1.0.0/apps/server/dist/index.js"
 check "web build shipped" test -f "$PREFIX/releases/v1.0.0/apps/web/dist/index.html"
 check "node-pty installed" test -d "$PREFIX/releases/v1.0.0/apps/server/node_modules/node-pty"
 check "prebuilt dependencies used" contains "$OUT" "Using the prebuilt production dependencies"
 check "current symlink points at the release" test "$(readlink "$PREFIX/current")" = releases/v1.0.0
-check "install marker written" contains "$PREFIX/.agent-hub-install" "v1.0.0"
+check "install marker written" contains "$PREFIX/.paneful-manager-install" "v1.0.0"
 check "config written with the default port" contains "$CONFIG" "^port: 7337$"
 check "state dir is 0700" test "$(stat -c %a "$STATE")" = 700
 check "tmux.conf installed" cmp -s "$STATE/tmux.conf" "$ROOT/packaging/tmux.conf"
-check "server unit written" test -f "$UNITS/agent-hub.service"
-check "tmux unit written" test -f "$UNITS/agent-hub-tmux.service"
-check "no placeholders left" not_contains "$UNITS/agent-hub.service" "@[A-Z_]*@"
-check "unit quotes PATH" contains "$UNITS/agent-hub.service" '^Environment="PATH=/'
-check "unit pins the port" contains "$UNITS/agent-hub.service" "AGENT_HUB_PORT=7337"
-check "unit runs the current release" contains "$UNITS/agent-hub.service" "$PREFIX/current/apps/server/dist/index.js"
-check "tmux unit uses the state dir" contains "$UNITS/agent-hub-tmux.service" "-f $STATE/tmux.conf start-server"
+check "server unit written" test -f "$UNITS/paneful-manager.service"
+check "tmux unit written" test -f "$UNITS/paneful-manager-tmux.service"
+check "no placeholders left" not_contains "$UNITS/paneful-manager.service" "@[A-Z_]*@"
+check "unit quotes PATH" contains "$UNITS/paneful-manager.service" '^Environment="PATH=/'
+check "unit pins the port" contains "$UNITS/paneful-manager.service" "PANEFUL_MANAGER_PORT=7337"
+check "unit runs the current release" contains "$UNITS/paneful-manager.service" "$PREFIX/current/apps/server/dist/index.js"
+check "tmux unit uses the state dir" contains "$UNITS/paneful-manager-tmux.service" "-f $STATE/tmux.conf start-server"
 check "daemon-reload called" contains "$STUB_LOG" "systemctl --user daemon-reload"
-check "units enabled" contains "$STUB_LOG" "systemctl --user enable agent-hub-tmux.service agent-hub.service"
+check "units enabled" contains "$STUB_LOG" "systemctl --user enable paneful-manager-tmux.service paneful-manager.service"
 check "linger enabled" contains "$STUB_LOG" "loginctl enable-linger tester"
 check "health check called" contains "$STUB_LOG" "curl -fsS --max-time 5 http://127.0.0.1:7337/api/health"
 check "non-WSL warning shown" contains "$OUT" "does not look like WSL"
@@ -262,15 +271,15 @@ printf 'theme: light\nport: 7400\n' >"$CONFIG"
 mkdir -p "$PREFIX/releases/.staging-stale"
 install_sh --yes --force --from-source "$V1" --no-windows-task
 check "existing config kept" contains "$CONFIG" "^port: 7400$"
-check "re-run keeps the installed unit port" contains "$UNITS/agent-hub.service" "AGENT_HUB_PORT=7337"
+check "re-run keeps the installed unit port" contains "$UNITS/paneful-manager.service" "PANEFUL_MANAGER_PORT=7337"
 check "stale staging dirs pruned" test ! -e "$PREFIX/releases/.staging-stale"
 install_sh --yes --port 7500 --from-source "$V1" --no-windows-task
-check "--port updates the unit without --force" contains "$UNITS/agent-hub.service" "AGENT_HUB_PORT=7500"
-check "--port restarts the server" contains "$STUB_LOG" "systemctl --user restart agent-hub.service"
+check "--port updates the unit without --force" contains "$UNITS/paneful-manager.service" "PANEFUL_MANAGER_PORT=7500"
+check "--port restarts the server" contains "$STUB_LOG" "systemctl --user restart paneful-manager.service"
 check "--port is saved in config.yaml" contains "$CONFIG" "^port: 7500$"
 check "--port keeps other config keys" contains "$CONFIG" "^theme: light$"
 install_sh --yes --from-source "$V1" --no-windows-task
-check "re-run without --port keeps 7500" contains "$UNITS/agent-hub.service" "AGENT_HUB_PORT=7500"
+check "re-run without --port keeps 7500" contains "$UNITS/paneful-manager.service" "PANEFUL_MANAGER_PORT=7500"
 check "health check uses the kept port" contains "$STUB_LOG" "127.0.0.1:7500/api/health"
 
 # ---------- upgrade and rollback ----------
@@ -278,42 +287,42 @@ check "health check uses the kept port" contains "$STUB_LOG" "127.0.0.1:7500/api
 install_sh --yes --from-source "$V2" --no-windows-task
 check "upgrade flips current" test "$(readlink "$PREFIX/current")" = releases/v1.1.0
 check "upgrade keeps previous" test "$(readlink "$PREFIX/previous")" = releases/v1.0.0
-check "upgrade restarts the server" contains "$STUB_LOG" "systemctl --user restart agent-hub.service"
-check "upgrade keeps the tmux server" not_contains "$STUB_LOG" "restart agent-hub-tmux.service"
+check "upgrade restarts the server" contains "$STUB_LOG" "systemctl --user restart paneful-manager.service"
+check "upgrade keeps the tmux server" not_contains "$STUB_LOG" "restart paneful-manager-tmux.service"
 install_sh_fails --rollback
 check "rollback without a terminal is refused" test "$(readlink "$PREFIX/current")" = releases/v1.1.0
 check "no-terminal refusal explains --yes" contains "$OUT" "pass --yes"
 install_sh --yes --rollback
 check "rollback flips current back" test "$(readlink "$PREFIX/current")" = releases/v1.0.0
-check "rollback restarts the server" contains "$STUB_LOG" "systemctl --user restart agent-hub.service"
+check "rollback restarts the server" contains "$STUB_LOG" "systemctl --user restart paneful-manager.service"
 
 # ---------- WSL: systemd missing ----------
 
-echo "Linux version 5.15 (microsoft-standard-WSL2)" >"$AGENT_HUB_PROC_VERSION"
+echo "Linux version 5.15 (microsoft-standard-WSL2)" >"$PANEFUL_MANAGER_PROC_VERSION"
 touch "$STUB_DIR/no-systemd"
-printf '[automount]\nenabled=true\n\n[boot]\ncommand=echo hi\nsystemd=false\n' >"$AGENT_HUB_WSL_CONF"
+printf '[automount]\nenabled=true\n\n[boot]\ncommand=echo hi\nsystemd=false\n' >"$PANEFUL_MANAGER_WSL_CONF"
 install_sh --yes --force --from-source "$V2" --no-windows-task
-check "wsl.conf enables systemd" contains "$AGENT_HUB_WSL_CONF" "^systemd=true$"
-check "wsl.conf keeps other settings" contains "$AGENT_HUB_WSL_CONF" "^command=echo hi$"
-check "wsl.conf has no stale systemd line" not_contains "$AGENT_HUB_WSL_CONF" "systemd=false"
-check "wsl.conf backup written" test -f "$AGENT_HUB_WSL_CONF.agent-hub.bak"
+check "wsl.conf enables systemd" contains "$PANEFUL_MANAGER_WSL_CONF" "^systemd=true$"
+check "wsl.conf keeps other settings" contains "$PANEFUL_MANAGER_WSL_CONF" "^command=echo hi$"
+check "wsl.conf has no stale systemd line" not_contains "$PANEFUL_MANAGER_WSL_CONF" "systemd=false"
+check "wsl.conf backup written" test -f "$PANEFUL_MANAGER_WSL_CONF.paneful-manager.bak"
 check "wsl.conf written with sudo" contains "$STUB_LOG" "sudo install -m 0644"
 check "shutdown instructions printed" contains "$OUT" "wsl.exe --shutdown"
-printf '[boot] # init\nsystemd=true # on\n' >"$AGENT_HUB_WSL_CONF"
+printf '[boot] # init\nsystemd=true # on\n' >"$PANEFUL_MANAGER_WSL_CONF"
 install_sh --yes --from-source "$V2" --no-windows-task
 check "[boot] with a comment is recognized" contains "$OUT" "already enables systemd"
 check "recognized wsl.conf is not rewritten" not_contains "$STUB_LOG" "sudo"
-printf '[network]\nhostname=x\n' >"$AGENT_HUB_WSL_CONF"
+printf '[network]\nhostname=x\n' >"$PANEFUL_MANAGER_WSL_CONF"
 setsid sh "$ROOT/install.sh" --from-source "$V2" --no-windows-task >"$OUT" 2>&1 </dev/null || true
-check "wsl.conf prompt defaults to no without a terminal" not_contains "$AGENT_HUB_WSL_CONF" "systemd=true"
+check "wsl.conf prompt defaults to no without a terminal" not_contains "$PANEFUL_MANAGER_WSL_CONF" "systemd=true"
 install_sh --yes --from-source "$V2" --no-windows-task
-check "wsl.conf gets a [boot] section" test "$(sed -n '/^\[boot\]$/,$p' "$AGENT_HUB_WSL_CONF" | tr '\n' ' ')" = "[boot] systemd=true "
+check "wsl.conf gets a [boot] section" test "$(sed -n '/^\[boot\]$/,$p' "$PANEFUL_MANAGER_WSL_CONF" | tr '\n' ' ')" = "[boot] systemd=true "
 rm -f "$STUB_DIR/no-systemd"
 
 # ---------- WSL: Windows logon task ----------
 
 install_sh --yes --from-source "$V2"
-check "logon task registered" contains "$STUB_LOG" "Register-ScheduledTask -TaskName 'AgentHub-TestDistro'"
+check "logon task registered" contains "$STUB_LOG" "Register-ScheduledTask -TaskName 'paneful-manager-TestDistro'"
 check "logon task boots the distro" contains "$STUB_LOG" "-d TestDistro --exec true"
 check "logon task prompt names instanceIdleTimeout" contains "$OUT" "instanceIdleTimeout=-1"
 
@@ -323,20 +332,39 @@ echo mine >"$PREFIX/notes.txt"
 install_sh_fails --uninstall
 check "uninstall without a terminal deletes nothing" test -L "$PREFIX/current"
 install_sh --yes --uninstall
-check "uninstall disables units" contains "$STUB_LOG" "systemctl --user disable --now agent-hub.service agent-hub-tmux.service"
-check "uninstall removes the server unit" test ! -e "$UNITS/agent-hub.service"
-check "uninstall removes the tmux unit" test ! -e "$UNITS/agent-hub-tmux.service"
+check "uninstall disables units" contains "$STUB_LOG" "systemctl --user disable --now paneful-manager.service paneful-manager-tmux.service"
+check "uninstall removes the server unit" test ! -e "$UNITS/paneful-manager.service"
+check "uninstall removes the tmux unit" test ! -e "$UNITS/paneful-manager-tmux.service"
 check "uninstall removes releases" test ! -e "$PREFIX/releases"
 check "uninstall removes the current link" test ! -L "$PREFIX/current"
-check "uninstall removes the marker" test ! -e "$PREFIX/.agent-hub-install"
+check "uninstall removes the marker" test ! -e "$PREFIX/.paneful-manager-install"
 check "uninstall keeps foreign files and the prefix" test -f "$PREFIX/notes.txt"
 rm -f "$PREFIX/notes.txt"
 check "uninstall keeps config without --purge" test -f "$CONFIG"
 check "uninstall keeps state without --purge" test -d "$STATE"
-check "uninstall removes the logon task" contains "$STUB_LOG" "Unregister-ScheduledTask -TaskName 'AgentHub-TestDistro'"
+check "uninstall removes the logon task" contains "$STUB_LOG" "Unregister-ScheduledTask -TaskName 'paneful-manager-TestDistro'"
 check "uninstall leaves wsl.conf alone" not_contains "$STUB_LOG" "sudo"
+ELSEWHERE="$HOME/elsewhere"
+mkdir -p "$ELSEWHERE/releases/v0"
+: >"$ELSEWHERE/.agent-hub-install"
+ln -s "$ELSEWHERE" "$LEGACY"
+install_sh --yes --dry-run --uninstall
+check "a symlinked agent-hub prefix is never followed" not_contains "$OUT" "pre-rename install"
+check "the target of a symlinked agent-hub prefix stays" test -d "$ELSEWHERE/releases/v0"
+rm -rf "$LEGACY" "$ELSEWHERE"
+mkdir -p "$LEGACY/releases/v0" "$UNITS"
+: >"$LEGACY/.agent-hub-install"
+ln -sfn "$LEGACY/releases/v0" "$LEGACY/current"
+: >"$UNITS/agent-hub.service"
+: >"$UNITS/agent-hub-tmux.service"
+touch "$STUB_DIR/task-AgentHub-TestDistro"
 install_sh --yes --uninstall --purge
-check "purge removes config" test ! -e "$XDG_CONFIG_HOME/agent-hub"
+check "uninstall names the leftover agent-hub install in its plan" contains "$OUT" "remove the pre-rename install in $LEGACY"
+check "uninstall disables leftover agent-hub units" contains "$STUB_LOG" "systemctl --user disable --now agent-hub.service agent-hub-tmux.service"
+check "uninstall removes the leftover logon task" contains "$STUB_LOG" "Unregister-ScheduledTask -TaskName 'AgentHub-TestDistro'"
+check "uninstall removes leftover agent-hub units" test ! -e "$UNITS/agent-hub.service" -a ! -e "$UNITS/agent-hub-tmux.service"
+check "uninstall removes the leftover agent-hub prefix" test ! -e "$LEGACY"
+check "purge removes config" test ! -e "$XDG_CONFIG_HOME/paneful-manager"
 check "purge removes state" test ! -e "$STATE"
 
 # ---------- downloads ----------
@@ -349,7 +377,7 @@ install_sh_fails --yes --no-systemd --no-windows-task --prefix "$DL"
 check "latest without a release is rejected" contains "$OUT" "Invalid release tag"
 install_sh_fails --yes --no-systemd --no-windows-task --prefix "$DL" --version v1.0.0
 check "download without .sha256 is refused" contains "$OUT" "refusing to install unverified"
-echo "0000  agent-hub-v1.0.0.tar.gz" >"$STUB_DIR/release/agent-hub-v1.0.0.tar.gz.sha256"
+echo "0000  paneful-manager-v1.0.0.tar.gz" >"$STUB_DIR/release/paneful-manager-v1.0.0.tar.gz.sha256"
 install_sh_fails --yes --no-systemd --no-windows-task --prefix "$DL" --version v1.0.0
 check "checksum mismatch is refused" contains "$OUT" "Checksum mismatch"
 check "refused downloads leave no release" test ! -e "$DL/current"
@@ -369,7 +397,7 @@ mkdir -p "$STUB_DIR/api"
 api_release() {
   cp "$4" "$STUB_DIR/api/asset-$2"
   cp "$4.sha256" "$STUB_DIR/api/asset-$3"
-  printf '{"tag_name":"%s","assets":[{"name":"agent-hub-%s.tar.gz","url":"%s/%s"},{"name":"agent-hub-%s.tar.gz.sha256","url":"%s/%s"}]}\n' \
+  printf '{"tag_name":"%s","assets":[{"name":"paneful-manager-%s.tar.gz","url":"%s/%s"},{"name":"paneful-manager-%s.tar.gz.sha256","url":"%s/%s"}]}\n' \
     "$1" "$1" "$API" "$2" "$1" "$API" "$3"
 }
 api_release v1.0.0 101 102 "$V1" >"$STUB_DIR/api/latest.json"
@@ -450,7 +478,7 @@ rm -f "$STUB_DIR/private"
 # ---------- release without prebuilt dependencies ----------
 
 pack --no-deps --tag v1.2.0
-install_sh --yes --no-systemd --no-windows-task --prefix "$HOME/nodeps" --from-source "$T/pkg/agent-hub-v1.2.0.tar.gz"
+install_sh --yes --no-systemd --no-windows-task --prefix "$HOME/nodeps" --from-source "$T/pkg/paneful-manager-v1.2.0.tar.gz"
 check "tarball without node_modules falls back to pnpm install" contains "$OUT" "compiles node-pty"
 check "fallback installs node-pty" test -d "$HOME/nodeps/releases/v1.2.0/apps/server/node_modules/node-pty"
 

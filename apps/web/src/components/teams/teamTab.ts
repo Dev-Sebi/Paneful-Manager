@@ -1,5 +1,5 @@
-import type { AppPane, AppTab, Layout, LayoutNode, Team, TeamMember, TeamMemberUnlinkedReason } from '@agent-hub/shared'
-import { isTeamLead, MAX_PANES_PER_TAB } from '@agent-hub/shared'
+import type { AppPane, AppTab, Layout, LayoutNode, Team, TeamMember, TeamMemberUnlinkedReason } from '@paneful-manager/shared'
+import { isTeamLead, MAX_PANES_PER_TAB } from '@paneful-manager/shared'
 import { TEAM_TAB_PREFIX } from '@/stores/tabs'
 import { safeId } from './teamColor'
 
@@ -15,8 +15,8 @@ export interface SessionMember {
 const REASONS: Record<TeamMemberUnlinkedReason, string> = {
   'in-process': 'Runs inside the lead\'s process and has no pane of its own.',
   'no-pane': 'The team config lists no tmux pane for this member.',
-  'pane-not-found': 'Its tmux pane is not on the Agent Hub tmux server (closed, or started outside Agent Hub).',
-  'not-agent-hub': 'Its tmux pane belongs to a session Agent Hub does not manage.',
+  'pane-not-found': 'Its tmux pane is not on the Paneful Manager tmux server (closed, or started outside Paneful Manager).',
+  'not-paneful-manager': 'Its tmux pane belongs to a session Paneful Manager does not manage.',
   'cwd-mismatch': 'Its pane id matches a session in another directory, so it was not linked.',
   'tmux-unavailable': 'The tmux server could not be reached.',
 }
@@ -37,7 +37,7 @@ export function unlinkedReason (member: TeamMember, hasSession: (id: string) => 
   if (link.status === 'unlinked') {
     return REASONS[link.reason]
   }
-  return hasSession(link.sessionId) ? '' : 'Its Agent Hub session no longer exists.'
+  return hasSession(link.sessionId) ? '' : 'Its Paneful Manager session no longer exists.'
 }
 
 /** Lead first, the rest in config order. */
@@ -45,7 +45,7 @@ function ordered (members: readonly TeamMember[]): TeamMember[] {
   return [...members.filter(member => isTeamLead(member)), ...members.filter(member => !isTeamLead(member))]
 }
 
-/** Maps Agent Hub session ids to the member shown in their pane header (the lead wins when several share one). */
+/** Maps Paneful Manager session ids to the member shown in their pane header (the lead wins when several share one). */
 export function sessionMembers (teams: readonly Team[]): Map<string, SessionMember> {
   const result = new Map<string, SessionMember>()
   for (const team of teams) {

@@ -1,4 +1,4 @@
-# Example workspace preset. Copy to ~/.config/agent-hub/workspaces/ and adapt.
+# Example workspace preset. Copy to ~/.config/paneful-manager/workspaces/ and adapt.
 name: project1
 autostart: true
 tabs:

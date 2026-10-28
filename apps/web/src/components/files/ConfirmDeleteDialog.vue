@@ -1,5 +1,5 @@
 <template>
-  <AhDialog
+  <PmDialog
     confirm-text="Delete"
     :loading="loading"
     :model-value="modelValue"
@@ -10,12 +10,12 @@
     @update:model-value="forward"
   >
     {{ message }}
-  </AhDialog>
+  </PmDialog>
 </template>
 
 <script lang="ts" setup>
 
-  import { AhDialog } from '@/components/ah'
+  import { PmDialog } from '@/components/pm'
 
   defineProps<{
     modelValue: boolean

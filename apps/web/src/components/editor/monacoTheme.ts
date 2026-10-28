@@ -2,8 +2,8 @@ import type { editor } from 'monaco-editor/editor/editor.api'
 import { darkTheme, lightTheme, xtermDarkTheme, xtermLightTheme } from '@/styles/generated/theme'
 import { fontFamily, fontSize } from '@/styles/generated/tokens'
 
-export const MONACO_DARK_THEME = 'agent-hub-dark'
-export const MONACO_LIGHT_THEME = 'agent-hub-light'
+export const MONACO_DARK_THEME = 'paneful-manager-dark'
+export const MONACO_LIGHT_THEME = 'paneful-manager-light'
 
 export const editorFontFamily = fontFamily.mono
 export const editorFontSize = fontSize.md

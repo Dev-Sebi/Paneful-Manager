@@ -1,5 +1,5 @@
 import type { WsEvents } from '@/api/ws'
-import type { Team } from '@agent-hub/shared'
+import type { Team } from '@paneful-manager/shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/api/client'
@@ -17,7 +17,7 @@ export const useTeamsStore = defineStore('teams', () => {
   const error = ref<string>()
   let timer: ReturnType<typeof setTimeout> | undefined
 
-  /** Agent Hub session id to the team member running in it (pane mapping). */
+  /** Paneful Manager session id to the team member running in it (pane mapping). */
   const bySession = computed(() => sessionMembers(enabled.value ? teams.value : []))
 
   async function load () {

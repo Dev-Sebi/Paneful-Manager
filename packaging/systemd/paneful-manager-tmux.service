@@ -1,0 +1,17 @@
+# Installed by install.sh; @...@ placeholders are replaced at install time.
+# Owns the tmux server that runs every Paneful Manager session. Stopping it ends all sessions.
+[Unit]
+Description=Paneful Manager tmux server
+Documentation=https://github.com/@REPO@
+
+[Service]
+Type=forking
+Environment="PATH=@PATH@"
+Environment="LANG=@LANG@"
+ExecStart=@TMUX@ -L paneful-manager -f @STATE_DIR@/tmux.conf start-server
+ExecStop=@TMUX@ -L paneful-manager kill-server
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

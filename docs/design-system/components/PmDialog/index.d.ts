@@ -1,0 +1,51 @@
+/** danger: destructive confirmation; title icon and confirm button use danger tokens. */
+export type PmDialogTone = 'default' | 'danger'
+
+/** Max width: sm 400px, md 560px, lg 800px. */
+export type PmDialogSize = 'sm' | 'md' | 'lg'
+
+export interface PmDialogProps {
+  /** Open state (v-model). */
+  modelValue: boolean
+  /** Visible heading; also the accessible name via aria-labelledby. */
+  title: string
+  /** @default 'default' */
+  tone?: PmDialogTone
+  /** @default 'md' */
+  size?: PmDialogSize
+  /** Scrim click and Escape do not close; the blocked-close helper line shows and a headShake plays. @default false */
+  persistent?: boolean
+  /** Helper line shown under the title when a close is blocked. @default 'Finish or cancel the running action first' */
+  blockedMessage?: string
+  /** Confirm button label; omit to hide the default actions. */
+  confirmText?: string
+  /** @default 'Cancel' */
+  cancelText?: string
+  /** Shows a spinner on the confirm button and blocks closing. @default false */
+  loading?: boolean
+  /** CSS selector inside the dialog that receives initial focus. Defaults to the first focusable element in the body, else cancel (danger) or confirm (default). */
+  initialFocus?: string
+  /** Shows the close (x) button in the header. Hidden when persistent. @default true */
+  closable?: boolean
+}
+
+export type PmDialogCloseReason = 'confirm' | 'cancel' | 'escape' | 'scrim' | 'close-button'
+
+export interface PmDialogEmits {
+  (e: 'update:modelValue', value: boolean): void
+  (e: 'confirm'): void
+  (e: 'cancel', reason: Exclude<PmDialogCloseReason, 'confirm'>): void
+  /** Escape or scrim click on a persistent dialog. */
+  (e: 'close-blocked'): void
+  /** Leave animation finished; focus has returned to the opener. */
+  (e: 'after-leave'): void
+}
+
+export interface PmDialogSlots {
+  /** Body content. */
+  default?: () => unknown
+  /** Replaces the title text (keep it short). */
+  title?: () => unknown
+  /** Replaces the default actions (cancel + confirm). */
+  actions?: (props: { confirm: () => void, cancel: () => void }) => unknown
+}

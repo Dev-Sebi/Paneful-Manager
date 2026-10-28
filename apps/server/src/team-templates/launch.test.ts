@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { TeamTemplateSchema, type CreateSessionRequest, type Session } from '@agent-hub/shared'
+import { TeamTemplateSchema, type CreateSessionRequest, type Session } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../errors.js'
 import { createTeamTemplateLauncher } from './launch.js'
@@ -69,7 +69,7 @@ function setup(templates = [alpha]) {
 }
 
 beforeEach(async () => {
-  stateDir = await mkdtemp(join(tmpdir(), 'ah-team-launch-'))
+  stateDir = await mkdtemp(join(tmpdir(), 'pm-team-launch-'))
   alive = new Set()
   requests = []
   killed = []

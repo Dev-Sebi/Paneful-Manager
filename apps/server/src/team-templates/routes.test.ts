@@ -11,7 +11,7 @@ import {
   SESSION_TOKEN_HEADER,
   TeamTemplateResponseSchema,
   type Session,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify'
 import { pino } from 'pino'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -22,7 +22,7 @@ import { TeamLaunchLedger } from './ledger.js'
 import { createTeamTemplateStore } from './store.js'
 
 const TOKEN = 'test-token'
-const local = { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, 'x-agent-hub-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
+const local = { host: `127.0.0.1:${DEFAULT_CONFIG.port}`, origin: `http://127.0.0.1:${DEFAULT_CONFIG.port}`, 'x-paneful-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
 const template = { name: 'alpha', experimental: true, lead: { cwd: tmpdir() }, teammates: [{ name: 'tester', prompt: 'Test it' }] }
 const body = { template }
 let root: string
@@ -35,7 +35,7 @@ function inject(options: InjectOptions): Promise<LightMyRequestResponse> {
 }
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'ah-team-template-routes-'))
+  root = await mkdtemp(join(tmpdir(), 'pm-team-template-routes-'))
   const logger = pino({ level: 'silent' })
   const store = createTeamTemplateStore({ dir: join(root, 'teams'), logger })
   live = new Set()
@@ -124,7 +124,7 @@ describe('team template routes', () => {
   it('applies the token and Origin rules to every mutation', async () => {
     for (const [method, url] of [['POST', API_ROUTES.teamTemplates], ['PUT', '/api/team-templates/alpha'], ['DELETE', '/api/team-templates/alpha'], ['POST', '/api/team-templates/alpha/launch']] as const) {
       expect((await inject({ method, url, payload: body, headers: { [SESSION_TOKEN_HEADER]: 'wrong' } })).statusCode).toBe(401)
-      expect((await app.inject({ method, url, payload: body, headers: { host: local.host, 'x-agent-hub-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN } })).statusCode).toBe(401)
+      expect((await app.inject({ method, url, payload: body, headers: { host: local.host, 'x-paneful-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN } })).statusCode).toBe(401)
       expect((await inject({ method, url, payload: body, headers: { origin: 'http://evil.example' } })).statusCode).toBe(403)
     }
     expect(live.size).toBe(0)
