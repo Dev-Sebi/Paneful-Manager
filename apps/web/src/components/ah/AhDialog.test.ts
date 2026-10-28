@@ -3,6 +3,7 @@ import { enableAutoUnmount, flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mountWithVuetify } from '@/test/mount'
 import AhDialog from './AhDialog.vue'
+import source from './AhDialog.vue?raw'
 
 const BODY = '<input id="name" /><button id="extra" type="button">Extra</button>'
 
@@ -23,6 +24,22 @@ function key (target: Element, init: KeyboardEventInit) {
 }
 
 enableAutoUnmount(afterEach)
+
+describe('AhDialog layout', () => {
+  it('centres the panel inside the full-width Vuetify content box', () => {
+    expect(source).toMatch(/\.ah-dialog__content \{[^}]*align-items: center;/)
+  })
+
+  it('lets the panel size itself to its max-width instead of the viewport', () => {
+    expect(source).toMatch(/\.ah-dialog__panel \{[^}]*width: 100%;/)
+  })
+
+  it('applies the content class to the dialog content element', async () => {
+    open()
+    await flushPromises()
+    expect(panel()?.closest('.ah-dialog__content')).not.toBeNull()
+  })
+})
 
 describe('AhDialog', () => {
   it('does not move focus when mounted closed', async () => {
