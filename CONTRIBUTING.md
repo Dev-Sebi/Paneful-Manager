@@ -11,7 +11,7 @@ pnpm install
 pnpm dev
 ```
 
-The UI is served at `http://127.0.0.1:3000` (Vite dev server). Open the URL from `pnpm login-url --port 3000` once, so the browser stores the access key for that origin. Port `7337` is the server port used by the installed app.
+The UI is served at `http://127.0.0.1:3000` (Vite dev server). Open the URL from `pnpm login-url --port 3000` once, so the browser registers its device key for that origin. Port `7337` is the server port used by the installed app.
 
 ## Branch and PR Flow
 

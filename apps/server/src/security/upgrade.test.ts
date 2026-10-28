@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { authorizeUpgrade } from './upgrade.js'
+import { authorizeKeyedUpgrade, authorizeUpgrade, upgradeKey } from './upgrade.js'
 
 const context = { port: 7337, token: 'secret-token', dev: false }
 const valid = {
@@ -52,5 +52,34 @@ describe('authorizeUpgrade', () => {
     ]) {
       expect(decide({ 'sec-websocket-protocol': protocol })).toMatchObject({ ok: false, status: 401, code: 'unauthorized' })
     }
+  })
+})
+
+describe('authorizeKeyedUpgrade', () => {
+  const revalidate = async (): Promise<boolean> => true
+  const authenticate = async (key: string | undefined) => {
+    if (key === 'script-key') {
+      return {}
+    }
+    return key === 'session-key' ? { revalidate } : undefined
+  }
+  const keyed = (overrides: Record<string, string | undefined>) =>
+    authorizeKeyedUpgrade({ headers: { ...valid, ...overrides } }, context, authenticate)
+
+  it('needs a valid key besides the token, from the header or one key subprotocol', async () => {
+    await expect(keyed({})).resolves.toMatchObject({ ok: false, status: 401 })
+    await expect(keyed({ 'sec-websocket-protocol': 'agent-hub.v1, token.secret-token, key.wrong' })).resolves.toMatchObject({ ok: false, status: 401 })
+    await expect(keyed({ 'x-agent-hub-key': 'script-key' })).resolves.toEqual({ ok: true, protocol: 'agent-hub.v1' })
+    await expect(keyed({ 'sec-websocket-protocol': 'agent-hub.v1, token.secret-token, key.session-key' })).resolves.toEqual({ ok: true, protocol: 'agent-hub.v1', revalidate })
+  })
+
+  it('still checks Host, Origin and the token first', async () => {
+    await expect(keyed({ 'x-agent-hub-key': 'script-key', 'origin': 'https://evil.example' })).resolves.toMatchObject({ ok: false, status: 403 })
+    await expect(keyed({ 'x-agent-hub-key': 'script-key', 'sec-websocket-protocol': 'agent-hub.v1, token.wrong' })).resolves.toMatchObject({ ok: false, status: 401 })
+  })
+
+  it('takes no key from two key subprotocols', () => {
+    expect(upgradeKey({ 'sec-websocket-protocol': 'agent-hub.v1, key.a, key.b' })).toBeUndefined()
+    expect(upgradeKey({ 'sec-websocket-protocol': 'agent-hub.v1, key.a' })).toBe('a')
   })
 })

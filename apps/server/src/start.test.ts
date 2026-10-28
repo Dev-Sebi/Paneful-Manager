@@ -1,4 +1,17 @@
-import { ACCESS_KEY_HEADER, DEFAULT_CONFIG, HOOK_SESSION_HEADER, HOOK_TOKEN_HEADER, SESSION_TOKEN_HEADER, SessionTokenResponseSchema, HealthResponseSchema, API_ROUTES, ListMcpServersResponseSchema } from '@agent-hub/shared'
+import {
+  ACCESS_KEY_HEADER,
+  API_ROUTES,
+  AuthChallengeResponseSchema,
+  AuthSessionResponseSchema,
+  DEFAULT_CONFIG,
+  HOOK_SESSION_HEADER,
+  HOOK_TOKEN_HEADER,
+  HealthResponseSchema,
+  ListMcpServersResponseSchema,
+  RegisterDeviceResponseSchema,
+  SESSION_TOKEN_HEADER,
+  SessionTokenResponseSchema,
+} from '@agent-hub/shared'
 import { pino } from 'pino'
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
@@ -8,7 +21,9 @@ import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { HOOK_TOKEN_FILE, HOOK_TOKEN_VERSION_FILE } from './hooks/token.js'
 import { RunError } from './process/exec.js'
-import { ACCESS_KEY_FILE, portArgument, resolveLoginUrl } from './security/access-key.js'
+import { ACCESS_KEY_FILE, logOutAllDevices, portArgument, resolveLoginUrl } from './security/access-key.js'
+import { LOGIN_CODE_FILE } from './security/login-code.js'
+import { createTestDevice } from './security/test-helpers.js'
 import { RELEASE_VERSION, SHUTDOWN_TIMEOUT_MS, installShutdown, startServer } from './start.js'
 import { Tmux } from './tmux/tmux.js'
 
@@ -114,7 +129,7 @@ async function accessKeyOf(stateHome: string): Promise<string> {
 }
 
 describe('access key', () => {
-  it('is created owner-only, guards the API and builds the login URL', async () => {
+  it('is created owner-only and guards the API', async () => {
     const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
     const env = { CLAUDE_CONFIG_DIR: '/nonexistent/claude', XDG_STATE_HOME: stateHome, XDG_CONFIG_HOME: stateHome }
     const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env, tmux: missingTmux() })
@@ -126,20 +141,47 @@ describe('access key', () => {
       expect((await fetch(`${server.url}${API_ROUTES.sessionToken}`)).status).toBe(401)
       expect((await fetch(`${server.url}${API_ROUTES.sessionToken}`, { headers: { [ACCESS_KEY_HEADER]: key } })).status).toBe(200)
       expect((await fetch(`${server.url}${API_ROUTES.health}`)).status).toBe(200)
-      expect(await resolveLoginUrl({ ...env, AGENT_HUB_PORT: String(server.port) }, [])).toBe(`http://127.0.0.1:${server.port}/#key=${key}`)
-      expect(await resolveLoginUrl(env, ['--port', '3000'])).toBe(`http://127.0.0.1:3000/#key=${key}`)
     } finally {
       await server.shutdown()
       await rm(stateHome, { recursive: true, force: true })
     }
   })
 
-  it('login URL fails clearly before the first start and on a bad port', async () => {
+  it('login URL carries a one-time code, not the key, and needs no running server', async () => {
     const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
-    await expect(resolveLoginUrl({ XDG_STATE_HOME: stateHome }, [])).rejects.toThrow(/start Agent Hub once/)
+    const env = { XDG_STATE_HOME: stateHome, XDG_CONFIG_HOME: stateHome }
+    const url = await resolveLoginUrl(env, ['--port', '3000'])
+    const code = (await readFile(join(stateHome, 'agent-hub', LOGIN_CODE_FILE), 'utf8')).split(' ')[0]
+    expect(url).toBe(`http://127.0.0.1:3000/#login=${code}`)
+    expect(await resolveLoginUrl({ ...env, AGENT_HUB_PORT: '7399' }, [])).toMatch(/^http:\/\/127\.0\.0\.1:7399\/#login=[\w-]{43}$/)
     expect(() => portArgument(['--port', 'x'])).toThrow(/--port/)
     expect(portArgument([])).toBeUndefined()
     await rm(stateHome, { recursive: true, force: true })
+  })
+
+  it('logs a browser in through the login URL, and out again on reset', async () => {
+    const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
+    const env = { CLAUDE_CONFIG_DIR: '/nonexistent/claude', XDG_STATE_HOME: stateHome, XDG_CONFIG_HOME: stateHome }
+    const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env, tmux: missingTmux() })
+    const post = (route: string, body: object) =>
+      fetch(`${server.url}${route}`, { method: 'POST', headers: { 'content-type': 'application/json', origin: server.url }, body: JSON.stringify(body) })
+    const signIn = async (deviceId: string, sign: (nonce: string) => Promise<string>) => {
+      const { nonce } = AuthChallengeResponseSchema.parse(await (await fetch(`${server.url}${API_ROUTES.authChallenge}`)).json())
+      return post(API_ROUTES.authSession, { deviceId, nonce, signature: await sign(nonce) })
+    }
+    try {
+      const code = new URL(await resolveLoginUrl({ ...env, AGENT_HUB_PORT: String(server.port) }, [])).hash.slice('#login='.length)
+      const device = await createTestDevice()
+      const { deviceId } = RegisterDeviceResponseSchema.parse(await (await post(API_ROUTES.authRegister, { code, publicKey: device.publicKey })).json())
+      const { key } = AuthSessionResponseSchema.parse(await (await signIn(deviceId, device.sign)).json())
+      expect((await fetch(`${server.url}${API_ROUTES.files}`, { headers: { [ACCESS_KEY_HEADER]: key } })).status).toBe(200)
+      expect(await readdir(join(stateHome, 'agent-hub'))).not.toContain(LOGIN_CODE_FILE)
+      await logOutAllDevices(env)
+      expect((await signIn(deviceId, device.sign)).status).toBe(401)
+    } finally {
+      await server.shutdown()
+      await rm(stateHome, { recursive: true, force: true })
+    }
   })
 })
 

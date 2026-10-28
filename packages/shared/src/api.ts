@@ -19,6 +19,9 @@ export const API_ROUTES = {
   presetLaunch: `${API_PREFIX}/presets/:name/launch`,
   config: `${API_PREFIX}/config`,
   sessionToken: `${API_PREFIX}/session-token`,
+  authChallenge: `${API_PREFIX}/auth/challenge`,
+  authRegister: `${API_PREFIX}/auth/register`,
+  authSession: `${API_PREFIX}/auth/session`,
   hooks: `${API_PREFIX}/hooks`,
   hooksInstall: `${API_PREFIX}/hooks/install`,
   hooksUninstall: `${API_PREFIX}/hooks/uninstall`,
@@ -43,15 +46,28 @@ export const API_ROUTES = {
 /** Header carrying the per-boot token on every mutating request. */
 export const SESSION_TOKEN_HEADER = 'x-agent-hub-token'
 
-/** Header carrying the persisted access key on every API request except health and the hook route. */
+/**
+ * Header carrying the persisted access key (scripts) or a browser session key on every API request,
+ * except health, the hook route and the device login routes.
+ */
 export const ACCESS_KEY_HEADER = 'x-agent-hub-key'
 
-/** Login URL fragment parameter: `http://localhost:<port>/#key=<access key>`; the fragment never reaches the server. */
-export const ACCESS_KEY_FRAGMENT_PARAM = 'key'
+/** Login URL fragment parameter: `http://127.0.0.1:<port>/#login=<one-time code>`; the fragment never reaches the server. */
+export const LOGIN_FRAGMENT_PARAM = 'login'
 
-/** WS subprotocol echoed by the server; the client also offers `token.<token>`. */
+/** Prefix of the message a device signs, so its signature is valid for nothing but an Agent Hub session. */
+export const DEVICE_SIGNATURE_CONTEXT = 'agent-hub.session.v1'
+
+/** Exact bytes a device signs to answer a challenge. */
+export function deviceSignatureMessage(nonce: string): string {
+  return `${DEVICE_SIGNATURE_CONTEXT}\n${nonce}`
+}
+
+/** WS subprotocol echoed by the server; the client also offers `token.<token>` and `key.<session key>`. */
 export const WS_SUBPROTOCOL = 'agent-hub.v1'
 export const WS_TOKEN_PROTOCOL_PREFIX = 'token.'
+/** Browsers cannot set headers on a WebSocket, so they offer the session key as a subprotocol; scripts may send `X-Agent-Hub-Key`. */
+export const WS_KEY_PROTOCOL_PREFIX = 'key.'
 
 // Errors
 
@@ -109,6 +125,44 @@ export type HealthResponse = z.infer<typeof HealthResponseSchema>
 /** GET /api/session-token; needs the access key and is only served to same-origin requests on an allowed Host. */
 export const SessionTokenResponseSchema = z.strictObject({ token: z.string().min(1) })
 export type SessionTokenResponse = z.infer<typeof SessionTokenResponseSchema>
+
+// Device login (ADR 0013)
+
+const Base64UrlSchema = z.string().regex(/^[\w-]+$/)
+/** Random secrets and ids: base64url or hex, long enough to be unguessable. */
+const SecretSchema = z.string().regex(/^[\w-]{32,128}$/)
+/** Challenge nonce: base64url parts joined with dots (random, expiry, MAC). */
+const NonceSchema = z.string().regex(/^[\w.-]{32,128}$/)
+
+/** Public half of a browser's ECDSA P-256 device key, as a minimal JWK. */
+export const DevicePublicKeySchema = z.strictObject({
+  kty: z.literal('EC'),
+  crv: z.literal('P-256'),
+  x: Base64UrlSchema.length(43),
+  y: Base64UrlSchema.length(43),
+})
+export type DevicePublicKey = z.infer<typeof DevicePublicKeySchema>
+
+/** GET /api/auth/challenge: a one-time nonce from this server process. */
+export const AuthChallengeResponseSchema = z.strictObject({ nonce: NonceSchema })
+export type AuthChallengeResponse = z.infer<typeof AuthChallengeResponseSchema>
+
+/** POST /api/auth/register: consumes the login code from the login URL and registers the device key. */
+export const RegisterDeviceRequestSchema = z.strictObject({ code: SecretSchema, publicKey: DevicePublicKeySchema })
+export type RegisterDeviceRequest = z.infer<typeof RegisterDeviceRequestSchema>
+export const RegisterDeviceResponseSchema = z.strictObject({ deviceId: SecretSchema })
+export type RegisterDeviceResponse = z.infer<typeof RegisterDeviceResponseSchema>
+
+/** POST /api/auth/session: the device signs `deviceSignatureMessage(nonce)` (ECDSA P-256, SHA-256, raw r|s, base64url). */
+export const CreateAuthSessionRequestSchema = z.strictObject({
+  deviceId: SecretSchema,
+  nonce: NonceSchema,
+  signature: Base64UrlSchema.max(128),
+})
+export type CreateAuthSessionRequest = z.infer<typeof CreateAuthSessionRequestSchema>
+/** Short-lived session key, kept only in the page's memory and sent as `X-Agent-Hub-Key`. */
+export const AuthSessionResponseSchema = z.strictObject({ key: SecretSchema, expiresInSec: z.int().positive() })
+export type AuthSessionResponse = z.infer<typeof AuthSessionResponseSchema>
 
 // Sessions
 

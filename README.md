@@ -38,7 +38,7 @@ GITHUB_TOKEN=<token> sh install.sh
 
 Or download the release with `gh release download --repo Dev-Sebi/Paneful-Manager --pattern 'agent-hub-*.tar.gz*'` and run `sh install.sh --from-source agent-hub-<tag>.tar.gz`. Details: [Private repository](docs/install.md#private-repository).
 
-The installer shows a plan and asks before it changes anything. It sets up the systemd user services `agent-hub-tmux.service` and `agent-hub.service`. Then open the login URL it prints once in your browser (in WSL: your Windows browser); `install.sh --login-url` prints it again.
+The installer shows a plan and asks before it changes anything. It sets up the systemd user services `agent-hub-tmux.service` and `agent-hub.service`. Then open the login URL it prints in your browser (in WSL: your Windows browser). Each login URL works once, within 10 minutes; `install.sh --login-url` prints a new one, for example for another browser.
 
 Flags, the list of changes, upgrade, rollback and uninstall are in the [install guide](docs/install.md).
 
@@ -60,7 +60,7 @@ pnpm install
 pnpm dev
 ```
 
-Open the URL from `pnpm login-url --port 3000` once in your browser (Vite dev server; it carries the access key, see [Login URL](docs/install.md#login-url)), later `http://127.0.0.1:3000` is enough. The API server listens on the configured port (default `7337`); the Vite proxy forwards to `AGENT_HUB_PORT` or `7337`, so set `AGENT_HUB_PORT` when `config.yaml` uses another port.
+Open the URL from `pnpm login-url --port 3000` in your browser (Vite dev server; a one-time login code, see [Login URL](docs/install.md#login-url)), later `http://127.0.0.1:3000` is enough. The API server listens on the configured port (default `7337`); the Vite proxy forwards to `AGENT_HUB_PORT` or `7337`, so set `AGENT_HUB_PORT` when `config.yaml` uses another port.
 
 ## Requirements
 

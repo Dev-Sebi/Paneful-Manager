@@ -1,11 +1,10 @@
-import { ACCESS_KEY_HEADER, API_ROUTES, SessionTokenResponseSchema } from '@agent-hub/shared'
-import { loginRequired, readAccessKey } from './access'
+import { API_ROUTES, SessionTokenResponseSchema } from '@agent-hub/shared'
+import { authorizedFetch, loginRequired } from './access'
 
 let cached: Promise<string> | undefined
 
 async function requestToken (): Promise<string> {
-  const key = readAccessKey()
-  const response = await fetch(API_ROUTES.sessionToken, { headers: { accept: 'application/json', ...(key ? { [ACCESS_KEY_HEADER]: key } : {}) } })
+  const response = await authorizedFetch(API_ROUTES.sessionToken, { headers: { accept: 'application/json' } })
   if (response.status === 401) {
     loginRequired.value = true
   }

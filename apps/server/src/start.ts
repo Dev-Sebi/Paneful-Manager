@@ -13,6 +13,7 @@ import { createHookSettings, resolveClaudeSettingsPath } from './hooks/install.j
 import { StaleHookSessions } from './hooks/stale.js'
 import { loadHookToken, rotateHookToken } from './hooks/token.js'
 import { loadAccessKey } from './security/access-key.js'
+import { DeviceAuth } from './security/device-auth.js'
 import { createHealthRunner } from './mcp/health.js'
 import { createMcpService } from './mcp/service.js'
 import { expandHome } from './paths.js'
@@ -116,6 +117,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     config,
     logger,
     accessKey,
+    deviceAuth: new DeviceAuth(stateDir),
     devOrigins,
     files,
     engine,

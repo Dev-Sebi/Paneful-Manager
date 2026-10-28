@@ -55,7 +55,7 @@ sh install.sh --from-source agent-hub-<tag>.tar.gz
 
 The installer verifies the tarball against the `.sha256` next to it. For a specific release, pass its tag: `gh release download <tag> --repo Dev-Sebi/Paneful-Manager ...`.
 
-When the install finishes, the installer prints a login URL. Open it once in your browser (in WSL: a Windows browser; WSL forwards loopback ports to Windows). See [Login URL](#login-url).
+When the install finishes, the installer prints a login URL. Open it in your browser within 10 minutes (in WSL: a Windows browser; WSL forwards loopback ports to Windows). See [Login URL](#login-url).
 
 ### From a local build
 
@@ -81,7 +81,7 @@ A source checkout must contain `apps/server/dist/index.js` and `apps/web/dist/in
 | `--no-windows-task` | never offer the Windows logon task |
 | `--force` | reinstall the same version; also allows a prefix outside your home directory or a non-empty prefix without install marker |
 | `--no-verify` | install a downloaded release that publishes no `.sha256` file |
-| `--login-url` | print the login URL (see [Login URL](#login-url)) and exit |
+| `--login-url` | print a new one-time login URL (see [Login URL](#login-url)) and exit |
 | `--rollback` | switch back to the previous release |
 | `--uninstall` | remove units, installed releases and the Windows task |
 | `--purge` | with `--uninstall`: also remove config and state without asking |
@@ -113,22 +113,24 @@ All paths follow `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and `XDG_DATA_HOME` when th
 
 ## Login URL
 
-Every API request needs the access key, a random value the server writes once to `~/.local/state/agent-hub/access-key` (mode `0600`). Only you (and root) can read it, so other users on the same machine cannot use your Agent Hub, although it listens on the shared loopback interface. Background: [ADR 0013](adr/0013-access-key-against-local-users.md).
+Other users on the same machine can reach the loopback port too, so every API request must prove it comes from you. Background: [ADR 0013](adr/0013-access-key-against-local-users.md) and [ADR 0014](adr/0014-device-login-against-origin-squatting.md).
 
-The browser gets the key from the login URL:
+A browser logs in once with a login URL:
 
 ```bash
 ~/.local/share/agent-hub/current/install.sh --login-url
-#   http://127.0.0.1:7337/#key=<access key>
+#   http://127.0.0.1:7337/#login=<one-time code>
 ```
 
-Open the URL once per browser profile. The web app stores the key for that origin and removes it from the address bar; later visits to `http://127.0.0.1:7337/` need nothing else. The key survives server restarts and upgrades.
+The code works once and expires after 10 minutes; it sits in `~/.local/state/agent-hub/login-code` (mode `0600`) until it is used. Opening the URL makes the browser create a device key that it can use but never reveal, and registers it with the server. Later visits to `http://127.0.0.1:7337/` sign a fresh challenge with that key; nothing secret is kept in the browser's storage. The login survives server restarts and upgrades.
 
-- Always use `127.0.0.1`, never `localhost`: `localhost` may resolve to `::1`, where another user on the machine can listen on the same port and read the key. Under any other host name the app does not keep the key and asks you to switch to `127.0.0.1`.
-- Without a stored key, or with an old one, the app shows only the hint to open the login URL.
-- The installer does not open the browser: a browser started with the URL as an argument would show the key in the process list.
-- To rotate the key, delete the file and restart the server (`systemctl --user restart agent-hub.service`); every browser then needs the new login URL.
-- In a source checkout, `pnpm login-url` prints the URL for the running server; `pnpm login-url --port 3000` prints it for the Vite dev server.
+- One login URL per browser profile: for a second browser, print a new one.
+- Always use `127.0.0.1`, never `localhost`: `localhost` may resolve to `::1`, where another user on the machine can listen on the same port. Under any other host name the app does not log in and asks you to switch to `127.0.0.1`.
+- Without a login, or after a logout, the app shows only the hint to open a login URL. A used or expired URL shows "already used or has expired".
+- The installer does not open the browser: a browser started with the URL as an argument would show the code in the process list.
+- Log every browser out: `rm ~/.local/state/agent-hub/devices.json` (in a checkout `pnpm login-url --reset`). The server refuses the session keys of removed devices from the next request on; no restart needed.
+- Older builds kept the access key itself in the browser (`#key=` login URLs); the app deletes it on the first start, so each browser needs one new login URL after the upgrade.
+- In a source checkout, `pnpm login-url` prints a URL for the server port; `pnpm login-url --port 3000` prints it for the Vite dev server.
 
 ## Port
 
@@ -143,7 +145,7 @@ systemctl --user status agent-hub-tmux.service agent-hub.service
 curl -fsS http://127.0.0.1:7337/api/health
 ```
 
-`/api/health` is the only route that needs no access key. For other routes from a shell, pass the key on stdin so it does not show up in `curl`'s command line:
+`/api/health` is the only route that needs no credential. Scripts use the access key, a random value the server writes once to `~/.local/state/agent-hub/access-key` (mode `0600`, readable only by you and root; browsers never get it). Pass it on stdin so it does not show up in `curl`'s command line:
 
 ```bash
 printf 'X-Agent-Hub-Key: %s\n' "$(cat ~/.local/state/agent-hub/access-key)" | curl -fsS -H @- http://127.0.0.1:7337/api/sessions

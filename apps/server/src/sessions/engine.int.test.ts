@@ -12,6 +12,7 @@ import {
   ListSessionsResponseSchema,
   SESSION_TOKEN_HEADER,
   WS_SUBPROTOCOL,
+  WS_KEY_PROTOCOL_PREFIX,
   WS_TOKEN_PROTOCOL_PREFIX,
   parseServerMessage,
   type ClientMessageInput,
@@ -94,7 +95,7 @@ class Client {
   }
 
   static async connect(query = '?v=1'): Promise<Client> {
-    const ws = new WebSocket(`${baseUrl.replace('http', 'ws')}/ws${query}`, [WS_SUBPROTOCOL, `${WS_TOKEN_PROTOCOL_PREFIX}${TOKEN}`], { origin: baseUrl })
+    const ws = new WebSocket(`${baseUrl.replace('http', 'ws')}/ws${query}`, [WS_SUBPROTOCOL, `${WS_TOKEN_PROTOCOL_PREFIX}${TOKEN}`, `${WS_KEY_PROTOCOL_PREFIX}${TOKEN}`], { origin: baseUrl })
     const client = new Client(ws)
     await new Promise((resolve, reject) => {
       ws.once('open', resolve)
@@ -242,6 +243,8 @@ describe.skipIf(!hasTmux())('session engine with a real tmux server', () => {
     expect(await attempt([WS_SUBPROTOCOL], baseUrl)).toBe(401)
     expect(await attempt([WS_SUBPROTOCOL, `${WS_TOKEN_PROTOCOL_PREFIX}wrong`], baseUrl)).toBe(401)
     expect(await attempt([WS_SUBPROTOCOL, `${WS_TOKEN_PROTOCOL_PREFIX}${TOKEN}`], 'http://evil.example')).toBe(403)
+    expect(await attempt([WS_SUBPROTOCOL, `${WS_TOKEN_PROTOCOL_PREFIX}${TOKEN}`], baseUrl)).toBe(401)
+    expect(await attempt([WS_SUBPROTOCOL, `${WS_TOKEN_PROTOCOL_PREFIX}${TOKEN}`, `${WS_KEY_PROTOCOL_PREFIX}wrong`], baseUrl)).toBe(401)
     const unauthenticated = await fetch(`${baseUrl}${API_ROUTES.sessions}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'origin': baseUrl },

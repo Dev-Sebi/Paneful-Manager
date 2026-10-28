@@ -237,12 +237,15 @@ check "linger enabled" contains "$STUB_LOG" "loginctl enable-linger tester"
 check "health check called" contains "$STUB_LOG" "curl -fsS --max-time 5 http://127.0.0.1:7337/api/health"
 check "non-WSL warning shown" contains "$OUT" "does not look like WSL"
 check "install explains where the login URL comes from" contains "$OUT" "install.sh --login-url"
-install_sh_fails --login-url
-check "--login-url without a key explains why" contains "$OUT" "No access key yet"
-printf 'test-access-key-0123456789abcdefghijkl\n' >"$STATE/access-key"
+check "install wrote a one-time login code" test -f "$STATE/login-code"
 install_sh --login-url
-check "--login-url prints the URL with the key and port" contains "$OUT" "^  http://127.0.0.1:7337/#key=test-access-key-0123456789abcdefghijkl$"
-rm -f "$STATE/access-key"
+code=$(cut -d' ' -f1 "$STATE/login-code")
+check "--login-url prints a URL with a new one-time code and the port" contains "$OUT" "^  http://127.0.0.1:7337/#login=$code$"
+check "login code is 64 hex characters" test "${#code}" -eq 64
+check "login code file is 0600" test "$(stat -c %a "$STATE/login-code")" = 600
+check "login code expires in 10 minutes" test "$(cut -d' ' -f2 "$STATE/login-code")" -gt "$(($(date +%s) + 590))"
+check "--login-url never prints the access key" not_contains "$OUT" "#key="
+rm -f "$STATE/login-code"
 
 # ---------- re-run is a no-op ----------
 

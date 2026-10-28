@@ -33,7 +33,7 @@ journalctl --user -u agent-hub -n 50
 
 ## Requests fail with 401 or 403
 
-The server checks the Host header, the Origin header, the access key and a per-start token. See [Security model](architecture.md#security-model).
+The server checks the Host header, the Origin header, the browser's login (or the access key for scripts) and a per-start token. See [Security model](architecture.md#security-model).
 
 API calls from a shell need the access key; pass it on stdin, so it never appears in a command line:
 
@@ -43,10 +43,11 @@ printf 'X-Agent-Hub-Key: %s\n' "$(cat ~/.local/state/agent-hub/access-key)" | cu
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| The app shows "Open the login URL once in this browser" | this browser has no access key for `http://127.0.0.1:<port>`, or the key was rotated | print the URL with `~/.local/share/agent-hub/current/install.sh --login-url` and open it in this browser. See [Login URL](install.md#login-url). |
-| 401 `login_required` ("Missing or invalid access key; open the login URL once") | the request has no `X-Agent-Hub-Key` header or an old key | the web app shows the login hint, see the row above. Scripts send the key from `~/.local/state/agent-hub/access-key` as shown above. |
-| `--login-url` prints `No access key yet` | the server has not started since the install | start it (`systemctl --user start agent-hub.service`) and run `--login-url` again. |
-| The app shows "Open Agent Hub at http://127.0.0.1:<port>/ instead" | the page was opened as `localhost` or `[::1]`; the app keeps the key only on `127.0.0.1`, because another local user can listen on `::1` with the same port | open `http://127.0.0.1:<port>/` and the login URL there. |
+| The app shows "Open a login URL in this browser to log in" | this browser has not logged in on `http://127.0.0.1:<port>`, its site data was cleared, or every browser was logged out | print a URL with `~/.local/share/agent-hub/current/install.sh --login-url` and open it in this browser within 10 minutes. See [Login URL](install.md#login-url). |
+| The app shows "This login URL was already used or has expired" | each login URL works once, for 10 minutes; reloading a tab with an old URL or opening it in a second browser fails | print a new one with `--login-url`. If you did not use it yourself, log every browser out (`rm ~/.local/state/agent-hub/devices.json`, restart `agent-hub.service`) and log in again. |
+| 401 `login_required` ("Not logged in; open a login URL ...") | the request has neither a valid session key of a logged-in browser nor the access key | the web app shows the login hint, see above. Scripts send the key from `~/.local/state/agent-hub/access-key` as shown above. |
+| After an upgrade every browser asks to log in again | older builds kept the access key in the browser; the app deletes it, the new login uses a device key | open a new login URL once per browser. |
+| The app shows "Open Agent Hub at http://127.0.0.1:<port>/ instead" | the page was opened as `localhost` or `[::1]`; the app logs in only on `127.0.0.1`, because another local user can listen on `::1` with the same port | open `http://127.0.0.1:<port>/` and the login URL there. |
 | 403 `Host not allowed` | the page is opened through a name or address other than `localhost` or `127.0.0.1` (for example a LAN IP) | open `http://127.0.0.1:<port>/`. |
 | 403 `Origin not allowed` | the request comes from another origin. Allowed origins are `http://localhost:<port>`, `http://127.0.0.1:<port>` and `http://[::1]:<port>`. | use the UI from one of these origins. In development the UI runs at `http://127.0.0.1:3000`; extra development origins are set with `AGENT_HUB_DEV_ORIGINS` and only work with `NODE_ENV=development`. |
 | 401 `Missing Origin or invalid token` on `POST`, `PUT`, `PATCH` or `DELETE` | the request has no `Origin` header, or its `X-Agent-Hub-Token` is missing or from an earlier server start | send `Origin: http://127.0.0.1:<port>`, the access key and the token from `GET /api/session-token` in `X-Agent-Hub-Token`. The token changes on every server restart. The web app fetches a new one after a 401 or 403 on its own; reload the page if it does not. |
@@ -135,7 +136,7 @@ The status badge in the app bar shows `Disconnected` when the WebSocket is close
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | `Disconnected` stays, `curl` to `/api/health` fails | the server is not running, or the distro was stopped | `systemctl --user status agent-hub.service`; start it with `systemctl --user start agent-hub.service`. If WSL stopped, see [Keeping WSL running](install.md#keeping-wsl-running). |
-| `Disconnected` stays, `curl` to `/api/health` works | the browser uses another port or origin than the server, or has no access key for this origin | open the login URL (`install.sh --login-url`), which uses the port from `config.yaml` or `AGENT_HUB_PORT`. |
+| `Disconnected` stays, `curl` to `/api/health` works | the browser uses another port or origin than the server, or has not logged in on this origin | open a login URL (`install.sh --login-url`), which uses the port from `config.yaml` or `AGENT_HUB_PORT`. |
 | The connection stops with a `protocol_mismatch` error (WebSocket close code 4001) | the web app and the server speak different protocol versions, for example after a partial update | reload the page. If it persists, re-run the installer so both come from the same release. The server reports its protocol version in the error message. |
 | `Disconnected` stays and the UI cannot connect | the session token cannot be fetched from `GET /api/session-token`, for example because of a 403 from the Host, Origin or cross-site check | see [Requests fail with 401 or 403](#requests-fail-with-401-or-403). |
 

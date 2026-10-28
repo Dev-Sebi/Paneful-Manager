@@ -1,8 +1,23 @@
-import { ACCESS_KEY_HEADER, API_ROUTES, ApiErrorSchema, DEFAULT_CONFIG, SessionTokenResponseSchema } from '@agent-hub/shared'
+import {
+  ACCESS_KEY_HEADER,
+  API_ROUTES,
+  ApiErrorSchema,
+  AuthChallengeResponseSchema,
+  AuthSessionResponseSchema,
+  DEFAULT_CONFIG,
+  RegisterDeviceResponseSchema,
+  SessionTokenResponseSchema,
+} from '@agent-hub/shared'
 import type { FastifyInstance, InjectOptions } from 'fastify'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { pino } from 'pino'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../app.js'
+import { DeviceAuth, resetDevices } from './device-auth.js'
+import { createLoginCode } from './login-code.js'
+import { createTestDevice } from './test-helpers.js'
 
 const TOKEN = 'per-boot-test-token'
 const KEY = 'persisted-access-key'
@@ -258,5 +273,88 @@ describe('security headers', () => {
     const response = await send(build(), 'GET', '/index.html', {})
     expect(response.headers['x-content-type-options']).toBe('nosniff')
     expect(response.headers['cache-control']).toBeUndefined()
+  })
+})
+
+describe('device login', () => {
+  let stateDir: string | undefined
+
+  afterEach(async () => {
+    if (stateDir !== undefined) {
+      await rm(stateDir, { recursive: true, force: true })
+    }
+    stateDir = undefined
+  })
+
+  async function buildWithDevices(): Promise<{ target: FastifyInstance, dir: string }> {
+    const dir = await mkdtemp(join(tmpdir(), 'agent-hub-login-'))
+    stateDir = dir
+    app = buildApp({ config: DEFAULT_CONFIG, logger: pino({ level: 'silent' }), sessionToken: TOKEN, accessKey: KEY, deviceAuth: new DeviceAuth(dir), dev: false })
+    app.get('/api/test-read', () => ({ secret: 'data' }))
+    return { target: app, dir }
+  }
+
+  /** Browser-like request: same origin, no access key, no per-boot token. */
+  function fromBrowser(target: FastifyInstance, method: InjectOptions['method'], url: string, body?: object, headers: Record<string, string> = {}) {
+    return target.inject({ method, url, headers: { host: HOST, origin: ORIGIN, ...headers }, ...(body === undefined ? {} : { payload: body }) })
+  }
+
+  async function logIn(target: FastifyInstance, dir: string): Promise<string> {
+    const device = await createTestDevice()
+    const code = await createLoginCode(dir)
+    const { deviceId } = RegisterDeviceResponseSchema.parse((await fromBrowser(target, 'POST', API_ROUTES.authRegister, { code, publicKey: device.publicKey })).json())
+    const { nonce } = AuthChallengeResponseSchema.parse((await fromBrowser(target, 'GET', API_ROUTES.authChallenge)).json())
+    const signature = await device.sign(nonce)
+    return AuthSessionResponseSchema.parse((await fromBrowser(target, 'POST', API_ROUTES.authSession, { deviceId, nonce, signature })).json()).key
+  }
+
+  it('turns a login code and a signed nonce into a session key that opens the API', async () => {
+    const { target, dir } = await buildWithDevices()
+    const key = await logIn(target, dir)
+    expect(key).not.toBe(KEY)
+    const read = await fromBrowser(target, 'GET', '/api/test-read', undefined, { [ACCESS_KEY_HEADER]: key })
+    expect(read.json()).toEqual({ secret: 'data' })
+    const token = await fromBrowser(target, 'GET', API_ROUTES.sessionToken, undefined, { [ACCESS_KEY_HEADER]: key })
+    expect(SessionTokenResponseSchema.parse(token.json()).token).toBe(TOKEN)
+  })
+
+  it('refuses a session key from the next request on once every device was logged out', async () => {
+    const { target, dir } = await buildWithDevices()
+    const key = await logIn(target, dir)
+    await resetDevices(dir)
+    await expectError(await fromBrowser(target, 'GET', '/api/test-read', undefined, { [ACCESS_KEY_HEADER]: key }), 401, 'login_required')
+  })
+
+  it('still accepts the access key file for scripts and nothing made up', async () => {
+    const { target } = await buildWithDevices()
+    expect((await send(target, 'GET', '/api/test-read', {})).statusCode).toBe(200)
+    await expectError(await send(target, 'GET', '/api/test-read', { [ACCESS_KEY_HEADER]: 'k'.repeat(43) }), 401, 'login_required')
+  })
+
+  it('rejects a used login code, an unsigned session and a replayed nonce', async () => {
+    const { target, dir } = await buildWithDevices()
+    const device = await createTestDevice()
+    const code = await createLoginCode(dir)
+    const first = await fromBrowser(target, 'POST', API_ROUTES.authRegister, { code, publicKey: device.publicKey })
+    const { deviceId } = RegisterDeviceResponseSchema.parse(first.json())
+    await expectError(await fromBrowser(target, 'POST', API_ROUTES.authRegister, { code, publicKey: device.publicKey }), 401, 'login_required')
+    const { nonce } = AuthChallengeResponseSchema.parse((await fromBrowser(target, 'GET', API_ROUTES.authChallenge)).json())
+    await expectError(await fromBrowser(target, 'POST', API_ROUTES.authSession, { deviceId, nonce, signature: 'AAAA' }), 401, 'login_required')
+    const signed = { deviceId, nonce, signature: await device.sign(nonce) }
+    expect((await fromBrowser(target, 'POST', API_ROUTES.authSession, signed)).statusCode).toBe(200)
+    await expectError(await fromBrowser(target, 'POST', API_ROUTES.authSession, signed), 401, 'login_required')
+    await expectError(await fromBrowser(target, 'POST', API_ROUTES.authRegister, { code: 'short', publicKey: device.publicKey }), 400, 'validation_failed')
+  })
+
+  it('refuses cross-site login requests and rejected Origins', async () => {
+    const { target } = await buildWithDevices()
+    await expectError(await fromBrowser(target, 'GET', API_ROUTES.authChallenge, undefined, { 'sec-fetch-site': 'cross-site' }), 403, 'forbidden')
+    await expectError(await fromBrowser(target, 'GET', API_ROUTES.authChallenge, undefined, { origin: 'http://evil.example' }), 403, 'forbidden')
+  })
+
+  it('does not exist without device login, so the routes fail closed', async () => {
+    const target = build()
+    await expectError(await send(target, 'GET', API_ROUTES.authChallenge, { [ACCESS_KEY_HEADER]: undefined }), 401, 'login_required')
+    await expectError(await send(target, 'POST', API_ROUTES.authRegister, { [ACCESS_KEY_HEADER]: undefined, origin: ORIGIN }), 401, 'login_required')
   })
 })

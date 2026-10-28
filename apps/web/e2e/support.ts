@@ -1,5 +1,6 @@
 import type { APIRequestContext, Page } from '@playwright/test'
-import { readFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, request } from '@playwright/test'
@@ -24,6 +25,19 @@ export interface AppTabFixture {
 
 export function readPaths (): E2ePaths {
   return JSON.parse(readFileSync(join(tmpdir(), 'ah-e2e-paths.json'), 'utf8')) as E2ePaths
+}
+
+/** Writes a one-time login code into the server's state dir, as `pnpm login-url` does, and returns it. */
+export function createLoginCode (): string {
+  const code = randomBytes(32).toString('base64url')
+  const expiresAtSec = Math.floor(Date.now() / 1000) + 600
+  writeFileSync(join(readPaths().state, 'login-code'), `${code} ${expiresAtSec}\n`, { mode: 0o600 })
+  return code
+}
+
+/** Logs every browser out, as `pnpm login-url --reset` does. */
+export function resetDevices (): void {
+  rmSync(join(readPaths().state, 'devices.json'), { force: true })
 }
 
 export function hookToken (): string {

@@ -1,8 +1,10 @@
 # ADR 0013: Access key against other local users
 
-- Status: accepted
+- Status: accepted, amended by [ADR 0014](0014-device-login-against-origin-squatting.md) (browsers log in with a non-extractable device key and a one-time login code; the access key is for scripts only)
 - Date: 2026-10-28
 - Amends: [ADR 0005](0005-loopback-token-security.md)
+
+> Since ADR 0014 the login URL carries a one-time code (`#login=<code>`), not the access key, and no browser stores the key. The parts below about the browser storing the key describe the state before ADR 0014.
 
 ## Context
 
@@ -38,7 +40,7 @@ Every process's argv is readable by all local users in `/proc/<pid>/cmdline` (un
 - Rotating the key: delete `$STATE/access-key` and restart the server; every browser must log in again.
 - Script access to the API needs the header. Pass the key through stdin, not in `curl`'s arguments: `printf 'X-Agent-Hub-Key: %s\n' "$(cat ~/.local/state/agent-hub/access-key)" | curl -H @- ...` (`printf` is a shell builtin).
 - A script running in the owner's page (XSS) could read the key from `localStorage`. Such a script can already drive the API, and the CSP limits where it can send data (`connect-src`).
-- Residual: while Agent Hub is not running (boot, upgrade, crash), another local user can bind `127.0.0.1:<port>` and serve a page in the owner's origin, which can read the stored key. A browser tab left open or reopened in that window leaks it. Rotate the key (below) if that is suspected; a fix needs a key the page cannot read (for example a non-extractable WebCrypto key with a challenge), which is not implemented.
+- Residual (fixed by [ADR 0014](0014-device-login-against-origin-squatting.md)): while Agent Hub is not running (boot, upgrade, crash), another local user can bind `127.0.0.1:<port>` and serve a page in the owner's origin, which can read the stored key. A browser tab left open or reopened in that window leaks it.
 - Keys stored by builds before this change under `localhost` stay in that origin until the app is opened there once and deletes them; clear the site data of `http://localhost:<port>` to be sure.
 - Root and processes of the same user can still read the key; they are out of scope as in ADR 0005.
 - The hook token sits in the global environment of Agent Hub's own tmux server (socket `agent-hub`), so every pane there inherits it, also windows a user opens by hand. Only the same user can read it.
