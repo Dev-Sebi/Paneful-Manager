@@ -535,6 +535,7 @@ check "fallback installs node-pty" test -d "$HOME/nodeps/releases/v1.2.0/apps/se
 REAL_TMUX=$(command -v tmux)
 REAL_UNAME=$(command -v uname)
 mkdir -p "$T/darwin-bin" "$T/a&b"
+# shellcheck disable=SC2016
 printf '#!/bin/sh\nif [ "${1:-}" = -s ] || [ $# -eq 0 ]; then echo Darwin; else exec %s "$@"; fi\n' "$REAL_UNAME" >"$T/darwin-bin/uname"
 # Loaded agents are files in $STUB_DIR/launchd; 'launchctl print gui/<uid>' (the GUI domain) always exists.
 cat >"$T/darwin-bin/launchctl" <<'EOF'
@@ -547,6 +548,7 @@ case "$1" in
   bootout) rm -f "$STUB_DIR/launchd/${2##*/}" ;;
 esac
 EOF
+# shellcheck disable=SC2016
 printf '#!/bin/sh\nif [ "$1" = -V ]; then exec %s -V; fi\necho "tmux $*" >>"$STUB_LOG"\n' "$REAL_TMUX" >"$T/darwin-bin/tmux"
 chmod +x "$T/darwin-bin/"*
 LINUX_PATH=$PATH

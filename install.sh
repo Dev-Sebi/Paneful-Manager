@@ -133,6 +133,7 @@ normalize_path() {
   if realpath -m / >/dev/null 2>&1; then
     realpath -m -- "$1"
   elif command -v node >/dev/null 2>&1; then
+    # shellcheck disable=SC2016
     node -e '
       const fs = require("fs"), path = require("path")
       let rest = "", dir = path.resolve(process.argv[1])
@@ -607,6 +608,7 @@ resolve_release_api() {
       ;;
     *) rm -f "$json"; die "GitHub API request for $PANEFUL_MANAGER_REPO failed (HTTP $code)" ;;
   esac
+  # shellcheck disable=SC2016
   parsed=$(node -e '
     const release = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))
     const tag = String(release.tag_name || "")
