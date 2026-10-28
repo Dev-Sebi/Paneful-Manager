@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { BIND_HOST, HOOK_ENV, resolveStateDir, type AppConfig } from '@paneful-manager/shared'
 import type { FastifyBaseLogger } from 'fastify'
@@ -29,9 +28,9 @@ import { createTeamTemplateLauncher } from './team-templates/launch.js'
 import { TeamLaunchLedger } from './team-templates/ledger.js'
 import { createTeamTemplateStore } from './team-templates/store.js'
 import type { Tmux } from './tmux/tmux.js'
+import { RELEASE_VERSION } from './version.js'
 
-/** The release version lives in the root `package.json` (see docs/releasing.md); the workspace packages stay `0.0.0`. */
-export const RELEASE_VERSION = (createRequire(import.meta.url)('../../../package.json') as { version: string }).version
+export { RELEASE_VERSION }
 
 /** Backups live in `<stateDir>/backups` (see the file-write policy). */
 export const BACKUPS_DIR_NAME = 'backups'
