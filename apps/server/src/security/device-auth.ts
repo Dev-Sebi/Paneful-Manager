@@ -138,21 +138,6 @@ export class DeviceAuth {
     return { key, expiresInSec: SESSION_TTL_MS / 1000 }
   }
 
-  /** Records an answered nonce; refuses instead of forgetting one that could still be replayed. */
-  private markUsed(nonce: string, expiresAt: number): boolean {
-    const now = this.now()
-    for (const [entry, expiry] of this.usedNonces) {
-      if (expiry <= now) {
-        this.usedNonces.delete(entry)
-      }
-    }
-    if (this.usedNonces.has(nonce) || this.usedNonces.size >= MAX_USED_NONCES) {
-      return false
-    }
-    this.usedNonces.set(nonce, expiresAt)
-    return true
-  }
-
   /** True for an unexpired session key whose device is still registered. */
   async hasSession(key: string | undefined): Promise<boolean> {
     return (await this.sessionDevice(key)) !== undefined
@@ -184,6 +169,21 @@ export class DeviceAuth {
       this.known = { stamp, ids: new Set((await this.readDevices()).map(device => device.id)) }
     }
     return this.known.ids.has(deviceId)
+  }
+
+  /** Records an answered nonce; refuses instead of forgetting one that could still be replayed. */
+  private markUsed(nonce: string, expiresAt: number): boolean {
+    const now = this.now()
+    for (const [entry, expiry] of this.usedNonces) {
+      if (expiry <= now) {
+        this.usedNonces.delete(entry)
+      }
+    }
+    if (this.usedNonces.has(nonce) || this.usedNonces.size >= MAX_USED_NONCES) {
+      return false
+    }
+    this.usedNonces.set(nonce, expiresAt)
+    return true
   }
 
   private async readDevices(): Promise<Device[]> {
