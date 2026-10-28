@@ -46,6 +46,15 @@ describe('DeviceAuth', () => {
     expect(await auth.register(code, device.publicKey)).toBeUndefined()
   })
 
+  it('refuses a public key off the curve without spending the login code', async () => {
+    const device = await createTestDevice()
+    const y = Buffer.from(device.publicKey.y, 'base64url')
+    y[5] = (y[5] ?? 0) ^ 1
+    const code = await createLoginCode(dir, now)
+    expect(await auth.register(code, { ...device.publicKey, y: y.toString('base64url') })).toBeUndefined()
+    expect(await auth.register(code, device.publicKey)).toBeDefined()
+  })
+
   it('issues a session key for a signed nonce, once per nonce', async () => {
     const { id, device } = await registered()
     const nonce = auth.challenge()

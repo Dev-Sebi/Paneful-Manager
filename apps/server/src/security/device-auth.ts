@@ -68,6 +68,16 @@ function nonceExpiry(secret: Buffer, nonce: string): number | undefined {
   return Number.isSafeInteger(expiresAt) && tokenMatches(nonce, signNonce(secret, random, expiresAt)) ? expiresAt : undefined
 }
 
+/** True for a point on P-256; `createPublicKey` refuses anything else. */
+function isUsableKey(publicKey: DevicePublicKey): boolean {
+  try {
+    createPublicKey({ key: publicKey, format: 'jwk' })
+    return true
+  } catch {
+    return false
+  }
+}
+
 function verifySignature(publicKey: DevicePublicKey, nonce: string, signature: string): boolean {
   try {
     const key = createPublicKey({ key: publicKey, format: 'jwk' })
@@ -101,7 +111,8 @@ export class DeviceAuth {
   /** Registers the key when `code` is the pending login code; returns the device id, or undefined. */
   register(code: string, publicKey: DevicePublicKey): Promise<string | undefined> {
     const run = this.writes.then(async () => {
-      if (!(await consumeLoginCode(this.stateDir, code, this.now()))) {
+      // Checked before the code is spent, so a key that could never sign does not use up the login URL.
+      if (!isUsableKey(publicKey) || !(await consumeLoginCode(this.stateDir, code, this.now()))) {
         return undefined
       }
       const device: Device = { id: randomId(), publicKey, createdAt: new Date(this.now()).toISOString() }
