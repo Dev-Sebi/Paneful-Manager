@@ -52,7 +52,7 @@ printf 'X-Agent-Hub-Key: %s\n' "$(cat ~/.local/state/agent-hub/access-key)" | cu
 | 401 `Missing Origin or invalid token` on `POST`, `PUT`, `PATCH` or `DELETE` | the request has no `Origin` header, or its `X-Agent-Hub-Token` is missing or from an earlier server start | send `Origin: http://127.0.0.1:<port>`, the access key and the token from `GET /api/session-token` in `X-Agent-Hub-Token`. The token changes on every server restart. The web app fetches a new one after a 401 or 403 on its own; reload the page if it does not. |
 | 403 `Cross-site requests are not allowed` on `GET /api/session-token` | the request carries `Sec-Fetch-Site: cross-site` | open the UI directly in the browser, not from another site. |
 | 403 `Browser requests are not allowed on this route` on `POST /api/hooks` | the request carries an `Origin` header; the hook endpoint accepts only Claude Code | none. Claude Code sends no `Origin`. |
-| 401 `Invalid hook token` on `POST /api/hooks` | the `AGENT_HUB_HOOK_TOKEN` in the session's environment differs from `hook-token` in the state directory, for example because the file was replaced after the session started | restart that Claude session. Sessions keep the environment they were started with. |
+| 401 `Invalid hook token` on `POST /api/hooks` | the `AGENT_HUB_HOOK_TOKEN` in the session's environment differs from `hook-token` in the state directory: the token is renewed after an Agent Hub update and rotated when the hooks are installed or removed in Settings, which lists the affected sessions | restart that Claude session. Sessions keep the environment they were started with. |
 
 ## Hook status is not updating
 

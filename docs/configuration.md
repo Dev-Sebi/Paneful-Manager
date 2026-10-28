@@ -17,7 +17,8 @@ Related: [Install guide](install.md), [Troubleshooting](troubleshooting.md).
 | `~/.config/agent-hub/teams/<name>.yaml` | team templates (experimental), see [Team templates](#team-templates) | you, and the server through the team template API |
 | `~/.local/state/agent-hub/preset-launches.json` | preset name to the session ids it launched (autostart guard) | server |
 | `~/.local/state/agent-hub/team-launches.json` | team template launches whose lead session is still live | server |
-| `~/.local/state/agent-hub/hook-token` | hook token, mode `0600`, created once | server |
+| `~/.local/state/agent-hub/hook-token` | hook token, mode `0600`; renewed when the Agent Hub version changes and rotated when the hooks are installed or removed in Settings | server |
+| `~/.local/state/agent-hub/hook-token.version` | version that wrote `hook-token` | server |
 | `~/.local/state/agent-hub/tmux.conf` | tmux config for the Agent Hub tmux server | installer |
 | `~/.local/state/agent-hub/backups/<encoded-path>/<timestamp>` | backups of Claude settings, CLAUDE.md, skills and presets before they are overwritten or deleted (mode `0600`, last 20 per file, at most 50 MB in total) | server |
 | `$CLAUDE_CONFIG_DIR/settings.json` (default `~/.claude/settings.json`) | Claude Code settings; Agent Hub only adds or removes its own `hooks` entries | server, on hook install |

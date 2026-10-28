@@ -9,9 +9,12 @@ import {
   McpServerEntrySchema,
   McpServerNameSchema,
   RESERVED_MCP_NAMES,
+  MCP_MASKED_PLACEHOLDER as M,
   RemoveMcpServerRequestSchema,
   UpsertMcpServerRequestSchema,
+  maskMcpArgs,
   maskMcpEntry,
+  maskMcpUrl,
   toMcpScope,
   type McpServerEntry,
 } from './mcp.js'
@@ -97,6 +100,58 @@ describe('maskMcpEntry', () => {
       config: { transport: 'http', url: 'https://a.example/mcp', headers: { Authorization: 'Bearer secret' } },
     })
     expect(JSON.stringify(maskMcpEntry(http, true))).not.toContain('secret')
+  })
+})
+
+describe('maskMcpArgs', () => {
+  const token = `ghp_${'a'.repeat(36)}`
+
+  it.each([
+    [['--token=abc123'], ['--token=' + M]],
+    [['--api-key', 'abc123', '--port', '3000'], ['--api-key', M, '--port', '3000']],
+    [['-e', 'GITHUB_PERSONAL_ACCESS_TOKEN=abc123'], ['-e', 'GITHUB_PERSONAL_ACCESS_TOKEN=' + M]],
+    [['--env=GITHUB_TOKEN=abc123', '-e=API_KEY=abc123'], ['--env=GITHUB_TOKEN=' + M, '-e=API_KEY=' + M]],
+    [['--header', 'Authorization: Bearer abc123'], ['--header', 'Authorization: Bearer ' + M]],
+    [['--header=X-Api-Key: abc123'], ['--header=X-Api-Key: ' + M]],
+    [['postgresql://app:pa55@db.local:5432/main'], [`postgresql://app:${M}@db.local:5432/main`]],
+    [['--db=postgresql://app:pa55@db.local/main'], [`--db=postgresql://app:${M}@db.local/main`]],
+    [[token], [M]],
+    [['--password'], ['--password']],
+    [['--api-key', '--verbose'], ['--api-key', '--verbose']],
+  ])('masks %j', (args, expected) => {
+    expect(maskMcpArgs(args)).toEqual(expected)
+  })
+
+  it('keeps references, ordinary arguments and empty values visible', () => {
+    const args = ['-y', '@modelcontextprotocol/server-github', '--token=${GITHUB_TOKEN}', '--api-key', '$API_KEY', 'TOKEN=', '/home/user/project', 'https://example.com/docs']
+    expect(maskMcpArgs(args)).toEqual(args)
+  })
+
+  it('is stable when applied to masked output', () => {
+    const once = maskMcpArgs(['--token', 'abc123', 'Authorization: Bearer x1'])
+    expect(maskMcpArgs(once)).toEqual(once)
+  })
+})
+
+describe('maskMcpUrl', () => {
+  it.each([
+    ['https://user:pa55@mcp.example.com/sse', `https://user:${M}@mcp.example.com/sse`],
+    ['https://abc123token@mcp.example.com/', `https://${M}@mcp.example.com/`],
+    ['https://mcp.example.com/mcp?api_key=abc&region=eu&token=x#top', `https://mcp.example.com/mcp?api_key=${M}&region=eu&token=${M}#top`],
+    [`https://mcp.example.com/u/sk-${'b'.repeat(30)}/sse`, `https://mcp.example.com/u/${M}/sse`],
+  ])('masks %s', (url, expected) => {
+    expect(maskMcpUrl(url)).toBe(expected)
+  })
+
+  it.each(['https://mcp.example.com/mcp?region=eu', 'https://mcp.example.com/?token=${TOKEN}', '${BASE_URL}/mcp', 'https://${USER}:${PASS}@h/'])('keeps %s', url => {
+    expect(maskMcpUrl(url)).toBe(url)
+  })
+
+  it('masks args and url in entries', () => {
+    const stdio = McpServerEntrySchema.parse({ name: 's', scope: { kind: 'user' }, source: 'file', config: { transport: 'stdio', command: 'npx', args: ['--token', 'abc123'] } })
+    expect(JSON.stringify(maskMcpEntry(stdio, true))).not.toContain('abc123')
+    const http = McpServerEntrySchema.parse({ name: 'r', scope: { kind: 'user' }, source: 'file', config: { transport: 'http', url: 'https://mcp.example.com/?key=abc123' } })
+    expect(maskMcpEntry(http, true).config).toMatchObject({ url: `https://mcp.example.com/?key=${M}` })
   })
 })
 

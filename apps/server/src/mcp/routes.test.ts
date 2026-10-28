@@ -236,6 +236,47 @@ describe('MCP routes in CLI mode', () => {
     expect(fake.calls.filter(call => call.args[0] === '--version')).toHaveLength(1)
   })
 
+  it('writes entries with secrets in args or the URL to the file, masks them and keeps them on update', async () => {
+    const fake = createFakeRun('2.1.311')
+    const target = start(fake)
+    const user = { kind: 'user' }
+    const args = ['-y', 'server-github', '--token', SECRET, 'postgresql://app:pa55word@db.local/main']
+    const stdio = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'gh', scope: user, config: { transport: 'stdio', command: 'npx', args } } })
+    const savedStdio = UpsertMcpServerResponseSchema.parse(stdio.json())
+    expect(savedStdio.server).toMatchObject({ source: 'file', config: { args: ['-y', 'server-github', '--token', '<masked>', 'postgresql://app:<masked>@db.local/main'] } })
+    const url = `https://mcp.example.com/sse?api_key=${SECRET}&region=eu`
+    const http = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'remote', scope: user, config: { transport: 'http', url } } })
+    expect(UpsertMcpServerResponseSchema.parse(http.json()).server).toMatchObject({ source: 'file', config: { url: 'https://mcp.example.com/sse?api_key=<masked>&region=eu' } })
+    expect(fake.mcpCalls()).toEqual([])
+    expect(readJson(claudeJson())).toMatchObject({ mcpServers: { gh: { args }, remote: { url } } })
+
+    const list = await send(target, { method: 'GET', url: API_ROUTES.mcp })
+    expect(list.body).not.toContain(SECRET)
+    expect(list.body).not.toContain('pa55word')
+
+    // The edit form sends the masked values back unchanged; one argument is inserted before them.
+    const masked = savedStdio.server.config.transport === 'stdio' ? savedStdio.server.config.args : []
+    const kept = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'gh', scope: user, config: { transport: 'stdio', command: 'npx', args: ['--verbose', ...masked] } } })
+    expect(kept.statusCode).toBe(200)
+    const keptUrl = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'remote', scope: user, config: { transport: 'http', url: 'https://mcp.example.com/sse?api_key=<masked>&region=eu' } } })
+    expect(keptUrl.statusCode).toBe(200)
+    expect(readJson(claudeJson())).toMatchObject({ mcpServers: { gh: { args: ['--verbose', ...args] }, remote: { url } } })
+    expect(fake.mcpCalls()).toEqual([])
+    expect(JSON.stringify(fake.calls.map(call => call.args))).not.toContain(SECRET)
+
+    const unknown = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'remote', scope: user, config: { transport: 'http', url: 'https://other.example.com/?token=<masked>' } } })
+    expect(unknown.statusCode).toBe(400)
+    expect(ApiErrorSchema.parse(unknown.json()).message).toBe('The URL contains <masked> but no stored value matches; enter the value again')
+
+    // Moving the placeholder to a position that is not masked would return the stored secret in plain text.
+    for (const moved of [['--verbose', '<masked>'], ['<masked>', '--token', 'x'], ['-y', 'server-github', '--name', '<masked>']]) {
+      const leak = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'gh', scope: user, config: { transport: 'stdio', command: 'npx', args: moved } } })
+      expect(leak.statusCode).toBe(400)
+      expect(leak.body).not.toContain(SECRET)
+    }
+    expect(readJson(claudeJson())).toMatchObject({ mcpServers: { gh: { args: ['--verbose', ...args] } } })
+  })
+
   it('validates the name before any CLI call', async () => {
     const fake = createFakeRun('2.1.311')
     const target = start(fake)

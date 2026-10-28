@@ -19,6 +19,7 @@ import { createBackupStore } from '../files/backups.js'
 import { createLogger } from '../logger.js'
 import { registerSecurity } from '../security/register-security.js'
 import { createHookSettings } from './install.js'
+import { StaleHookSessions } from './stale.js'
 import { HOOK_BODY_LIMIT_BYTES, registerHooks, type HookTarget } from './routes.js'
 
 const PORT = 7337
@@ -162,6 +163,73 @@ describe('hook settings routes', () => {
   it('needs the per-boot token and an Origin like every mutation', async () => {
     expect((await app.inject({ method: 'POST', url: API_ROUTES.hooksInstall, headers: { host: HOST, [ACCESS_KEY_HEADER]: ACCESS_KEY } })).statusCode).toBe(401)
     expect((await app.inject({ method: 'POST', url: API_ROUTES.hooksInstall, headers: { host: HOST, origin: ORIGIN, [ACCESS_KEY_HEADER]: ACCESS_KEY } })).statusCode).toBe(401)
+  })
+})
+
+describe('hook token rotation', () => {
+  const browser = { host: HOST, origin: ORIGIN, [ACCESS_KEY_HEADER]: ACCESS_KEY, [SESSION_TOKEN_HEADER]: SESSION_TOKEN }
+  const NEW_TOKEN = 'n'.repeat(43)
+  let rotating: FastifyInstance
+  let current: string
+  let stale: StaleHookSessions
+
+  beforeEach(() => {
+    current = HOOK_TOKEN
+    const logger: FastifyBaseLogger = pino({ level: 'silent' })
+    stale = new StaleHookSessions(id => engine.known.has(id))
+    rotating = Fastify({ loggerInstance: logger })
+    registerSecurity(rotating, { getPort: () => PORT, token: SESSION_TOKEN, accessKey: ACCESS_KEY, dev: false })
+    registerHooks(rotating, {
+      getPort: () => PORT,
+      engine,
+      token: () => current,
+      stale,
+      settings: createHookSettings({
+        settingsPath: join(dir, 'rotating.json'),
+        backups: createBackupStore({ dir: join(dir, 'backups') }),
+        managedDir: join(dir, 'managed'),
+        staleSessions: () => stale.list(),
+        onChange: () => {
+          current = NEW_TOKEN
+          stale.mark(engine.known)
+          return Promise.resolve()
+        },
+      }),
+    })
+  })
+
+  afterEach(() => rotating.close())
+
+  function send(token: string, sessionId = SESSION_ID) {
+    return rotating.inject({
+      method: 'POST',
+      url: API_ROUTES.hooks,
+      headers: { host: HOST, 'content-type': 'application/json', [HOOK_TOKEN_HEADER]: token, [HOOK_SESSION_HEADER]: sessionId },
+      payload: JSON.stringify({ hook_event_name: 'Stop' }),
+    })
+  }
+
+  it('rejects the old token after an install, lists the session as stale and clears it on the new token', async () => {
+    expect((await send(HOOK_TOKEN)).statusCode).toBe(204)
+    const installed = HookChangeResponseSchema.parse((await rotating.inject({ method: 'POST', url: API_ROUTES.hooksInstall, headers: browser })).json())
+    expect(installed.status.staleSessions).toEqual([SESSION_ID])
+
+    expect((await send(HOOK_TOKEN)).statusCode).toBe(401)
+    expect(engine.applied).toEqual([[SESSION_ID, 'idle']])
+
+    expect((await send(NEW_TOKEN)).statusCode).toBe(204)
+    const status = await rotating.inject({ method: 'GET', url: API_ROUTES.hooksStatus, headers: { host: HOST, [ACCESS_KEY_HEADER]: ACCESS_KEY } })
+    expect(HookStatusSchema.parse(status.json()).staleSessions).toEqual([])
+  })
+
+  it('marks a known session that sends an old token, never an unknown one', async () => {
+    current = NEW_TOKEN
+    expect((await send(HOOK_TOKEN, 'unknown-session')).statusCode).toBe(401)
+    expect(stale.list()).toEqual([])
+    expect((await send(HOOK_TOKEN)).statusCode).toBe(401)
+    expect(stale.list()).toEqual([SESSION_ID])
+    engine.known.delete(SESSION_ID)
+    expect(stale.list()).toEqual([])
   })
 })
 

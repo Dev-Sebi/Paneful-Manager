@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { mkdir, rename, stat, writeFile } from 'node:fs/promises'
+import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
@@ -14,6 +14,7 @@ import {
 } from '@agent-hub/shared'
 import type { BaseLogger } from 'pino'
 import { AppError } from '../errors.js'
+import { removeStaleTempFiles } from '../files/temp-cleanup.js'
 import { expandHome } from '../paths.js'
 import { Tmux, TmuxSessionNotFoundError, TmuxUnavailableError, secretEnvCommands, tmuxEnv, tmuxName, type TmuxSessionInfo } from '../tmux/tmux.js'
 import { spawnPty as defaultSpawnPty, type PtyProcess, type SpawnPty } from './pty.js'
@@ -73,6 +74,7 @@ export interface SessionEngineOptions {
 
 /** tmux command file with the secret session env, sourced before every `new-session`. */
 export const SECRET_ENV_FILE = 'session-env.tmux'
+const SECRET_ENV_TEMP_PATTERN = /^session-env\.tmux\.[0-9a-f]+\.tmp$/
 
 export class UnknownSessionError extends AppError {
   constructor(id: string) {
@@ -142,6 +144,8 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
   /** Creates the state dir, re-adopts tmux sessions and starts exit polling. */
   async start(): Promise<void> {
     await this.store.init()
+    // A write interrupted before its rename leaves a temp copy of the secret env behind.
+    await removeStaleTempFiles(this.options.stateDir, SECRET_ENV_TEMP_PATTERN)
     await this.poll()
     this.schedulePoll()
   }
@@ -454,8 +458,12 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
     await mkdir(this.options.stateDir, { recursive: true, mode: 0o700 })
     const file = join(this.options.stateDir, SECRET_ENV_FILE)
     const temp = `${file}.${randomBytes(6).toString('hex')}.tmp`
-    await writeFile(temp, secretEnvCommands(env), { mode: 0o600, flag: 'wx' })
-    await rename(temp, file)
+    try {
+      await writeFile(temp, secretEnvCommands(env), { mode: 0o600, flag: 'wx' })
+      await rename(temp, file)
+    } finally {
+      await rm(temp, { force: true })
+    }
     return file
   }
 

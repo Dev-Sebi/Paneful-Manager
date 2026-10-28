@@ -63,6 +63,12 @@ Handlers carry no marker key. Agent Hub's handlers are identified by their exact
 - Header names are `X-Agent-Hub-Session-Id` and `X-Agent-Hub-Hook-Token`; sessions also get `AGENT_HUB_URL`. A wrong hook token is `401`; a request with both headers empty (Claude sessions not started by Agent Hub) is `204` and ignored.
 - Mapping as in the Decision table: `SessionStart` dropped (no `http` support), `SubagentStart` and `SubagentStop` change nothing, `elicitation_url_dialog` added to `waiting`, `SessionEnd` sets `idle` and triggers the exit poll. `mapHookEvent` in `packages/shared/src/hooks.ts` holds the table; install removes Agent Hub entries from events no longer listed.
 - `allowedHttpHookUrls` patterns are matched case-sensitively (the hook URL is always lower case); invalid managed settings files are reported as `settings_invalid`, hidden drop-ins are skipped.
-- The hook token file is created with `O_EXCL` (`wx`, mode 0600) and never truncated.
+- The hook token file is written to an `O_EXCL` temp file (`wx`, mode 0600) and renamed into place, never truncated. Creating or replacing it (missing or corrupt file) happens under the lock file `hook-token.lock` (exclusive create, holder `pid:nonce`, broken when its process is gone or it is older than 10 s), so concurrent server starts agree on one token. Temp files left by interrupted writes (`.hook-token.*.tmp`, `session-env.tmux.*.tmp`) older than 60 s are removed on start.
 - `Session` gains `stateSince`, set when `state` changes; `state` frames carry it.
 - Re-adopted sessions keep their original environment; they report status only if they were started with the current token and port.
+
+## Amendment (SEC-017, 2026-10-28)
+
+- Earlier builds passed the hook token in tmux's argv, readable by other local users. The token is now renewed when the installed version differs from `$STATE/hook-token.version` (a missing file counts as different), and rotated after an install or uninstall in Settings that changed the settings file.
+- Running sessions cannot receive a new environment. Their hooks fail closed with `401` (non-blocking for Claude Code; the session keeps its last state, the server is unaffected). The server lists them in `staleSessions` of `GET /api/hooks/status`, and Settings asks to restart them. New sessions get the current token because `session-env.tmux` is rewritten before every `new-session`.
+- A session id is visible in argv (`-e AGENT_HUB_SESSION_ID`), so any local user can make a known session appear in `staleSessions` by sending a wrong token; the next valid hook clears it. The list is a hint only and changes no state.

@@ -2,7 +2,10 @@ import { realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
+  MCP_MASKED_PLACEHOLDER,
+  maskMcpArgs,
   maskMcpEntry,
+  maskMcpUrl,
   type ListMcpServersQuery,
   type ListMcpServersResponse,
   type McpMode,
@@ -62,11 +65,61 @@ function canonical(path: string): string {
   }
 }
 
+/** Env and header values plus every argument or URL that holds a secret-looking part (see `maskMcpArgs`). */
 function secretsOf(config: McpServerConfig): string[] {
-  return Object.values(config.transport === 'stdio' ? config.env : config.headers)
+  if (config.transport === 'stdio') {
+    const masked = maskMcpArgs(config.args)
+    return [...Object.values(config.env), ...config.args.filter((arg, index) => masked[index] !== arg)]
+  }
+  return [...Object.values(config.headers), ...(maskMcpUrl(config.url) === config.url ? [] : [config.url])]
 }
 
-/** Applies `{ keep: true }` per key from the stored entry; keys left out of the request are dropped. */
+const reenter = (what: string): AppError =>
+  new AppError(`${what} contains ${MCP_MASKED_PLACEHOLDER} but no stored value matches; enter the value again`, 400, 'bad_request')
+
+/**
+ * An argument still holding the placeholder gets the stored argument it was masked from (same position first).
+ * The result must mask back to the request, so a stored secret cannot be moved to a position where it is shown.
+ */
+function unmaskArgs(args: string[], stored: string[] | undefined): string[] {
+  const storedArgs = stored ?? []
+  const masked = maskMcpArgs(storedArgs)
+  const restored = args.map((arg, index) => {
+    if (!arg.includes(MCP_MASKED_PLACEHOLDER)) {
+      return arg
+    }
+    if (masked[index] === arg && storedArgs[index] !== undefined) {
+      return storedArgs[index]
+    }
+    const candidates = new Set(storedArgs.filter((_, position) => masked[position] === arg))
+    if (candidates.size !== 1) {
+      throw reenter(`Argument ${index + 1}`)
+    }
+    return [...candidates][0] ?? arg
+  })
+  const remasked = maskMcpArgs(restored)
+  args.forEach((arg, index) => {
+    if (restored[index] !== arg && remasked[index] !== arg) {
+      throw reenter(`Argument ${index + 1}`)
+    }
+  })
+  return restored
+}
+
+function unmaskUrl(url: string, stored: string | undefined): string {
+  if (!url.includes(MCP_MASKED_PLACEHOLDER)) {
+    return url
+  }
+  if (stored === undefined || maskMcpUrl(stored) !== url) {
+    throw reenter('The URL')
+  }
+  return stored
+}
+
+/**
+ * Applies `{ keep: true }` per key from the stored entry (keys left out of the request are dropped) and puts stored
+ * values back where args or the URL still carry `MCP_MASKED_PLACEHOLDER` from a masked response.
+ */
 function resolveKeep(input: McpServerConfigInput, existing: McpServerConfig | undefined): McpServerConfig {
   const merge = (values: Record<string, string | { keep: true }>, stored: Record<string, string> | undefined, label: string) =>
     Object.fromEntries(Object.entries(values).map(([key, value]) => {
@@ -80,16 +133,17 @@ function resolveKeep(input: McpServerConfigInput, existing: McpServerConfig | un
       return [key, kept]
     }))
   if (input.transport === 'stdio') {
-    const stored = existing?.transport === 'stdio' ? existing.env : undefined
-    return { ...input, env: merge(input.env, stored, 'env') }
+    const stored = existing?.transport === 'stdio' ? existing : undefined
+    return { ...input, args: unmaskArgs(input.args, stored?.args), env: merge(input.env, stored?.env, 'env') }
   }
-  const stored = existing && existing.transport !== 'stdio' ? existing.headers : undefined
-  return { ...input, headers: merge(input.headers, stored, 'header') }
+  const stored = existing && existing.transport !== 'stdio' ? existing : undefined
+  return { ...input, url: unmaskUrl(input.url, stored?.url), headers: merge(input.headers, stored?.headers, 'header') }
 }
 
 /**
  * MCP servers across Claude Code's user, project and local scopes; writes go through `claude mcp` when possible.
- * Entries with env or header values are always written to the file, so no secret is ever a process argument.
+ * Entries with env or header values, or with secret-looking args or URL parts, are always written to the file, so no
+ * secret is ever a process argument.
  */
 export function createMcpService(options: McpServiceOptions): McpService {
   const { getScopes, env, logger, home = homedir() } = options
@@ -225,7 +279,7 @@ export function createMcpService(options: McpServiceOptions): McpService {
         const native = toNative(config, existingRaw)
         const secrets = secretsOf(config)
         const { mode: available } = await currentMode()
-        // `claude mcp add-json` takes the entry as an argument, readable by other local users in /proc/<pid>/cmdline.
+        // `claude mcp add-json` takes the entry as an argument, readable by other local users in /proc/<pid>/cmdline (SEC-016).
         const mode: McpMode = available === 'cli' && secrets.length === 0 ? 'cli' : 'file'
         if (mode === 'cli' && existingRaw !== undefined) {
           // No update subcommand exists: remove, add, and on failure put the old entry back.

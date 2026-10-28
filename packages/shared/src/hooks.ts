@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { API_ROUTES } from './api.js'
 import { BIND_HOST } from './defaults.js'
 import { PathSchema } from './scope.js'
-import type { SessionState } from './session.js'
+import { SessionIdSchema, type SessionState } from './session.js'
 
 /** Header carrying the persisted hook token on `POST /api/hooks`. */
 export const HOOK_TOKEN_HEADER = 'x-agent-hub-hook-token'
@@ -120,6 +120,8 @@ export const HookStatusSchema = z.strictObject({
   /** Installed and no setting found that blocks the hook requests. */
   statusAvailable: z.boolean(),
   reasons: z.array(HookBlockReasonSchema),
+  /** Running sessions started with an older hook token: they report no status until restarted. */
+  staleSessions: z.array(SessionIdSchema).default(() => []),
 })
 export type HookStatus = z.infer<typeof HookStatusSchema>
 

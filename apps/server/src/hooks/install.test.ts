@@ -2,7 +2,7 @@ import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { HOOK_EVENTS, HOOK_NOTIFICATION_MATCHER, hookUrl } from '@agent-hub/shared'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../errors.js'
 import { createBackupStore, type BackupStore } from '../files/backups.js'
 import { createHookSettings, getHookStatus, hookHandler, installHooks, resolveClaudeSettingsPath, uninstallHooks } from './install.js'
@@ -186,7 +186,7 @@ describe('getHookStatus', () => {
   it('reports missing, installed and wrong-port states', async () => {
     expect(await status()).toMatchObject({ installed: false, portMatches: true, statusAvailable: false, reasons: [{ code: 'not_installed' }] })
     await install()
-    expect(await status()).toEqual({ settingsPath, installed: true, portMatches: true, installedEvents: [...HOOK_EVENTS], statusAvailable: true, reasons: [] })
+    expect(await status()).toEqual({ settingsPath, installed: true, portMatches: true, installedEvents: [...HOOK_EVENTS], statusAvailable: true, reasons: [], staleSessions: [] })
     expect(await status(8000)).toMatchObject({ installed: false, portMatches: false, reasons: [{ code: 'port_mismatch' }] })
   })
 
@@ -247,6 +247,18 @@ describe('createHookSettings', () => {
     const hooks = createHookSettings({ settingsPath, backups, managedDir })
     expect(await hooks.install(7337)).toMatchObject({ changed: true, status: { installed: true } })
     expect(await hooks.uninstall(7337)).toMatchObject({ changed: true, status: { installed: false } })
+  })
+
+  it('runs onChange only when the file changed and reports stale sessions', async () => {
+    const onChange = vi.fn(() => Promise.resolve())
+    const hooks = createHookSettings({ settingsPath, backups, managedDir, onChange, staleSessions: () => ['old-session'] })
+    expect(await hooks.install(7337)).toMatchObject({ changed: true, status: { staleSessions: ['old-session'] } })
+    expect(await hooks.install(7337)).toMatchObject({ changed: false })
+    expect(onChange).toHaveBeenCalledTimes(1)
+    await hooks.uninstall(7337)
+    await hooks.uninstall(7337)
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect((await hooks.status(7337)).staleSessions).toEqual(['old-session'])
   })
 
   it('resolves the settings path from CLAUDE_CONFIG_DIR', () => {
