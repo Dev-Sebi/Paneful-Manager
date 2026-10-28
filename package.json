@@ -21,7 +21,7 @@
     "release:pack": "sh scripts/release-pack.sh"
   },
   "devDependencies": {
-    "eslint": "^9.39.4",
+    "eslint": "^10.13.0",
     "eslint-config-vuetify": "^4.3.4",
     "prettier": "^3.6.2",
     "typescript": "~5.9.3",
