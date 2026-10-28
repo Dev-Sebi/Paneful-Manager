@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-          cache: pnpm
+      # No dependency cache: the pnpm store's side-effects cache could hand a restored pty.node into the release.
       - name: Install tmux
         run: sudo apt-get update && sudo apt-get install -y tmux
       - run: pnpm install --frozen-lockfile

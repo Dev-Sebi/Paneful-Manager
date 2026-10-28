@@ -71,6 +71,8 @@ if [ "$NO_DEPS" -eq 0 ]; then
   find "$PTY_DIR/build" -mindepth 1 -maxdepth 1 ! -name Release -exec rm -rf {} +
   find "$PTY_DIR/build/Release" -mindepth 1 -maxdepth 1 ! -name '*.node' ! -name spawn-helper -exec rm -rf {} +
   rm -f "$STAGE/$NAME/node_modules/.modules.yaml" "$STAGE/$NAME/node_modules/.pnpm-workspace-state"*.json
+  # The .bin shims are not used at runtime and embed the staging directory in NODE_PATH.
+  find "$STAGE/$NAME" -type d -name .bin -path '*/node_modules/.bin' -prune -exec rm -rf {} +
 fi
 
 mkdir -p "$OUT_DIR"
