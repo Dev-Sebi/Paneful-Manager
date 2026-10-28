@@ -110,6 +110,7 @@ describe('maskMcpArgs', () => {
     [['--token=abc123'], ['--token=' + M]],
     [['--api-key', 'abc123', '--port', '3000'], ['--api-key', M, '--port', '3000']],
     [['-e', 'GITHUB_PERSONAL_ACCESS_TOKEN=abc123'], ['-e', 'GITHUB_PERSONAL_ACCESS_TOKEN=' + M]],
+    [['--env=GITHUB_TOKEN=abc123', '-e=API_KEY=abc123'], ['--env=GITHUB_TOKEN=' + M, '-e=API_KEY=' + M]],
     [['--header', 'Authorization: Bearer abc123'], ['--header', 'Authorization: Bearer ' + M]],
     [['--header=X-Api-Key: abc123'], ['--header=X-Api-Key: ' + M]],
     [['postgresql://app:pa55@db.local:5432/main'], [`postgresql://app:${M}@db.local:5432/main`]],

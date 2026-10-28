@@ -151,8 +151,12 @@ function maskNamed(value: string): string {
   return MCP_MASKED_PLACEHOLDER
 }
 
-/** A value without a secret name of its own: `Name: value` headers, URLs and well-known token formats. */
+/** A value without a secret name of its own: `NAME=value` pairs, `Name: value` headers, URLs and well-known token formats. */
 function maskUnnamed(value: string): string {
+  const pair = /^([A-Za-z_][\w.-]*)=(.*)$/s.exec(value)
+  if (pair && SECRET_NAME.test(pair[1] ?? '')) {
+    return `${pair[1] ?? ''}=${maskNamed(pair[2] ?? '')}`
+  }
   const header = /^([A-Za-z][\w-]*):(?!\/\/)\s*(.+)$/s.exec(value)
   if (header && SECRET_NAME.test(header[1] ?? '')) {
     const secret = header[2] ?? ''
