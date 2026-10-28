@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Session } from '@agent-hub/shared'
 import { pino } from 'pino'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RunError } from '../process/exec.js'
 import { Tmux, type RunFn } from '../tmux/tmux.js'
 import { SessionEngine, type EngineClient } from './engine.js'
@@ -56,6 +56,8 @@ class FakeTmuxServer {
   onCapture: (() => void) | undefined
   /** When set, list-sessions waits for it before answering. */
   listGate: Promise<void> | undefined
+  /** When set, new-session waits for it before the session exists. */
+  newSessionGate: Promise<void> | undefined
 
   run: RunFn = async (_file, rawArgs) => {
     const args = rawArgs.slice(3)
@@ -71,6 +73,7 @@ class FakeTmuxServer {
         return { stdout: snapshot.map(([name, s]) => `${name}\t1793090986\t${s.path}\t${s.dead ? 1 : 0}\t${s.status ?? ''}\t\tsh`).join('\n'), stderr: '' }
       }
       case 'new-session': {
+        await this.newSessionGate
         this.sessions.set(args[args.indexOf('-s') + 1] ?? '', { dead: false, path: args[args.indexOf('-c') + 1] ?? '/' })
         return { stdout: '', stderr: '' }
       }
@@ -287,6 +290,31 @@ describe('SessionEngine', () => {
     const polling = engine.poll()
     const session = await engine.create({ cwd: dir, command: 'sh', args: [], cols: 80, rows: 24 })
     release()
+    await polling
+    expect(engine.get(session.id)?.lifecycle).toBe('running')
+    server.listGate = undefined
+    await engine.poll()
+    expect(engine.get(session.id)?.lifecycle).toBe('running')
+  })
+
+  it('does not drop a session whose tmux start finished after a listing was taken', async () => {
+    await engine.start()
+    let releaseNew = (): void => undefined
+    let releaseList = (): void => undefined
+    server.newSessionGate = new Promise(resolve => {
+      releaseNew = resolve
+    })
+    server.listGate = new Promise(resolve => {
+      releaseList = resolve
+    })
+    const calls = server.calls.length
+    const creating = engine.create({ cwd: dir, command: 'sh', args: [], cols: 80, rows: 24 })
+    await vi.waitFor(() => expect(server.calls.slice(calls).some(args => args[0] === 'new-session')).toBe(true))
+    const polling = engine.poll()
+    await vi.waitFor(() => expect(server.calls.slice(calls).some(args => args[0] === 'list-sessions')).toBe(true))
+    releaseNew()
+    const session = await creating
+    releaseList()
     await polling
     expect(engine.get(session.id)?.lifecycle).toBe('running')
     server.listGate = undefined
