@@ -1,5 +1,5 @@
 {
-  "name": "@agent-hub/web",
+  "name": "@paneful-manager/web",
   "private": true,
   "type": "module",
   "version": "0.0.0",
@@ -18,7 +18,7 @@
     "check:chunks": "tsx scripts/check-chunks.ts"
   },
   "dependencies": {
-    "@agent-hub/shared": "workspace:*",
+    "@paneful-manager/shared": "workspace:*",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@mdi/font": "7.4.47",

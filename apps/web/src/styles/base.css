@@ -18,15 +18,15 @@
 }
 
 code, kbd, pre, samp {
-  font-family: var(--ah-font-family-mono);
+  font-family: var(--pm-font-family-mono);
 }
 
 :root {
-  --v-font-body: var(--ah-font-family-ui);
-  --v-font-heading: var(--ah-font-family-ui);
+  --v-font-body: var(--pm-font-family-ui);
+  --v-font-heading: var(--pm-font-family-ui);
 }
 
 body {
-  font-size: var(--ah-font-size-md);
-  line-height: var(--ah-font-line-height-normal);
+  font-size: var(--pm-font-size-md);
+  line-height: var(--pm-font-line-height-normal);
 }

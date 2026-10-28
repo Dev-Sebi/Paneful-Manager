@@ -1,4 +1,4 @@
-import type { AppTab, TeamLaunch, TeamTemplate } from '@agent-hub/shared'
+import type { AppTab, TeamLaunch, TeamTemplate } from '@paneful-manager/shared'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '@/api/client'

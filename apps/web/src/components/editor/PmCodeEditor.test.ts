@@ -2,7 +2,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { createVuetify } from 'vuetify'
-import AhCodeEditor from './AhCodeEditor.vue'
+import PmCodeEditor from './PmCodeEditor.vue'
 
 interface FakeModel {
   uri: string | undefined
@@ -85,14 +85,14 @@ vi.mock('./monacoLoader', () => ({
 
 function mountEditor (props: Record<string, unknown> = {}) {
   const vuetify = createVuetify({ theme: { themes: { light: { dark: false }, dark: { dark: true } }, defaultTheme: 'light' } })
-  const wrapper = mount(AhCodeEditor, {
+  const wrapper = mount(PmCodeEditor, {
     props: { modelValue: 'text', ariaLabel: 'Editor', ...props },
     global: { plugins: [vuetify], stubs: { VProgressCircular: true } },
   })
   return { wrapper, vuetify }
 }
 
-describe('AhCodeEditor', () => {
+describe('PmCodeEditor', () => {
   it('shows a placeholder, then emits ready', async () => {
     const { wrapper } = mountEditor()
     expect(wrapper.find('[role="status"]').exists()).toBe(true)

@@ -10,7 +10,7 @@ import type {
   UpsertTeamTemplateRequest,
   WriteFileRequest,
   z,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import {
   API_ROUTES,
   ApiErrorSchema,
@@ -41,7 +41,7 @@ import {
   TeamTemplateResponseSchema,
   UpsertMcpServerResponseSchema,
   WriteFileResponseSchema,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import { authorizedFetch, loginRequired } from './access'
 import { getToken, refreshToken } from './token'
 

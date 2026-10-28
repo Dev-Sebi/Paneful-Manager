@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { TeamTemplateSchema } from '@agent-hub/shared'
+import { TeamTemplateSchema } from '@paneful-manager/shared'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTeamTemplatesStore } from './teamTemplates'

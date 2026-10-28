@@ -1,7 +1,7 @@
 import type { WsClient } from '@/api/ws'
-import type { ServerMessage, WsErrorCode } from '@agent-hub/shared'
+import type { ServerMessage, WsErrorCode } from '@paneful-manager/shared'
 import type { Ref } from 'vue'
-import { MAX_TERMINAL_SIZE } from '@agent-hub/shared'
+import { MAX_TERMINAL_SIZE } from '@paneful-manager/shared'
 import { getCurrentScope, onScopeDispose, readonly, ref } from 'vue'
 
 /** Resize frames are sent at most once per quiet period of this length. */

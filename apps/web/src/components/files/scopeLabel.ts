@@ -1,4 +1,4 @@
-import type { FileEntry, Scope } from '@agent-hub/shared'
+import type { FileEntry, Scope } from '@paneful-manager/shared'
 
 export type FilesMode = 'skills' | 'claude-md'
 

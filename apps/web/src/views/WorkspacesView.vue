@@ -1,7 +1,7 @@
 <template>
   <div class="workspaces">
     <template v-if="visibleTabs.length > 0">
-      <AhTabs
+      <PmTabs
         ariaLabel="Workspace tabs"
         closable
         :model-value="shownActiveId"
@@ -11,7 +11,7 @@
         @reorder="reorder"
         @update:model-value="select"
       >
-        <AhTab
+        <PmTab
           v-for="tab in visibleTabs"
           :key="tab.id"
           :dirty="tabs.dirty[tab.id]"
@@ -21,22 +21,22 @@
         />
 
         <template #append>
-          <AhButton
+          <PmButton
             v-if="activeTab && activeTab.panes.length > 1"
             prepend-icon="mdi-view-grid-outline"
             size="sm"
             variant="ghost"
             @click="resetLayout"
-          >Reset layout</AhButton>
+          >Reset layout</PmButton>
 
-          <AhButton prepend-icon="mdi-view-dashboard-outline" size="sm" variant="ghost" @click="presetsOpen = true">Presets</AhButton>
+          <PmButton prepend-icon="mdi-view-dashboard-outline" size="sm" variant="ghost" @click="presetsOpen = true">Presets</PmButton>
 
-          <AhButton prepend-icon="mdi-plus" size="sm" variant="ghost" @click="openCreate">New session</AhButton>
+          <PmButton prepend-icon="mdi-plus" size="sm" variant="ghost" @click="openCreate">New session</PmButton>
         </template>
-      </AhTabs>
+      </PmTabs>
 
-      <AhTabPanel v-for="tab in visibleTabs" :key="tab.id" class="workspaces__panel" :value="tab.id">
-        <AhSplitLayout
+      <PmTabPanel v-for="tab in visibleTabs" :key="tab.id" class="workspaces__panel" :value="tab.id">
+        <PmSplitLayout
           :ref="el => setLayoutRef(tab.id, el)"
           class="workspaces__layout"
           :layout="tab.layout"
@@ -53,7 +53,7 @@
                 :title="pane.placeholder.title"
               />
 
-              <AhTerminalPane
+              <PmTerminalPane
                 v-else-if="pane.sessionId"
                 :ref="el => setPaneRef(pane.sessionId, el)"
                 class="workspaces__pane"
@@ -74,25 +74,25 @@
               />
             </template>
           </template>
-        </AhSplitLayout>
-      </AhTabPanel>
+        </PmSplitLayout>
+      </PmTabPanel>
     </template>
 
     <div v-else class="workspaces__empty">
       <EmptyState icon="mdi-console" message="No sessions yet">
         <template #actions>
-          <AhButton prepend-icon="mdi-plus" @click="openCreate">New session</AhButton>
+          <PmButton prepend-icon="mdi-plus" @click="openCreate">New session</PmButton>
         </template>
       </EmptyState>
 
       <PresetsPanel />
     </div>
 
-    <AhDialog v-model="presetsOpen" size="lg" title="Presets">
+    <PmDialog v-model="presetsOpen" size="lg" title="Presets">
       <PresetsPanel @launched="presetsOpen = false" />
-    </AhDialog>
+    </PmDialog>
 
-    <AhDialog
+    <PmDialog
       v-model="createOpen"
       :loading="creating"
       title="New session"
@@ -123,21 +123,21 @@
       </div>
 
       <template #actions="{ cancel, confirm }">
-        <AhButton data-ah-cancel @click="cancel">Cancel</AhButton>
+        <PmButton data-pm-cancel @click="cancel">Cancel</PmButton>
 
-        <AhButton
-          data-ah-confirm
+        <PmButton
+          data-pm-confirm
           :disabled="!canCreate"
           :loading="creating"
           variant="primary"
           @click="confirm"
-        >Create</AhButton>
+        >Create</PmButton>
       </template>
-    </AhDialog>
+    </PmDialog>
 
-    <AhDialog
+    <PmDialog
       confirm-text="Close and kill sessions"
-      initial-focus="[data-ah-cancel]"
+      initial-focus="[data-pm-cancel]"
       :loading="closing.busy.value"
       :model-value="closing.pendingTabId.value !== undefined"
       title="Close tab?"
@@ -152,21 +152,21 @@
       </ul>
 
       <v-checkbox v-model="closing.dontAskAgain.value" density="compact" hide-details label="Don't ask again" />
-    </AhDialog>
+    </PmDialog>
   </div>
 </template>
 
 <script lang="ts" setup>
-  import type { AhSplitLayoutExpose, AhStatusBadgeState, AhTerminalPaneExpose, AhTerminalPaneMember } from '@/components/ah'
-  import type { AppTab } from '@agent-hub/shared'
-  import { DEFAULT_COMMAND } from '@agent-hub/shared'
+  import type { PmSplitLayoutExpose, PmStatusBadgeState, PmTerminalPaneExpose, PmTerminalPaneMember } from '@/components/pm'
+  import type { AppTab } from '@paneful-manager/shared'
+  import { DEFAULT_COMMAND } from '@paneful-manager/shared'
   import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { api } from '@/api/client'
   import { wsClient } from '@/api/ws'
-  import { AhButton, AhDialog, AhSplitLayout, AhTab, AhTabPanel, AhTabs } from '@/components/ah'
+  import { PmButton, PmDialog, PmSplitLayout, PmTab, PmTabPanel, PmTabs } from '@/components/pm'
   // Imported directly, not through the barrel, so xterm stays in the lazy Workspaces chunk.
-  import AhTerminalPane from '@/components/ah/AhTerminalPane.vue'
+  import PmTerminalPane from '@/components/pm/PmTerminalPane.vue'
   import EmptyState from '@/components/EmptyState.vue'
   import PanePlaceholder from '@/components/PanePlaceholder.vue'
   import PresetsPanel from '@/components/presets/PresetsPanel.vue'
@@ -212,12 +212,12 @@
       tabs.move(ids.indexOf(source.id), ids.indexOf(target.id))
     }
   }
-  const layoutRefs = new Map<string, AhSplitLayoutExpose>()
-  const paneRefs = new Map<string, AhTerminalPaneExpose>()
+  const layoutRefs = new Map<string, PmSplitLayoutExpose>()
+  const paneRefs = new Map<string, PmTerminalPaneExpose>()
 
   function setLayoutRef (tabId: string, el: unknown) {
     if (el) {
-      layoutRefs.set(tabId, el as AhSplitLayoutExpose)
+      layoutRefs.set(tabId, el as PmSplitLayoutExpose)
     } else {
       layoutRefs.delete(tabId)
     }
@@ -228,7 +228,7 @@
       return
     }
     if (el) {
-      paneRefs.set(sessionId, el as AhTerminalPaneExpose)
+      paneRefs.set(sessionId, el as PmTerminalPaneExpose)
     } else {
       paneRefs.delete(sessionId)
     }
@@ -264,7 +264,7 @@
   }
 
   /** Team member header data; only with `experimental.agentTeams` on. */
-  function paneMember (sessionId: string): AhTerminalPaneMember | undefined {
+  function paneMember (sessionId: string): PmTerminalPaneMember | undefined {
     if (!config.agentTeams) {
       return undefined
     }
@@ -313,7 +313,7 @@
     }
   }
 
-  function tabState (tab: AppTab): AhStatusBadgeState | undefined {
+  function tabState (tab: AppTab): PmStatusBadgeState | undefined {
     const first = tab.panes.find(pane => pane.sessionId !== undefined)?.sessionId
     return first ? sessions.byId.get(first)?.state : undefined
   }
@@ -353,8 +353,8 @@
 .workspaces__panel {
   flex: 1;
   min-height: 0;
-  padding: var(--ah-space-1);
-  background: var(--ah-color-bg-canvas);
+  padding: var(--pm-space-1);
+  background: var(--pm-color-bg-canvas);
 }
 
 /* `hidden` must keep winning over the flex layout of the active panel. */
@@ -371,8 +371,8 @@
   flex: 1;
   flex-direction: column;
   align-items: center;
-  gap: var(--ah-space-4);
-  padding: var(--ah-space-4);
+  gap: var(--pm-space-4);
+  padding: var(--pm-space-4);
   overflow-y: auto;
 }
 
@@ -381,12 +381,12 @@
 .workspaces__form {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-4);
-  padding-top: var(--ah-space-2);
+  gap: var(--pm-space-4);
+  padding-top: var(--pm-space-2);
 }
 
 .workspaces__sessions {
-  margin: var(--ah-space-2) 0;
-  padding-left: var(--ah-space-6);
+  margin: var(--pm-space-2) 0;
+  padding-left: var(--pm-space-6);
 }
 </style>

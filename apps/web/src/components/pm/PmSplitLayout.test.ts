@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-import type { Layout } from '@agent-hub/shared'
+import type { Layout } from '@paneful-manager/shared'
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { h } from 'vue'
 import { LAYOUT_SIZES_STORAGE_KEY, useLayoutSizesStore } from '@/stores/layoutSizes'
 import { mountWithVuetify } from '@/test/mount'
-import AhSplitLayout from './AhSplitLayout.vue'
+import PmSplitLayout from './PmSplitLayout.vue'
 
 enableAutoUnmount(afterEach)
 
@@ -17,7 +17,7 @@ function panes (count: number) {
 function mountLayout (layout: Layout, count: number, tabId = 'tab-1') {
   const pinia = createPinia()
   setActivePinia(pinia)
-  const wrapper = mountWithVuetify(AhSplitLayout, {
+  const wrapper = mountWithVuetify(PmSplitLayout, {
     props: { layout, panes: panes(count), tabId },
     slots: { pane: ({ index }: { index: number }) => h('div', { 'data-pane': index }, `Pane ${index}`) },
     global: { plugins: [pinia] },
@@ -34,7 +34,7 @@ beforeEach(() => {
   vi.useRealTimers()
 })
 
-describe('AhSplitLayout rendering', () => {
+describe('PmSplitLayout rendering', () => {
   it('renders a single pane without splitters', async () => {
     const wrapper = mountLayout({ kind: 'single' }, 1)
     await flushPromises()
@@ -94,7 +94,7 @@ describe('AhSplitLayout rendering', () => {
   })
 })
 
-describe('AhSplitLayout nesting', () => {
+describe('PmSplitLayout nesting', () => {
   it('labels nested splitters by their first pane', async () => {
     const wrapper = mountLayout({ kind: 'grid-2x2' }, 4)
     await flushPromises()
@@ -105,7 +105,7 @@ describe('AhSplitLayout nesting', () => {
   })
 })
 
-describe('AhSplitLayout sizes', () => {
+describe('PmSplitLayout sizes', () => {
   it('does not save a resized event without a pointer or key event', async () => {
     const wrapper = mountLayout({ kind: 'row' }, 2)
     await flushPromises()

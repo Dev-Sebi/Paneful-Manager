@@ -1,18 +1,18 @@
 /* eslint-disable @typescript-eslint/unified-signatures -- overloads mirror the spec contract one to one */
-import type { Layout } from '@agent-hub/shared'
+import type { Layout } from '@paneful-manager/shared'
 /** Contract types mirroring docs/design-system/components/<Name>/index.d.ts. */
 
 /** Visual emphasis of the button. */
-export type AhButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
+export type PmButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 /** Height: sm 24px, md 28px, lg 32px. */
-export type AhButtonSize = 'sm' | 'md' | 'lg'
+export type PmButtonSize = 'sm' | 'md' | 'lg'
 
-export interface AhButtonProps {
+export interface PmButtonProps {
   /** @default 'secondary' */
-  variant?: AhButtonVariant
+  variant?: PmButtonVariant
   /** @default 'md' */
-  size?: AhButtonSize
+  size?: PmButtonSize
   /** Native button type. @default 'button' */
   type?: 'button' | 'submit' | 'reset'
   /** @default false */
@@ -35,12 +35,12 @@ export interface AhButtonProps {
   block?: boolean
 }
 
-export interface AhButtonEmits {
+export interface PmButtonEmits {
   /** Not emitted while disabled or loading. */
   (e: 'click', event: MouseEvent | KeyboardEvent): void
 }
 
-export interface AhButtonSlots {
+export interface PmButtonSlots {
   /** Label content. */
   default?: () => unknown
   /** Replaces `prependIcon`. */
@@ -50,47 +50,47 @@ export interface AhButtonSlots {
 }
 
 /** Session state of an agent. */
-export type AhStatusBadgeState = 'working' | 'waiting' | 'error' | 'idle'
+export type PmStatusBadgeState = 'working' | 'waiting' | 'error' | 'idle'
 
 /** dot: 8px marker only (tabs, lists). label: marker + text pill. */
-export type AhStatusBadgeVariant = 'dot' | 'label'
+export type PmStatusBadgeVariant = 'dot' | 'label'
 
-export type AhStatusBadgeSize = 'sm' | 'md'
+export type PmStatusBadgeSize = 'sm' | 'md'
 
-export interface AhStatusBadgeProps {
-  state: AhStatusBadgeState
+export interface PmStatusBadgeProps {
+  state: PmStatusBadgeState
   /** @default 'label' */
-  variant?: AhStatusBadgeVariant
+  variant?: PmStatusBadgeVariant
   /** @default 'md' */
-  size?: AhStatusBadgeSize
+  size?: PmStatusBadgeSize
   /** Overrides the default text ('Working', 'Waiting for input', 'Error', 'Idle'). Used as aria-label for `dot`. */
   label?: string
   /** Announce state changes in a polite live region. @default false */
   announce?: boolean
 }
 
-export interface AhStatusBadgeEmits {
+export interface PmStatusBadgeEmits {
   /** Fired once the one-shot "waiting" pulse has finished (or immediately with reduced motion). */
   (e: 'attention-end'): void
 }
 
-export interface AhStatusBadgeSlots {
+export interface PmStatusBadgeSlots {
   /** Replaces the label text (variant 'label' only). */
   default?: () => unknown
 }
 
 /*
  * Id convention (wired by the components, never passed by hand):
- *   tab element:      id="ah-tab-<value>"       aria-controls="ah-tabpanel-<value>"
- *   AhTabPanel:       id="ah-tabpanel-<value>"  aria-labelledby="ah-tab-<value>"
+ *   tab element:      id="pm-tab-<value>"       aria-controls="pm-tabpanel-<value>"
+ *   PmTabPanel:       id="pm-tabpanel-<value>"  aria-labelledby="pm-tab-<value>"
  * `value` must be unique per page and contain only [A-Za-z0-9_-].
  */
 
-/* ---------- AhTabs (tablist container) ---------- */
+/* ---------- PmTabs (tablist container) ---------- */
 
-export type AhTabsDensity = 'compact' | 'default'
+export type PmTabsDensity = 'compact' | 'default'
 
-export interface AhTabsProps {
+export interface PmTabsProps {
   /** Value of the active tab (v-model). */
   modelValue?: string
   /** Accessible name of the tablist, e.g. 'Sessions'. */
@@ -102,43 +102,43 @@ export interface AhTabsProps {
   /** Shows the "new tab" button in the append area. @default false */
   addable?: boolean
   /** compact 28px, default 32px tab height. @default 'default' */
-  density?: AhTabsDensity
+  density?: PmTabsDensity
 }
 
-export interface AhTabsReorderPayload {
+export interface PmTabsReorderPayload {
   value: string
   from: number
   to: number
 }
 
-export interface AhTabsEmits {
+export interface PmTabsEmits {
   (e: 'update:modelValue', value: string): void
   /** Parent owns the order and applies the move. */
-  (e: 'reorder', payload: AhTabsReorderPayload): void
-  /** Parent decides; dirty tabs should be confirmed with AhDialog first. */
+  (e: 'reorder', payload: PmTabsReorderPayload): void
+  /** Parent decides; dirty tabs should be confirmed with PmDialog first. */
   (e: 'close', value: string): void
   (e: 'add'): void
 }
 
-export interface AhTabsSlots {
-  /** AhTab children. */
+export interface PmTabsSlots {
+  /** PmTab children. */
   default?: () => unknown
   /** Actions after the last tab (new tab, overflow menu); outside the tablist element. */
   append?: () => unknown
 }
 
-/* ---------- AhTab (one tab: wrapper li > tab element + close button) ---------- */
+/* ---------- PmTab (one tab: wrapper li > tab element + close button) ---------- */
 
-export interface AhTabProps {
-  /** Unique id; drives `ah-tab-<value>` / `ah-tabpanel-<value>`. */
+export interface PmTabProps {
+  /** Unique id; drives `pm-tab-<value>` / `pm-tabpanel-<value>`. */
   value: string
   /** Visible label; truncated with ellipsis, full text in tooltip. */
   title: string
   /** Optional session state shown as a dot badge before the title. */
-  status?: AhStatusBadgeState
+  status?: PmStatusBadgeState
   /** Unsaved or unacknowledged changes; shows a dot in place of the close icon. @default false */
   dirty?: boolean
-  /** Overrides AhTabs `closable`. */
+  /** Overrides PmTabs `closable`. */
   closable?: boolean
   /** @default false */
   disabled?: boolean
@@ -146,45 +146,45 @@ export interface AhTabProps {
   icon?: string
 }
 
-export interface AhTabEmits {
+export interface PmTabEmits {
   (e: 'close', value: string): void
 }
 
-export interface AhTabSlots {
+export interface PmTabSlots {
   /** Replaces icon / status badge. */
   prepend?: () => unknown
   /** Replaces the title text. */
   default?: () => unknown
 }
 
-/* ---------- AhTabPanel (content controlled by a tab) ---------- */
+/* ---------- PmTabPanel (content controlled by a tab) ---------- */
 
-export interface AhTabPanelProps {
-  /** Same value as the controlling AhTab. */
+export interface PmTabPanelProps {
+  /** Same value as the controlling PmTab. */
   value: string
   /** Keep the panel mounted while inactive (terminal panes must stay mounted). @default true */
   keepAlive?: boolean
 }
 
-export interface AhTabPanelSlots {
+export interface PmTabPanelSlots {
   default?: () => unknown
 }
 
 /** danger: destructive confirmation; title icon and confirm button use danger tokens. */
-export type AhDialogTone = 'default' | 'danger'
+export type PmDialogTone = 'default' | 'danger'
 
 /** Max width: sm 400px, md 560px, lg 800px. */
-export type AhDialogSize = 'sm' | 'md' | 'lg'
+export type PmDialogSize = 'sm' | 'md' | 'lg'
 
-export interface AhDialogProps {
+export interface PmDialogProps {
   /** Open state (v-model). */
   modelValue: boolean
   /** Visible heading; also the accessible name via aria-labelledby. */
   title: string
   /** @default 'default' */
-  tone?: AhDialogTone
+  tone?: PmDialogTone
   /** @default 'md' */
-  size?: AhDialogSize
+  size?: PmDialogSize
   /** Scrim click and Escape do not close; the blocked-close helper line shows and a headShake plays. @default false */
   persistent?: boolean
   /** Helper line shown under the title when a close is blocked. @default 'Finish or cancel the running action first' */
@@ -201,19 +201,19 @@ export interface AhDialogProps {
   closable?: boolean
 }
 
-export type AhDialogCloseReason = 'confirm' | 'cancel' | 'escape' | 'scrim' | 'close-button'
+export type PmDialogCloseReason = 'confirm' | 'cancel' | 'escape' | 'scrim' | 'close-button'
 
-export interface AhDialogEmits {
+export interface PmDialogEmits {
   (e: 'update:modelValue', value: boolean): void
   (e: 'confirm'): void
-  (e: 'cancel', reason: Exclude<AhDialogCloseReason, 'confirm'>): void
+  (e: 'cancel', reason: Exclude<PmDialogCloseReason, 'confirm'>): void
   /** Escape or scrim click on a persistent dialog. */
   (e: 'close-blocked'): void
   /** Leave animation finished; focus has returned to the opener. */
   (e: 'after-leave'): void
 }
 
-export interface AhDialogSlots {
+export interface PmDialogSlots {
   /** Body content. */
   default?: () => unknown
   /** Replaces the title text (keep it short). */
@@ -222,21 +222,21 @@ export interface AhDialogSlots {
   actions?: (props: { confirm: () => void, cancel: () => void }) => unknown
 }
 
-/* ---------- AhTerminalPane ---------- */
+/* ---------- PmTerminalPane ---------- */
 
 /** Connection lifecycle of the underlying PTY. */
-export type AhTerminalConnection = 'connecting' | 'connected' | 'exited' | 'failed'
+export type PmTerminalConnection = 'connecting' | 'connected' | 'exited' | 'failed'
 
 /**
  * 'vertical': vertical divider, new pane to the right (side by side).
  * 'horizontal': horizontal divider, new pane below (stacked).
  */
-export type AhTerminalSplitDirection = 'horizontal' | 'vertical'
+export type PmTerminalSplitDirection = 'horizontal' | 'vertical'
 
-export type AhTerminalCursorStyle = 'block' | 'bar' | 'underline'
+export type PmTerminalCursorStyle = 'block' | 'bar' | 'underline'
 
 /** Agent-team member running in the pane. */
-export interface AhTerminalPaneMember {
+export interface PmTerminalPaneMember {
   name: string
   /** Shown as a label badge, e.g. 'Lead' or the agent type. */
   role: string
@@ -244,19 +244,19 @@ export interface AhTerminalPaneMember {
   others?: string[]
 }
 
-export interface AhTerminalPaneProps {
+export interface PmTerminalPaneProps {
   /** Backend session id the pane attaches to. */
   sessionId: string
   /** Header title, e.g. session or preset name. */
   title: string
   /** Working directory shown in the header (shortened with ~ for the home directory). */
   cwd?: string
-  /** Agent state shown as AhStatusBadge in the header. */
-  status?: AhStatusBadgeState
+  /** Agent state shown as PmStatusBadge in the header. */
+  status?: PmStatusBadgeState
   /** ISO time the session entered its current state; the header shows the elapsed time next to the state. */
   stateSince?: string
   /** 'exited' and 'failed' override the live binding; otherwise the binding decides. @default 'connecting' */
-  connection?: AhTerminalConnection
+  connection?: PmTerminalConnection
   /** Exit code shown in the exited overlay. */
   exitCode?: number
   /** Pane has keyboard focus within the split layout (controlled by the layout). @default false */
@@ -266,7 +266,7 @@ export interface AhTerminalPaneProps {
   /** Font size as a px number (xterm needs a number). Default: numeric value of token font.size.md (13). Allowed range 10..24. */
   fontSize?: number
   /** @default 'block' */
-  cursorStyle?: AhTerminalCursorStyle
+  cursorStyle?: PmTerminalCursorStyle
   /** @default true */
   cursorBlink?: boolean
   /** Lines kept in the scrollback buffer; matches the server's scrollback depth. @default 10000 */
@@ -276,27 +276,27 @@ export interface AhTerminalPaneProps {
   /** Hides the header (single-pane focus mode). @default false */
   hideHeader?: boolean
   /** Team member linked to the session; shows name and role badge in the header. */
-  member?: AhTerminalPaneMember
+  member?: PmTerminalPaneMember
 }
 
-export interface AhTerminalResizePayload {
+export interface PmTerminalResizePayload {
   cols: number
   rows: number
 }
 
-export interface AhTerminalStatePayload {
-  state: AhStatusBadgeState
+export interface PmTerminalStatePayload {
+  state: PmStatusBadgeState
   lifecycle: 'starting' | 'running' | 'exited'
   exitCode?: number
 }
 
-export interface AhTerminalPaneEmits {
+export interface PmTerminalPaneEmits {
   /** Pane received focus by click or keyboard. */
   (e: 'focus'): void
   /** Raw keyboard input for the PTY. Not emitted when readonly. */
   (e: 'input', data: string): void
-  (e: 'resize', payload: AhTerminalResizePayload): void
-  (e: 'split', direction: AhTerminalSplitDirection): void
+  (e: 'resize', payload: PmTerminalResizePayload): void
+  (e: 'split', direction: PmTerminalSplitDirection): void
   (e: 'toggle-maximize'): void
   /** User requested close; parent confirms if the agent is working or waiting. */
   (e: 'close'): void
@@ -305,20 +305,20 @@ export interface AhTerminalPaneEmits {
   /** OSC title change from the running program. */
   (e: 'title-change', title: string): void
   /** `state` frame received for this session. */
-  (e: 'state', payload: AhTerminalStatePayload): void
+  (e: 'state', payload: PmTerminalStatePayload): void
   /** The session was removed on the server. */
   (e: 'exited'): void
 }
 
-export interface AhTerminalPaneSlots {
+export interface PmTerminalPaneSlots {
   /** Extra header actions before split/maximize/close. */
   'header-actions'?: () => unknown
   /** Replaces the default overlay for connecting/exited/failed. */
-  'overlay'?: (props: { connection: AhTerminalConnection, exitCode?: number }) => unknown
+  'overlay'?: (props: { connection: PmTerminalConnection, exitCode?: number }) => unknown
 }
 
 /** Imperative API exposed via template ref. */
-export interface AhTerminalPaneExpose {
+export interface PmTerminalPaneExpose {
   write: (data: string) => void
   clear: () => void
   focus: () => void
@@ -327,9 +327,9 @@ export interface AhTerminalPaneExpose {
   getSelection: () => string
 }
 
-/* ---------- AhSplitLayout ---------- */
+/* ---------- PmSplitLayout ---------- */
 
-export interface AhSplitLayoutProps {
+export interface PmSplitLayoutProps {
   /** Arrangement to render; `custom` trees point at `panes[i]`. */
   layout: Layout
   /** Panes of the tab; `size` is the default weight for row and column layouts. */
@@ -338,12 +338,12 @@ export interface AhSplitLayoutProps {
   tabId: string
 }
 
-export interface AhSplitLayoutSlots {
+export interface PmSplitLayoutSlots {
   /** Content of one pane; `index` points into `panes`. */
   pane?: (props: { index: number }) => unknown
 }
 
-export interface AhSplitLayoutExpose {
+export interface PmSplitLayoutExpose {
   /** Drops the saved sizes of this tab and returns to the layout defaults. */
   resetSizes: () => void
 }

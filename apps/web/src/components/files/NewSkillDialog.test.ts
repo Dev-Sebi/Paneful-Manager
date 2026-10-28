@@ -32,7 +32,7 @@ async function type (value: string) {
 }
 
 async function confirm () {
-  document.querySelector<HTMLElement>('[data-ah-confirm]')?.click()
+  document.querySelector<HTMLElement>('[data-pm-confirm]')?.click()
   await flushPromises()
 }
 

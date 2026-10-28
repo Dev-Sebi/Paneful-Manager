@@ -1,13 +1,13 @@
 <template>
   <!-- TEMPORARY: editor showcase, remove with HelloWorld.vue -->
-  <section class="ah-editor-showcase">
-    <AhCodeEditor v-model="text" ariaLabel="SKILL.md sample" path="skills/review/SKILL.md" />
+  <section class="pm-editor-showcase">
+    <PmCodeEditor v-model="text" ariaLabel="SKILL.md sample" path="skills/review/SKILL.md" />
   </section>
 </template>
 
 <script lang="ts" setup>
   import { ref } from 'vue'
-  import AhCodeEditor from './AhCodeEditor.vue'
+  import PmCodeEditor from './PmCodeEditor.vue'
 
   const text = ref(`---
 name: review
@@ -22,7 +22,7 @@ Check the **diff** and report findings.
 </script>
 
 <style scoped>
-.ah-editor-showcase {
+.pm-editor-showcase {
   width: min(720px, 100%);
   height: 280px;
 }

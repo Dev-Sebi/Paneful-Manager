@@ -1,5 +1,5 @@
 <template>
-  <AhDialog
+  <PmDialog
     v-model="open"
     :loading="saving"
     size="lg"
@@ -52,7 +52,7 @@
             variant="outlined"
           />
 
-          <AhButton
+          <PmButton
             ariaLabel="Remove tab"
             :disabled="form.tabs.length === 1"
             icon="mdi-delete-outline"
@@ -107,7 +107,7 @@
             variant="outlined"
           />
 
-          <AhButton
+          <PmButton
             ariaLabel="Remove pane"
             :disabled="tab.panes.length === 1"
             icon="mdi-close"
@@ -118,18 +118,18 @@
         </div>
 
         <div>
-          <AhButton
+          <PmButton
             :disabled="tab.panes.length >= MAX_PANES_PER_TAB"
             prepend-icon="mdi-plus"
             size="sm"
             variant="ghost"
             @click="tab.panes.push(emptyPane())"
-          >Add pane</AhButton>
+          >Add pane</PmButton>
         </div>
       </fieldset>
 
       <div>
-        <AhButton prepend-icon="mdi-plus" size="sm" variant="ghost" @click="form.tabs.push(emptyTab())">Add tab</AhButton>
+        <PmButton prepend-icon="mdi-plus" size="sm" variant="ghost" @click="form.tabs.push(emptyTab())">Add tab</PmButton>
       </div>
 
       <ul v-if="issues.length > 0" class="preset-form__issues" role="alert">
@@ -140,18 +140,18 @@
     </form>
 
     <template #actions="{ cancel, confirm }">
-      <AhButton data-ah-cancel @click="cancel">Cancel</AhButton>
-      <AhButton data-ah-confirm :loading="saving" variant="primary" @click="confirm">Save</AhButton>
+      <PmButton data-pm-cancel @click="cancel">Cancel</PmButton>
+      <PmButton data-pm-confirm :loading="saving" variant="primary" @click="confirm">Save</PmButton>
     </template>
-  </AhDialog>
+  </PmDialog>
 </template>
 
 <script lang="ts" setup>
   import type { FormIssue, PresetForm, TabForm } from './presetForm'
-  import type { WorkspacePreset } from '@agent-hub/shared'
-  import { MAX_PANES_PER_TAB } from '@agent-hub/shared'
+  import type { WorkspacePreset } from '@paneful-manager/shared'
+  import { MAX_PANES_PER_TAB } from '@paneful-manager/shared'
   import { ref, watch } from 'vue'
-  import { AhButton, AhDialog } from '@/components/ah'
+  import { PmButton, PmDialog } from '@/components/pm'
   import { usePresetsStore } from '@/stores/presets'
   import { useUiStore } from '@/stores/ui'
   import { cloneForm, emptyForm, emptyPane, emptyTab, LAYOUT_OPTIONS, presetToForm, validateForm } from './presetForm'
@@ -216,45 +216,45 @@
 .preset-form {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-3);
-  padding-top: var(--ah-space-2);
+  gap: var(--pm-space-3);
+  padding-top: var(--pm-space-2);
 }
 
 .preset-form__tab {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-3);
+  gap: var(--pm-space-3);
   margin: 0;
-  padding: var(--ah-space-3);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
+  padding: var(--pm-space-3);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
 }
 
 .preset-form__legend {
-  padding: 0 var(--ah-space-1);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  padding: 0 var(--pm-space-1);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .preset-form__row {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
   align-items: start;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
 }
 
 .preset-form__pane {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr auto;
   align-items: start;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
 }
 
 .preset-form__issues {
   margin: 0;
-  padding-left: var(--ah-space-6);
-  color: var(--ah-color-status-error);
-  font-size: var(--ah-font-size-sm);
+  padding-left: var(--pm-space-6);
+  color: var(--pm-color-status-error);
+  font-size: var(--pm-font-size-sm);
 }
 
 @media (max-width: 640px) {

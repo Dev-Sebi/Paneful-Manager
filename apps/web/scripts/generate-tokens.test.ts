@@ -32,13 +32,13 @@ describe('generator', () => {
     const css = buildCss(collectTokens(fixture))
     const [plain, dark, light] = css.split('\n\n').slice(1)
     expect(plain).toMatch(/^:root \{/)
-    expect(plain).toContain('--ah-color-base: #111111;')
-    expect(plain).not.toContain('--ah-color-accent-default')
+    expect(plain).toContain('--pm-color-base: #111111;')
+    expect(plain).not.toContain('--pm-color-accent-default')
     expect(dark).toContain('.v-theme--dark')
-    expect(dark).toContain('--ah-color-accent-default: #111111;')
+    expect(dark).toContain('--pm-color-accent-default: #111111;')
     expect(light).toContain('.v-theme--light')
-    expect(light).toContain('--ah-color-accent-default: #eeeeee;')
-    expect(css.match(/--ah-color-base:/g)).toHaveLength(1)
+    expect(light).toContain('--pm-color-accent-default: #eeeeee;')
+    expect(css.match(/--pm-color-base:/g)).toHaveLength(1)
   })
 
   it('emits every Vuetify key of the real mapping for both themes', () => {
@@ -54,9 +54,9 @@ describe('generator', () => {
 
   it('formats easings, shadows and font stacks as CSS values', () => {
     const css = generate(readTokens())['tokens.css']!
-    expect(css).toMatch(/--ah-motion-easing-standard: cubic-bezier\(0\.2, 0, 0, 1\);/)
-    expect(css).toMatch(/--ah-shadow-2: 0px 4px 12px 0px #/)
-    expect(css).toMatch(/--ah-font-family-ui: Inter, system-ui, -apple-system, "Segoe UI"/)
+    expect(css).toMatch(/--pm-motion-easing-standard: cubic-bezier\(0\.2, 0, 0, 1\);/)
+    expect(css).toMatch(/--pm-shadow-2: 0px 4px 12px 0px #/)
+    expect(css).toMatch(/--pm-font-family-ui: Inter, system-ui, -apple-system, "Segoe UI"/)
   })
 
   it('emits xterm themes and numeric ts constants', () => {
@@ -70,7 +70,7 @@ describe('generator', () => {
 
   it('reports committed output as current and detects a change', () => {
     expect(findStale()).toEqual([])
-    const tmp = mkdtempSync(join(tmpdir(), 'ah-stale-'))
+    const tmp = mkdtempSync(join(tmpdir(), 'pm-stale-'))
     try {
       const changed = join(tmp, 'tokens.json')
       const root = readTokens()

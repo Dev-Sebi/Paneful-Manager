@@ -2,8 +2,8 @@
   <v-dialog
     :aria-describedby="isPlainBody() ? bodyId : undefined"
     :aria-labelledby="titleId"
-    class="ah-dialog"
-    content-class="ah-dialog__content"
+    class="pm-dialog"
+    content-class="pm-dialog__content"
     :model-value="modelValue"
     no-click-animation
     persistent
@@ -14,48 +14,48 @@
   >
     <div
       ref="panelRef"
-      class="ah-dialog__panel"
-      :class="[`ah-dialog__panel--${size}`, { 'animate__animated animate__headShake ah-dialog__panel--shake': shaking }]"
+      class="pm-dialog__panel"
+      :class="[`pm-dialog__panel--${size}`, { 'animate__animated animate__headShake pm-dialog__panel--shake': shaking }]"
       @animationend="shaking = false"
       @keydown="onKeydown"
     >
-      <header class="ah-dialog__header">
-        <v-icon v-if="tone === 'danger'" aria-hidden="true" class="ah-dialog__tone" icon="mdi-alert-circle-outline" />
-        <h2 :id="titleId" class="ah-dialog__title"><slot name="title">{{ title }}</slot></h2>
+      <header class="pm-dialog__header">
+        <v-icon v-if="tone === 'danger'" aria-hidden="true" class="pm-dialog__tone" icon="mdi-alert-circle-outline" />
+        <h2 :id="titleId" class="pm-dialog__title"><slot name="title">{{ title }}</slot></h2>
       </header>
 
-      <p class="ah-dialog__blocked" role="status">{{ blocked ? blockedMessage : '' }}</p>
+      <p class="pm-dialog__blocked" role="status">{{ blocked ? blockedMessage : '' }}</p>
 
       <div
         :id="bodyId"
         ref="bodyRef"
         :aria-busy="loading ? 'true' : undefined"
-        class="ah-dialog__body"
-        :class="{ 'ah-dialog__body--overflow': overflowing }"
+        class="pm-dialog__body"
+        :class="{ 'pm-dialog__body--overflow': overflowing }"
         @scroll="measure"
       >
         <slot />
       </div>
 
-      <footer v-if="confirmText || $slots.actions" class="ah-dialog__actions" :class="{ 'ah-dialog__actions--overflow': overflowing }">
+      <footer v-if="confirmText || $slots.actions" class="pm-dialog__actions" :class="{ 'pm-dialog__actions--overflow': overflowing }">
         <slot :cancel="() => requestClose('cancel')" :confirm="confirm" name="actions">
-          <AhButton data-ah-cancel @click="requestClose('cancel')">{{ cancelText }}</AhButton>
+          <PmButton data-pm-cancel @click="requestClose('cancel')">{{ cancelText }}</PmButton>
 
-          <AhButton
-            data-ah-confirm
+          <PmButton
+            data-pm-confirm
             :loading="loading"
             :variant="tone === 'danger' ? 'danger' : 'primary'"
             @click="confirm"
           >
             {{ confirmText }}
-          </AhButton>
+          </PmButton>
         </slot>
       </footer>
 
-      <AhButton
+      <PmButton
         v-if="closable && !persistent"
         ariaLabel="Close"
-        class="ah-dialog__close"
+        class="pm-dialog__close"
         icon="mdi-close"
         size="sm"
         variant="ghost"
@@ -67,13 +67,13 @@
 
 <script lang="ts" setup>
   /* eslint-disable vue/custom-event-name-casing -- v-model event name is fixed by Vue */
-  import type { AhDialogCloseReason, AhDialogEmits, AhDialogProps, AhDialogSlots } from './types'
+  import type { PmDialogCloseReason, PmDialogEmits, PmDialogProps, PmDialogSlots } from './types'
   import { Comment, nextTick, onUpdated, ref, Text, useId, useSlots, watch } from 'vue'
-  import AhButton from './AhButton.vue'
+  import PmButton from './PmButton.vue'
 
   const FOCUSABLE = 'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
 
-  const props = withDefaults(defineProps<AhDialogProps>(), {
+  const props = withDefaults(defineProps<PmDialogProps>(), {
     tone: 'default',
     size: 'md',
     persistent: false,
@@ -85,8 +85,8 @@
     closable: true,
   })
 
-  const emit = defineEmits<AhDialogEmits>()
-  defineSlots<AhDialogSlots>()
+  const emit = defineEmits<PmDialogEmits>()
+  defineSlots<PmDialogSlots>()
   const slots = useSlots()
 
   const id = useId()
@@ -102,8 +102,8 @@
   let wasOpen = false
 
   const transition = {
-    enterActiveClass: 'animate__animated animate__fadeInDown ah-dialog--enter',
-    leaveActiveClass: 'animate__animated animate__fadeOut ah-dialog--leave',
+    enterActiveClass: 'animate__animated animate__fadeInDown pm-dialog--enter',
+    leaveActiveClass: 'animate__animated animate__fadeOut pm-dialog--leave',
   }
 
   function isPlainBody () {
@@ -128,7 +128,7 @@
     }
     const target = (props.initialFocus ? panel.querySelector<HTMLElement>(props.initialFocus) : null)
       ?? bodyRef.value?.querySelector<HTMLElement>(FOCUSABLE)
-      ?? panel.querySelector<HTMLElement>(props.tone === 'danger' ? '[data-ah-cancel]' : '[data-ah-confirm]')
+      ?? panel.querySelector<HTMLElement>(props.tone === 'danger' ? '[data-pm-cancel]' : '[data-pm-confirm]')
     if (target) {
       target.focus()
     } else {
@@ -166,7 +166,7 @@
     void onToggle(open)
   }, { flush: 'sync', immediate: true })
 
-  function requestClose (reason: Exclude<AhDialogCloseReason, 'confirm'>) {
+  function requestClose (reason: Exclude<PmDialogCloseReason, 'confirm'>) {
     if (props.persistent || props.loading) {
       blocked.value = true
       shaking.value = false
@@ -222,89 +222,89 @@
 </script>
 
 <style>
-.ah-dialog__content {
+.pm-dialog__content {
   align-items: center;
   max-height: 80vh;
   overflow: visible;
 }
 
-.ah-dialog .v-overlay__scrim {
-  background: var(--ah-color-bg-scrim);
-  opacity: var(--ah-opacity-scrim);
+.pm-dialog .v-overlay__scrim {
+  background: var(--pm-color-bg-scrim);
+  opacity: var(--pm-opacity-scrim);
 }
 
-.ah-dialog--enter { --animate-duration: var(--ah-motion-duration-slow); animation-timing-function: var(--ah-motion-easing-decelerate); }
-.ah-dialog--leave { --animate-duration: var(--ah-motion-duration-fast); animation-timing-function: var(--ah-motion-easing-accelerate); }
+.pm-dialog--enter { --animate-duration: var(--pm-motion-duration-slow); animation-timing-function: var(--pm-motion-easing-decelerate); }
+.pm-dialog--leave { --animate-duration: var(--pm-motion-duration-fast); animation-timing-function: var(--pm-motion-easing-accelerate); }
 </style>
 
 <style scoped>
-.ah-dialog__panel {
+.pm-dialog__panel {
   position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 560px;
   max-height: 80vh;
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-lg);
-  background: var(--ah-color-bg-elevated);
-  box-shadow: var(--ah-shadow-3);
-  color: var(--ah-color-fg-primary);
-  font-family: var(--ah-font-family-ui);
-  font-size: var(--ah-font-size-md);
-  line-height: var(--ah-font-line-height-normal);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-lg);
+  background: var(--pm-color-bg-elevated);
+  box-shadow: var(--pm-shadow-3);
+  color: var(--pm-color-fg-primary);
+  font-family: var(--pm-font-family-ui);
+  font-size: var(--pm-font-size-md);
+  line-height: var(--pm-font-line-height-normal);
   outline: none;
 }
 
-.ah-dialog__panel--sm { max-width: 400px; }
-.ah-dialog__panel--lg { max-width: 800px; }
+.pm-dialog__panel--sm { max-width: 400px; }
+.pm-dialog__panel--lg { max-width: 800px; }
 
-.ah-dialog__panel--shake { --animate-duration: var(--ah-motion-duration-slow); }
+.pm-dialog__panel--shake { --animate-duration: var(--pm-motion-duration-slow); }
 
-.ah-dialog__header {
+.pm-dialog__header {
   display: flex;
   align-items: center;
-  gap: var(--ah-space-2);
-  padding: var(--ah-space-4) var(--ah-space-6) var(--ah-space-2) var(--ah-space-4);
+  gap: var(--pm-space-2);
+  padding: var(--pm-space-4) var(--pm-space-6) var(--pm-space-2) var(--pm-space-4);
 }
 
-.ah-dialog__tone { color: var(--ah-color-danger-default); }
+.pm-dialog__tone { color: var(--pm-color-danger-default); }
 
-.ah-dialog__title {
+.pm-dialog__title {
   margin: 0;
-  font-size: var(--ah-font-size-lg);
-  font-weight: var(--ah-font-weight-semibold);
+  font-size: var(--pm-font-size-lg);
+  font-weight: var(--pm-font-weight-semibold);
 }
 
-.ah-dialog__blocked {
+.pm-dialog__blocked {
   margin: 0;
-  padding: 0 var(--ah-space-4);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  padding: 0 var(--pm-space-4);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
-.ah-dialog__blocked:empty { display: none; }
+.pm-dialog__blocked:empty { display: none; }
 
-.ah-dialog__body {
+.pm-dialog__body {
   flex: 1 1 auto;
-  padding: var(--ah-space-2) var(--ah-space-4);
+  padding: var(--pm-space-2) var(--pm-space-4);
   overflow-y: auto;
   border-top: 1px solid transparent;
   border-bottom: 1px solid transparent;
 }
 
-.ah-dialog__body--overflow { border-color: var(--ah-color-border-default); }
+.pm-dialog__body--overflow { border-color: var(--pm-color-border-default); }
 
-.ah-dialog__actions {
+.pm-dialog__actions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--ah-space-2);
-  padding: var(--ah-space-4);
+  gap: var(--pm-space-2);
+  padding: var(--pm-space-4);
 }
 
-.ah-dialog__close {
+.pm-dialog__close {
   position: absolute;
-  top: var(--ah-space-2);
-  right: var(--ah-space-2);
+  top: var(--pm-space-2);
+  right: var(--pm-space-2);
 }
 </style>

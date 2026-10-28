@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // @vitest-environment-options { "url": "http://127.0.0.1:7337/" }
 import type { DeviceStore, StoredDevice } from './device'
-import { API_ROUTES, type DevicePublicKey, deviceSignatureMessage } from '@agent-hub/shared'
+import { API_ROUTES, type DevicePublicKey, deviceSignatureMessage } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { jsonResponse } from '@/test/fixtures'
 import {
@@ -81,7 +81,7 @@ function fakeServer () {
       server.sessions.add(session)
       return jsonResponse({ key: session, expiresInSec: 900 })
     }
-    const presented = new Headers(init?.headers).get('x-agent-hub-key')
+    const presented = new Headers(init?.headers).get('x-paneful-key')
     server.apiKeys.push(presented)
     return presented !== null && server.sessions.has(presented) ? jsonResponse({ ok: true }) : refuse()
   }

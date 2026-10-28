@@ -4,11 +4,11 @@
       <h1 class="workbench__title">{{ title }}</h1>
 
       <div class="workbench__actions">
-        <AhButton ariaLabel="Refresh" icon="mdi-refresh" variant="ghost" @click="refresh" />
+        <PmButton ariaLabel="Refresh" icon="mdi-refresh" variant="ghost" @click="refresh" />
 
-        <AhButton v-if="mode === 'skills'" prepend-icon="mdi-plus" variant="primary" @click="openNewSkill">
+        <PmButton v-if="mode === 'skills'" prepend-icon="mdi-plus" variant="primary" @click="openNewSkill">
           New skill
-        </AhButton>
+        </PmButton>
       </div>
     </header>
 
@@ -67,12 +67,12 @@
 
 <script lang="ts" setup>
   import type { FilesMode } from './scopeLabel'
-  import type { CreateFileRequest, FileEntry, ManagedFileKind, Scope } from '@agent-hub/shared'
+  import type { CreateFileRequest, FileEntry, ManagedFileKind, Scope } from '@paneful-manager/shared'
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { onBeforeRouteLeave } from 'vue-router'
   import { ApiClientError } from '@/api/client'
   import { wsClient } from '@/api/ws'
-  import { AhButton } from '@/components/ah'
+  import { PmButton } from '@/components/pm'
   import EmptyState from '@/components/EmptyState.vue'
   import { useFilesStore } from '@/stores/files'
   import { useScopesStore } from '@/stores/scopes'
@@ -242,41 +242,41 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--ah-space-3);
+  gap: var(--pm-space-3);
   height: 100%;
   min-height: 0;
-  padding: var(--ah-space-4);
+  padding: var(--pm-space-4);
 }
 
 .workbench__toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--ah-space-3);
+  gap: var(--pm-space-3);
 }
 
 .workbench__title {
   margin: 0;
-  font-size: var(--ah-font-size-xl);
-  font-weight: var(--ah-font-weight-semibold);
+  font-size: var(--pm-font-size-xl);
+  font-weight: var(--pm-font-weight-semibold);
 }
 
 .workbench__actions {
   display: flex;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
 }
 
 .workbench__error {
   margin: 0;
-  color: var(--ah-color-status-error);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-status-error);
+  font-size: var(--pm-font-size-sm);
 }
 
 .workbench__body {
   display: grid;
   flex: 1;
   grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
-  gap: var(--ah-space-4);
+  gap: var(--pm-space-4);
   align-content: start;
   min-height: 0;
 }

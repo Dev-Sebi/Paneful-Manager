@@ -24,7 +24,7 @@ test('the login URL registers this browser, keeps no secret in localStorage and 
   expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.includes('access-key')))).toEqual([])
   // A string, because the e2e tsconfig has no DOM types.
   const extractable = await page.evaluate<boolean | undefined>(`new Promise(resolve => {
-    const open = indexedDB.open('agent-hub')
+    const open = indexedDB.open('paneful-manager')
     open.onsuccess = () => {
       const get = open.result.transaction('device').objectStore('device').get('current')
       get.onsuccess = () => resolve(get.result?.privateKey?.extractable)

@@ -1,4 +1,4 @@
-import type { Layout, LayoutNode, SplitDirection, SplitNode } from '@agent-hub/shared'
+import type { Layout, LayoutNode, SplitDirection, SplitNode } from '@paneful-manager/shared'
 
 export interface LayoutPaneInfo {
   size?: number

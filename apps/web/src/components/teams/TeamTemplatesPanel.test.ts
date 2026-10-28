@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { TeamTemplateSchema } from '@agent-hub/shared'
+import { TeamTemplateSchema } from '@paneful-manager/shared'
 import { flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -89,7 +89,7 @@ describe('TeamTemplatesPanel', () => {
     await wrapper.find('[aria-label="Delete alpha"]').trigger('click')
     await flushPromises()
     expect(api.deleteTeamTemplate).not.toHaveBeenCalled()
-    document.body.querySelector<HTMLElement>('[data-ah-confirm]')?.click()
+    document.body.querySelector<HTMLElement>('[data-pm-confirm]')?.click()
     await flushPromises()
     expect(api.deleteTeamTemplate).toHaveBeenCalledWith('alpha')
     expect(wrapper.text()).not.toContain('Review crew')
@@ -99,7 +99,7 @@ describe('TeamTemplatesPanel', () => {
     const { wrapper } = await mountPanel()
     await wrapper.findAll('button').find(button => button.text() === 'New template')?.trigger('click')
     await flushPromises()
-    document.body.querySelector<HTMLElement>('[data-ah-confirm]')?.click()
+    document.body.querySelector<HTMLElement>('[data-pm-confirm]')?.click()
     await flushPromises()
     expect(api.createTeamTemplate).not.toHaveBeenCalled()
     expect(document.body.querySelector('.team-template-form__issues')?.textContent).toContain('name')

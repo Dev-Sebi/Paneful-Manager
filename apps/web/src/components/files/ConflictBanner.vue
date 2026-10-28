@@ -4,11 +4,11 @@
     <p class="conflict-banner__text">{{ text }}</p>
 
     <div class="conflict-banner__actions">
-      <AhButton :disabled="busy" size="sm" @click="emit('reload')">Reload from disk</AhButton>
-      <AhButton :disabled="busy" size="sm" variant="danger" @click="confirming = true">Overwrite</AhButton>
+      <PmButton :disabled="busy" size="sm" @click="emit('reload')">Reload from disk</PmButton>
+      <PmButton :disabled="busy" size="sm" variant="danger" @click="confirming = true">Overwrite</PmButton>
     </div>
 
-    <AhDialog
+    <PmDialog
       v-model="confirming"
       confirm-text="Overwrite"
       title="Overwrite the file on disk?"
@@ -16,13 +16,13 @@
       @confirm="onConfirm"
     >
       Your version replaces the one on disk. The other changes are lost.
-    </AhDialog>
+    </PmDialog>
   </section>
 </template>
 
 <script lang="ts" setup>
   import { computed, ref } from 'vue'
-  import { AhButton, AhDialog } from '@/components/ah'
+  import { PmButton, PmDialog } from '@/components/pm'
 
   const props = defineProps<{
     kind: 'conflict' | 'changed' | 'removed'
@@ -56,24 +56,24 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ah-space-3);
-  padding: var(--ah-space-2) var(--ah-space-3);
-  border: 1px solid var(--ah-color-status-waiting);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-elevated);
+  gap: var(--pm-space-3);
+  padding: var(--pm-space-2) var(--pm-space-3);
+  border: 1px solid var(--pm-color-status-waiting);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-elevated);
 }
 
-.conflict-banner__icon { color: var(--ah-color-status-waiting); }
+.conflict-banner__icon { color: var(--pm-color-status-waiting); }
 
 .conflict-banner__text {
   flex: 1;
   min-width: 200px;
   margin: 0;
-  font-size: var(--ah-font-size-sm);
+  font-size: var(--pm-font-size-sm);
 }
 
 .conflict-banner__actions {
   display: flex;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
 }
 </style>

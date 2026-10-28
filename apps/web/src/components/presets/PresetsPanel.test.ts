@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { WorkspacePresetSchema } from '@agent-hub/shared'
+import { WorkspacePresetSchema } from '@paneful-manager/shared'
 import { flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -72,7 +72,7 @@ describe('PresetsPanel', () => {
     await wrapper.find('[aria-label="Delete alpha"]').trigger('click')
     await flushPromises()
     expect(api.deletePreset).not.toHaveBeenCalled()
-    const confirm = document.body.querySelector<HTMLElement>('[data-ah-confirm]')
+    const confirm = document.body.querySelector<HTMLElement>('[data-pm-confirm]')
     confirm?.click()
     await flushPromises()
     expect(api.deletePreset).toHaveBeenCalledWith('alpha')
@@ -84,7 +84,7 @@ describe('PresetsPanel', () => {
     const create = wrapper.findAll('button').find(button => button.text() === 'New preset')
     await create?.trigger('click')
     await flushPromises()
-    document.body.querySelector<HTMLElement>('[data-ah-confirm]')?.click()
+    document.body.querySelector<HTMLElement>('[data-pm-confirm]')?.click()
     await flushPromises()
     expect(api.createPreset).not.toHaveBeenCalled()
     expect(document.body.querySelector('.preset-form__issues')?.textContent).toContain('name')

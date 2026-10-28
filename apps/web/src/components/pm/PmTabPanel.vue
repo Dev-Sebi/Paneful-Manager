@@ -3,7 +3,7 @@
     :id="`${TABPANEL_ID_PREFIX}${value}`"
     ref="panelRef"
     :aria-labelledby="`${TAB_ID_PREFIX}${value}`"
-    class="ah-tab-panel"
+    class="pm-tab-panel"
     :hidden="!active"
     role="tabpanel"
     :tabindex="needsStop ? 0 : undefined"
@@ -13,15 +13,15 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhTabPanelProps, AhTabPanelSlots } from './types'
+  import type { PmTabPanelProps, PmTabPanelSlots } from './types'
   import { computed, onMounted, onUpdated, ref } from 'vue'
   import { selectedTabs, TAB_ID_PREFIX, TABPANEL_ID_PREFIX } from './tabState'
 
   const FOCUSABLE = 'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
 
-  const props = withDefaults(defineProps<AhTabPanelProps>(), { keepAlive: true })
+  const props = withDefaults(defineProps<PmTabPanelProps>(), { keepAlive: true })
 
-  defineSlots<AhTabPanelSlots>()
+  defineSlots<PmTabPanelSlots>()
 
   const panelRef = ref<HTMLElement>()
   const hasFocusable = ref(false)
@@ -40,5 +40,5 @@
 </script>
 
 <style scoped>
-.ah-tab-panel[hidden] { display: none; }
+.pm-tab-panel[hidden] { display: none; }
 </style>

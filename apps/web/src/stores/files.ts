@@ -1,6 +1,6 @@
 import type { WsEvents } from '@/api/ws'
-import type { CreateFileRequest, FileContent, FileEntry } from '@agent-hub/shared'
-import { FileConflictDetailsSchema, SkillDeleteBlockedDetailsSchema } from '@agent-hub/shared'
+import type { CreateFileRequest, FileContent, FileEntry } from '@paneful-manager/shared'
+import { FileConflictDetailsSchema, SkillDeleteBlockedDetailsSchema } from '@paneful-manager/shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api, ApiClientError } from '@/api/client'

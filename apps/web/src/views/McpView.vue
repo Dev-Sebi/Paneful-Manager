@@ -4,8 +4,8 @@
       <h1 class="mcp__title">MCP servers</h1>
       <span v-if="mcp.mode" class="mcp__mode">{{ modeText }}</span>
       <span class="mcp__spacer" />
-      <AhButton :loading="mcp.loading" prepend-icon="mdi-refresh" @click="reloadAll">Reload</AhButton>
-      <AhButton prepend-icon="mdi-plus" variant="primary" @click="openAdd()">Add server</AhButton>
+      <PmButton :loading="mcp.loading" prepend-icon="mdi-refresh" @click="reloadAll">Reload</PmButton>
+      <PmButton prepend-icon="mdi-plus" variant="primary" @click="openAdd()">Add server</PmButton>
     </header>
 
     <EmptyState
@@ -61,9 +61,9 @@
 </template>
 
 <script lang="ts" setup>
-  import type { McpScope, McpServerEntryMasked } from '@agent-hub/shared'
+  import type { McpScope, McpServerEntryMasked } from '@paneful-manager/shared'
   import { computed, nextTick, onMounted, ref } from 'vue'
-  import { AhButton } from '@/components/ah'
+  import { PmButton } from '@/components/pm'
   import EmptyState from '@/components/EmptyState.vue'
   import McpRemoveDialog from '@/components/mcp/McpRemoveDialog.vue'
   import McpScopeTree from '@/components/mcp/McpScopeTree.vue'
@@ -140,26 +140,26 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--ah-space-4);
+  gap: var(--pm-space-4);
   min-height: 0;
-  padding: var(--ah-space-4);
+  padding: var(--pm-space-4);
 }
 
 .mcp__toolbar {
   display: flex;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   align-items: center;
 }
 
 .mcp__title {
   margin: 0;
-  font-size: var(--ah-font-size-lg);
-  font-weight: var(--ah-font-weight-semibold);
+  font-size: var(--pm-font-size-lg);
+  font-weight: var(--pm-font-weight-semibold);
 }
 
 .mcp__mode {
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .mcp__spacer { flex: 1; }
@@ -168,20 +168,20 @@
   display: grid;
   flex: 1;
   grid-template-columns: minmax(240px, 1fr) 2fr;
-  gap: var(--ah-space-4);
+  gap: var(--pm-space-4);
   min-height: 0;
 }
 
 .mcp__tree,
 .mcp__detail {
-  padding: var(--ah-space-3);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-surface);
+  padding: var(--pm-space-3);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-surface);
 }
 
 .mcp__hint {
   margin: 0;
-  color: var(--ah-color-fg-muted);
+  color: var(--pm-color-fg-muted);
 }
 </style>

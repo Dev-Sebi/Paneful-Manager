@@ -3,12 +3,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 // @vitest-environment jsdom
 import { defineComponent, ref } from 'vue'
 import { mountWithVuetify } from '@/test/mount'
-import AhTab from './AhTab.vue'
-import AhTabPanel from './AhTabPanel.vue'
-import AhTabs from './AhTabs.vue'
+import PmTab from './PmTab.vue'
+import PmTabPanel from './PmTabPanel.vue'
+import PmTabs from './PmTabs.vue'
 
 const Harness = defineComponent({
-  components: { AhTab, AhTabPanel, AhTabs },
+  components: { PmTab, PmTabPanel, PmTabs },
   props: { closable: Boolean, reorderable: Boolean },
   emits: ['close', 'reorder'],
   setup (_, { emit }) {
@@ -21,20 +21,20 @@ const Harness = defineComponent({
     return { active, tabs, close, emit }
   },
   template: `
-    <AhTabs v-model="active" aria-label="Sessions" :closable="closable" :reorderable="reorderable" @close="close" @reorder="emit('reorder', $event)">
-      <AhTab v-for="v in tabs" :key="v" :value="v" :title="'Tab ' + v" :disabled="v === 'x'" />
-    </AhTabs>
-    <AhTabPanel v-for="v in tabs" :key="v" :value="v">Panel {{ v }}</AhTabPanel>
+    <PmTabs v-model="active" aria-label="Sessions" :closable="closable" :reorderable="reorderable" @close="close" @reorder="emit('reorder', $event)">
+      <PmTab v-for="v in tabs" :key="v" :value="v" :title="'Tab ' + v" :disabled="v === 'x'" />
+    </PmTabs>
+    <PmTabPanel v-for="v in tabs" :key="v" :value="v">Panel {{ v }}</PmTabPanel>
   `,
 })
 
 enableAutoUnmount(afterEach)
 
 function tab (wrapper: ReturnType<typeof mountWithVuetify>, value: string) {
-  return wrapper.get(`#ah-tab-${value}`)
+  return wrapper.get(`#pm-tab-${value}`)
 }
 
-describe('AhTabs', () => {
+describe('PmTabs', () => {
   it('wires the ARIA structure', () => {
     const wrapper = mountWithVuetify(Harness)
     const list = wrapper.get('ul[role="tablist"]')
@@ -43,14 +43,14 @@ describe('AhTabs', () => {
     expect(list.findAll(':scope > li[role="none"]')).toHaveLength(3)
     const a = tab(wrapper, 'a')
     expect(a.element.parentElement?.tagName).toBe('LI')
-    expect(a.attributes('aria-controls')).toBe('ah-tabpanel-a')
+    expect(a.attributes('aria-controls')).toBe('pm-tabpanel-a')
     expect(a.attributes('aria-selected')).toBe('true')
     expect(tab(wrapper, 'b').attributes('aria-selected')).toBe('false')
-    const panel = wrapper.get('#ah-tabpanel-a')
+    const panel = wrapper.get('#pm-tabpanel-a')
     expect(panel.attributes('role')).toBe('tabpanel')
-    expect(panel.attributes('aria-labelledby')).toBe('ah-tab-a')
+    expect(panel.attributes('aria-labelledby')).toBe('pm-tab-a')
     expect(panel.attributes('hidden')).toBeUndefined()
-    expect(wrapper.get('#ah-tabpanel-b').attributes('hidden')).toBeDefined()
+    expect(wrapper.get('#pm-tabpanel-b').attributes('hidden')).toBeDefined()
   })
 
   it('uses roving tabindex', () => {
@@ -63,26 +63,26 @@ describe('AhTabs', () => {
   it('moves and activates with arrows (wrapping), Home and End', async () => {
     const wrapper = mountWithVuetify(Harness)
     await tab(wrapper, 'a').trigger('keydown', { key: 'ArrowRight' })
-    expect(document.activeElement?.id).toBe('ah-tab-b')
+    expect(document.activeElement?.id).toBe('pm-tab-b')
     expect(tab(wrapper, 'b').attributes('aria-selected')).toBe('true')
     await tab(wrapper, 'b').trigger('keydown', { key: 'End' })
-    expect(document.activeElement?.id).toBe('ah-tab-c')
+    expect(document.activeElement?.id).toBe('pm-tab-c')
     await tab(wrapper, 'c').trigger('keydown', { key: 'ArrowRight' })
-    expect(document.activeElement?.id).toBe('ah-tab-a')
+    expect(document.activeElement?.id).toBe('pm-tab-a')
     await tab(wrapper, 'a').trigger('keydown', { key: 'ArrowLeft' })
-    expect(document.activeElement?.id).toBe('ah-tab-c')
+    expect(document.activeElement?.id).toBe('pm-tab-c')
     await tab(wrapper, 'c').trigger('keydown', { key: 'Home' })
-    expect(document.activeElement?.id).toBe('ah-tab-a')
+    expect(document.activeElement?.id).toBe('pm-tab-a')
   })
 
   it('closes with Delete and Backspace and focuses the next tab', async () => {
     const wrapper = mountWithVuetify(Harness, { props: { closable: true } })
-    document.querySelector<HTMLElement>('#ah-tab-a')?.focus()
+    document.querySelector<HTMLElement>('#pm-tab-a')?.focus()
     await tab(wrapper, 'a').trigger('keydown', { key: 'Delete' })
     expect(wrapper.emitted('close')?.[0]).toEqual(['a'])
-    expect(document.activeElement?.id).toBe('ah-tab-b')
+    expect(document.activeElement?.id).toBe('pm-tab-b')
     await tab(wrapper, 'b').trigger('keydown', { key: 'Backspace' })
-    expect(document.activeElement?.id).toBe('ah-tab-c')
+    expect(document.activeElement?.id).toBe('pm-tab-c')
   })
 
   it('does not close when tabs are not closable', async () => {
@@ -93,7 +93,7 @@ describe('AhTabs', () => {
 
   it('renders the close button as a sibling outside the tab with tabindex -1', () => {
     const wrapper = mountWithVuetify(Harness, { props: { closable: true } })
-    const close = wrapper.get('li button.ah-tab__close')
+    const close = wrapper.get('li button.pm-tab__close')
     expect(close.attributes('tabindex')).toBe('-1')
     expect(close.attributes('aria-hidden')).toBe('true')
     expect(tab(wrapper, 'a').attributes('aria-keyshortcuts')).toBe('Delete')
@@ -112,7 +112,7 @@ describe('AhTabs', () => {
   it('shows the matching panel on click', async () => {
     const wrapper = mountWithVuetify(Harness)
     await tab(wrapper, 'c').trigger('click')
-    expect(wrapper.get('#ah-tabpanel-c').attributes('hidden')).toBeUndefined()
-    expect(wrapper.get('#ah-tabpanel-a').attributes('hidden')).toBeDefined()
+    expect(wrapper.get('#pm-tabpanel-c').attributes('hidden')).toBeUndefined()
+    expect(wrapper.get('#pm-tabpanel-a').attributes('hidden')).toBeDefined()
   })
 })

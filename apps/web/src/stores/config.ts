@@ -1,4 +1,4 @@
-import type { AppConfig, PatchConfigRequest } from '@agent-hub/shared'
+import type { AppConfig, PatchConfigRequest } from '@paneful-manager/shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/api/client'

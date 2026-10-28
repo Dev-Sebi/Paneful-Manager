@@ -21,7 +21,7 @@ enableAutoUnmount(afterEach)
 const stubs = { global: { stubs: { transition: false } } }
 
 function dialogText () {
-  return document.querySelector('.ah-dialog__panel')?.textContent ?? ''
+  return document.querySelector('.pm-dialog__panel')?.textContent ?? ''
 }
 
 function field (label: string) {

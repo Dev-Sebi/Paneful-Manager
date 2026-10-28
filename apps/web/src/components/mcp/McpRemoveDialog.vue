@@ -1,5 +1,5 @@
 <template>
-  <AhDialog
+  <PmDialog
     v-model="open"
     confirm-text="Remove"
     :loading="removing"
@@ -14,13 +14,13 @@
       <p v-if="entry.config.transport !== 'stdio'">Stored OAuth tokens for this server are dropped; you have to sign in again after adding it back.</p>
       <p v-if="error" class="mcp-remove__error" role="alert">{{ error }}</p>
     </div>
-  </AhDialog>
+  </PmDialog>
 </template>
 
 <script lang="ts" setup>
-  import type { McpServerEntryMasked } from '@agent-hub/shared'
+  import type { McpServerEntryMasked } from '@paneful-manager/shared'
   import { ref } from 'vue'
-  import { AhDialog } from '@/components/ah'
+  import { PmDialog } from '@/components/pm'
   import { scopeLabel, useMcpStore } from '@/stores/mcp'
 
   const open = defineModel<boolean>({ required: true })
@@ -56,6 +56,6 @@
 </script>
 
 <style scoped>
-.mcp-remove p { margin: 0 0 var(--ah-space-2); }
-.mcp-remove__error { color: var(--ah-color-danger-default); }
+.mcp-remove p { margin: 0 0 var(--pm-space-2); }
+.mcp-remove__error { color: var(--pm-color-danger-default); }
 </style>

@@ -2,7 +2,7 @@
   <Splitpanes
     v-if="node.type === 'split'"
     ref="splitRef"
-    class="ah-split-node"
+    class="pm-split-node"
     :horizontal="node.direction === 'column'"
     :maximize-panes="false"
     @resized="onResized"
@@ -10,25 +10,25 @@
     <Pane
       v-for="(child, index) in node.children"
       :key="childKey(child, index)"
-      class="ah-split-node__pane"
+      class="pm-split-node__pane"
       :min-size="MIN_PANE_PERCENT"
       :size="sizes[index]"
     >
-      <AhSplitNode :node="child" :path="`${path}.${index}`" :tab-id="tabId" @resized="emit('resized')">
+      <PmSplitNode :node="child" :path="`${path}.${index}`" :tab-id="tabId" @resized="emit('resized')">
         <template #pane="slotProps">
           <slot name="pane" v-bind="slotProps" />
         </template>
-      </AhSplitNode>
+      </PmSplitNode>
     </Pane>
   </Splitpanes>
 
-  <div v-else class="ah-split-node__leaf">
+  <div v-else class="pm-split-node__leaf">
     <slot :index="node.pane" name="pane" />
   </div>
 </template>
 
 <script lang="ts" setup>
-  import type { LayoutNode } from '@agent-hub/shared'
+  import type { LayoutNode } from '@paneful-manager/shared'
   import type { SplitpanesResizedPayload } from 'splitpanes'
   import { Pane, Splitpanes } from 'splitpanes'
   import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -113,36 +113,36 @@
 </script>
 
 <style scoped>
-.ah-split-node__leaf {
+.pm-split-node__leaf {
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
 }
 
-.ah-split-node__pane {
+.pm-split-node__pane {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
 /* Splitpanes creates the splitters at runtime, so they carry no scope attribute. */
-.ah-split-node > :deep(.splitpanes__splitter) {
+.pm-split-node > :deep(.splitpanes__splitter) {
   flex: none;
   background: transparent;
-  transition: background-color var(--ah-motion-duration-fast) var(--ah-motion-easing-standard);
+  transition: background-color var(--pm-motion-duration-fast) var(--pm-motion-easing-standard);
 }
 
-.ah-split-node.splitpanes--vertical > :deep(.splitpanes__splitter) { width: var(--ah-space-1); }
-.ah-split-node.splitpanes--horizontal > :deep(.splitpanes__splitter) { height: var(--ah-space-1); }
+.pm-split-node.splitpanes--vertical > :deep(.splitpanes__splitter) { width: var(--pm-space-1); }
+.pm-split-node.splitpanes--horizontal > :deep(.splitpanes__splitter) { height: var(--pm-space-1); }
 
-.ah-split-node > :deep(.splitpanes__splitter:hover),
-.ah-split-node > :deep(.splitpanes__splitter:focus-visible) {
-  background: var(--ah-color-border-focus);
+.pm-split-node > :deep(.splitpanes__splitter:hover),
+.pm-split-node > :deep(.splitpanes__splitter:focus-visible) {
+  background: var(--pm-color-border-focus);
   outline: none;
 }
 
-.ah-split-node.splitpanes--ready > :deep(.splitpanes__pane) {
+.pm-split-node.splitpanes--ready > :deep(.splitpanes__pane) {
   transition: none;
 }
 </style>

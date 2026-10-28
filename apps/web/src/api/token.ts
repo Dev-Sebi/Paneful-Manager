@@ -1,4 +1,4 @@
-import { API_ROUTES, SessionTokenResponseSchema } from '@agent-hub/shared'
+import { API_ROUTES, SessionTokenResponseSchema } from '@paneful-manager/shared'
 import { authorizedFetch, loginRequired } from './access'
 
 let cached: Promise<string> | undefined

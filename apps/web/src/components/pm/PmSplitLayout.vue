@@ -1,27 +1,27 @@
 <template>
-  <div class="ah-split-layout">
-    <AhSplitNode :node="tree" path="0" :tab-id="tabId" @resized="scheduleResized">
+  <div class="pm-split-layout">
+    <PmSplitNode :node="tree" path="0" :tab-id="tabId" @resized="scheduleResized">
       <template #pane="slotProps">
         <slot name="pane" v-bind="slotProps" />
       </template>
-    </AhSplitNode>
+    </PmSplitNode>
   </div>
 </template>
 
 <script lang="ts" setup>
-  import type { AhSplitLayoutExpose, AhSplitLayoutProps, AhSplitLayoutSlots } from './types'
+  import type { PmSplitLayoutExpose, PmSplitLayoutProps, PmSplitLayoutSlots } from './types'
   import { computed, onBeforeUnmount } from 'vue'
   import { useLayoutSizesStore } from '@/stores/layoutSizes'
-  import AhSplitNode from './AhSplitNode.vue'
+  import PmSplitNode from './PmSplitNode.vue'
   import { layoutToTree } from './layoutTree'
   import 'splitpanes/dist/splitpanes.css'
 
   /** Quiet period after the last splitter move before `resized` fires. */
   const RESIZED_DEBOUNCE_MS = 120
 
-  const props = defineProps<AhSplitLayoutProps>()
+  const props = defineProps<PmSplitLayoutProps>()
   const emit = defineEmits<{ (e: 'resized'): void }>()
-  defineSlots<AhSplitLayoutSlots>()
+  defineSlots<PmSplitLayoutSlots>()
 
   const store = useLayoutSizesStore()
   const tree = computed(() => layoutToTree(props.layout, props.panes))
@@ -39,11 +39,11 @@
 
   onBeforeUnmount(() => clearTimeout(timer))
 
-  defineExpose<AhSplitLayoutExpose>({ resetSizes })
+  defineExpose<PmSplitLayoutExpose>({ resetSizes })
 </script>
 
 <style scoped>
-.ah-split-layout {
+.pm-split-layout {
   width: 100%;
   height: 100%;
   min-width: 0;

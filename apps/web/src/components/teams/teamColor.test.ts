@@ -4,7 +4,7 @@ import { MEMBER_COLOR_TOKENS, memberColorIndex, memberColorVar, relativeTime, sa
 describe('memberColorVar', () => {
   it('maps a name to a stable token variable, never to a raw color', () => {
     expect(memberColorVar('tester')).toBe(memberColorVar('tester'))
-    expect(memberColorVar('red; background: url(x)')).toMatch(/^var\(--ah-color-[a-z-]+\)$/)
+    expect(memberColorVar('red; background: url(x)')).toMatch(/^var\(--pm-color-[a-z-]+\)$/)
     for (const name of ['a', 'b', 'lead', 'tester', '']) {
       expect(memberColorIndex(name)).toBeLessThan(MEMBER_COLOR_TOKENS.length)
     }

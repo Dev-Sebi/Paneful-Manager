@@ -33,7 +33,7 @@
 </template>
 
 <script lang="ts" setup>
-  import type { TeamTask } from '@agent-hub/shared'
+  import type { TeamTask } from '@paneful-manager/shared'
   import { computed, ref } from 'vue'
   import { memberColorVar, safeId } from './teamColor'
 
@@ -48,66 +48,66 @@
 .task-card {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-2);
-  padding: var(--ah-space-3);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-elevated);
+  gap: var(--pm-space-2);
+  padding: var(--pm-space-3);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-elevated);
   list-style: none;
 }
 
-.task-card--blocked { border-color: var(--ah-color-status-waiting); }
+.task-card--blocked { border-color: var(--pm-color-status-waiting); }
 
-.task-card__head { display: flex; gap: var(--ah-space-2); }
+.task-card__head { display: flex; gap: var(--pm-space-2); }
 
 .task-card__id {
   flex: none;
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .task-card__subject {
-  color: var(--ah-color-fg-primary);
-  font-size: var(--ah-font-size-md);
-  font-weight: var(--ah-font-weight-medium);
+  color: var(--pm-color-fg-primary);
+  font-size: var(--pm-font-size-md);
+  font-weight: var(--pm-font-weight-medium);
   overflow-wrap: anywhere;
 }
 
 .task-card__active {
   margin: 0;
-  color: var(--ah-color-status-working);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-status-working);
+  font-size: var(--pm-font-size-sm);
 }
 
 .task-card__meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ah-space-2);
-  font-size: var(--ah-font-size-sm);
+  gap: var(--pm-space-2);
+  font-size: var(--pm-font-size-sm);
 }
 
 .task-card__owner {
   display: inline-flex;
   align-items: center;
-  gap: var(--ah-space-1);
-  padding: 0 var(--ah-space-2);
-  border-radius: var(--ah-radius-full);
-  background: var(--ah-color-bg-hover);
-  color: var(--ah-color-fg-primary);
+  gap: var(--pm-space-1);
+  padding: 0 var(--pm-space-2);
+  border-radius: var(--pm-radius-full);
+  background: var(--pm-color-bg-hover);
+  color: var(--pm-color-fg-primary);
 }
 
 .task-card__dot {
   width: 8px;
   height: 8px;
-  border-radius: var(--ah-radius-full);
+  border-radius: var(--pm-radius-full);
 }
 
 .task-card__blocked {
-  padding: 0 var(--ah-space-2);
-  border: 1px solid var(--ah-color-status-waiting);
-  border-radius: var(--ah-radius-full);
-  color: var(--ah-color-status-waiting);
+  padding: 0 var(--pm-space-2);
+  border: 1px solid var(--pm-color-status-waiting);
+  border-radius: var(--pm-radius-full);
+  color: var(--pm-color-status-waiting);
 }
 
 .task-card__toggle {
@@ -115,20 +115,20 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--ah-color-accent-default);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-accent-default);
+  font-size: var(--pm-font-size-sm);
   cursor: pointer;
 }
 
 .task-card__toggle:focus-visible {
-  outline: 2px solid var(--ah-color-border-focus);
+  outline: 2px solid var(--pm-color-border-focus);
   outline-offset: 2px;
 }
 
 .task-card__description {
   margin: 0;
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

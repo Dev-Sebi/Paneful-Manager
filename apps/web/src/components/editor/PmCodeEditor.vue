@@ -1,15 +1,15 @@
 <template>
-  <div class="ah-editor">
-    <span :id="hintId" class="ah-editor__hint">
+  <div class="pm-editor">
+    <span :id="hintId" class="pm-editor__hint">
       Press Ctrl+M (Ctrl+Shift+M on macOS) to toggle whether Tab moves focus out of the editor.
     </span>
 
-    <div v-if="loading" class="ah-editor__loading" role="status">
+    <div v-if="loading" class="pm-editor__loading" role="status">
       <v-progress-circular indeterminate size="20" width="2" />
       <span>Loading editor</span>
     </div>
 
-    <div ref="host" class="ah-editor__host" />
+    <div ref="host" class="pm-editor__host" />
   </div>
 </template>
 
@@ -44,7 +44,7 @@
 
   const host = ref<HTMLElement>()
   const loading = ref(true)
-  const hintId = `ah-editor-hint-${useId()}`
+  const hintId = `pm-editor-hint-${useId()}`
   const theme = useTheme()
 
   let instance: MonacoEditor.IStandaloneCodeEditor | undefined
@@ -181,32 +181,32 @@
 </script>
 
 <style scoped>
-.ah-editor {
+.pm-editor {
   position: relative;
   min-height: 160px;
   overflow: hidden;
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-canvas);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-canvas);
 }
 
-.ah-editor__host {
+.pm-editor__host {
   position: absolute;
   inset: 0;
 }
 
-.ah-editor__loading {
+.pm-editor__loading {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--ah-space-2);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  gap: var(--pm-space-2);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
-.ah-editor__hint {
+.pm-editor__hint {
   position: absolute;
   width: 1px;
   height: 1px;

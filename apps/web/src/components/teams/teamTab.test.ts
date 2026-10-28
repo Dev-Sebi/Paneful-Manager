@@ -1,5 +1,5 @@
-import type { Team, TeamMember } from '@agent-hub/shared'
-import { AppTabSchema } from '@agent-hub/shared'
+import type { Team, TeamMember } from '@paneful-manager/shared'
+import { AppTabSchema } from '@paneful-manager/shared'
 import { describe, expect, it } from 'vitest'
 import { buildTeamTab, memberRole, sessionMembers, teamLayout, unlinkedReason } from './teamTab'
 
@@ -42,7 +42,7 @@ describe('buildTeamTab', () => {
     ]), id => id === 's1')
     expect(result?.tab.panes.map(pane => pane.sessionId ?? pane.placeholder?.reason)).toEqual([
       's1',
-      'Its Agent Hub session no longer exists.',
+      'Its Paneful Manager session no longer exists.',
       'The server did not report a pane link for this member.',
     ])
   })

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type * as ClientModule from './client'
-import { z } from '@agent-hub/shared'
+import { z } from '@paneful-manager/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { jsonResponse } from '@/test/fixtures'
 
@@ -15,7 +15,7 @@ async function load (): Promise<Client> {
 }
 
 function tokenHeader (call: number): string | null {
-  return new Headers(fetchMock.mock.calls[call]?.[1]?.headers).get('x-agent-hub-token')
+  return new Headers(fetchMock.mock.calls[call]?.[1]?.headers).get('x-paneful-token')
 }
 
 describe('api client', () => {
@@ -42,7 +42,7 @@ describe('api client', () => {
     const apiCalls = fetchMock.mock.calls.slice(2)
     expect(apiCalls.map(call => call[0])).toEqual(['/api/x', '/api/session-token', '/api/x'])
     for (const call of apiCalls) {
-      expect(new Headers(call[1]?.headers).get('x-agent-hub-key')).toBe('s'.repeat(43))
+      expect(new Headers(call[1]?.headers).get('x-paneful-key')).toBe('s'.repeat(43))
     }
   })
 
@@ -141,7 +141,7 @@ describe('api client', () => {
   it('creates and kills sessions through the session routes', async () => {
     const { api } = await load()
     const session = {
-      id: 'abc', hostId: 'local', cwd: '/w', command: 'sh', args: [], tmuxSession: 'ah-abc',
+      id: 'abc', hostId: 'local', cwd: '/w', command: 'sh', args: [], tmuxSession: 'pm-abc',
       createdAt: '2026-01-01T00:00:00.000Z', state: 'idle', lifecycle: 'running', lastEventAt: '2026-01-01T00:00:00.000Z', cols: 80, rows: 24,
     }
     fetchMock

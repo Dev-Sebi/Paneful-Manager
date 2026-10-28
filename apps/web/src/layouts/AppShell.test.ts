@@ -116,17 +116,17 @@ describe('AppShell', () => {
 
   it('maps the websocket state to the badge', async () => {
     const { wrapper } = await mountAt('/workspaces')
-    const badge = () => wrapper.get('.shell__bar .ah-status-badge')
+    const badge = () => wrapper.get('.shell__bar .pm-status-badge')
     expect(badge().text()).toBe('Connecting')
-    expect(badge().classes()).toContain('ah-status-badge--working')
+    expect(badge().classes()).toContain('pm-status-badge--working')
     connection.value = 'connected'
     await flushPromises()
     expect(badge().text()).toBe('Connected')
-    expect(badge().classes()).toContain('ah-status-badge--idle')
+    expect(badge().classes()).toContain('pm-status-badge--idle')
     connection.value = 'disconnected'
     await flushPromises()
     expect(badge().text()).toBe('Disconnected')
-    expect(badge().classes()).toContain('ah-status-badge--error')
+    expect(badge().classes()).toContain('pm-status-badge--error')
   })
 
   it('indexes Ctrl+number over the visible sections', async () => {
@@ -188,7 +188,7 @@ describe('AppShell', () => {
     loginRequired.value = true
     untrustedHost.value = true
     const { wrapper } = await mountAt('/workspaces')
-    expect(wrapper.text()).toContain('Open Agent Hub at http://127.0.0.1:')
+    expect(wrapper.text()).toContain('Open Paneful Manager at http://127.0.0.1:')
     wrapper.unmount()
   })
 })

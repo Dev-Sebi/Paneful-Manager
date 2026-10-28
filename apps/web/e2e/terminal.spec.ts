@@ -13,7 +13,7 @@ async function lines (rows: Locator): Promise<string[]> {
 }
 
 async function sessionSize (page: Page, id: string) {
-  const response = await page.request.get('/api/sessions', { headers: { 'x-agent-hub-key': E2E_ACCESS_KEY } })
+  const response = await page.request.get('/api/sessions', { headers: { 'x-paneful-key': E2E_ACCESS_KEY } })
   const { sessions } = await response.json() as { sessions: Array<{ id: string, cols: number, rows: number }> }
   return sessions.find(session => session.id === id)
 }
@@ -32,7 +32,7 @@ test('creates a session, round-trips input and restores it after reload without 
 
   const pane = page.getByRole('group', { name: /^Terminal: / })
   const rows = pane.locator('.xterm-rows')
-  await expect(pane.locator('.ah-terminal-pane__overlay')).toHaveCount(0)
+  await expect(pane.locator('.pm-terminal-pane__overlay')).toHaveCount(0)
 
   await pane.locator('.xterm').click()
   await page.keyboard.type('echo hello-e2e')
@@ -40,7 +40,7 @@ test('creates a session, round-trips input and restores it after reload without 
   await expect.poll(async () => (await lines(rows)).filter(line => line === 'hello-e2e').length).toBe(1)
 
   await page.reload()
-  await expect(pane.locator('.ah-terminal-pane__overlay')).toHaveCount(0)
+  await expect(pane.locator('.pm-terminal-pane__overlay')).toHaveCount(0)
   await expect.poll(async () => (await lines(rows)).filter(line => line === 'hello-e2e').length).toBe(1)
   expect((await lines(rows)).filter(line => line.endsWith('echo hello-e2e'))).toHaveLength(1)
 

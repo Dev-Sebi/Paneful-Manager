@@ -12,22 +12,22 @@
     variant="text"
     @click="onClick"
   >
-    <span v-if="loading" aria-hidden="true" class="ah-spinner ah-button__spinner" />
+    <span v-if="loading" aria-hidden="true" class="pm-spinner pm-button__spinner" />
 
     <template v-else-if="icon">
-      <v-icon aria-hidden="true" class="ah-button__icon" :icon="icon" />
+      <v-icon aria-hidden="true" class="pm-button__icon" :icon="icon" />
     </template>
 
     <template v-else>
       <slot name="prepend">
-        <v-icon v-if="prependIcon" aria-hidden="true" class="ah-button__icon" :icon="prependIcon" />
+        <v-icon v-if="prependIcon" aria-hidden="true" class="pm-button__icon" :icon="prependIcon" />
       </slot>
     </template>
 
-    <span v-if="!icon" class="ah-button__label"><slot /></span>
+    <span v-if="!icon" class="pm-button__label"><slot /></span>
 
     <slot v-if="!icon" name="append">
-      <v-icon v-if="appendIcon" aria-hidden="true" class="ah-button__icon" :icon="appendIcon" />
+      <v-icon v-if="appendIcon" aria-hidden="true" class="pm-button__icon" :icon="appendIcon" />
     </slot>
 
     <v-tooltip v-if="tooltipText" activator="parent" location="bottom">{{ tooltipText }}</v-tooltip>
@@ -35,10 +35,10 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhButtonEmits, AhButtonProps, AhButtonSlots } from './types'
+  import type { PmButtonEmits, PmButtonProps, PmButtonSlots } from './types'
   import { computed, watchEffect } from 'vue'
 
-  const props = withDefaults(defineProps<AhButtonProps>(), {
+  const props = withDefaults(defineProps<PmButtonProps>(), {
     variant: 'secondary',
     size: 'md',
     type: 'button',
@@ -53,18 +53,18 @@
     block: false,
   })
 
-  const emit = defineEmits<AhButtonEmits>()
+  const emit = defineEmits<PmButtonEmits>()
 
-  defineSlots<AhButtonSlots>()
+  defineSlots<PmButtonSlots>()
 
   const classes = computed(() => [
-    'ah-button',
-    `ah-button--${props.variant}`,
-    `ah-button--${props.size}`,
+    'pm-button',
+    `pm-button--${props.variant}`,
+    `pm-button--${props.size}`,
     {
-      'ah-button--icon': Boolean(props.icon),
-      'ah-button--pressed': props.pressed === true,
-      'ah-button--loading': props.loading,
+      'pm-button--icon': Boolean(props.icon),
+      'pm-button--pressed': props.pressed === true,
+      'pm-button--loading': props.loading,
     },
   ])
 
@@ -78,7 +78,7 @@
 
   watchEffect(() => {
     if (import.meta.env.DEV && props.icon && !props.ariaLabel) {
-      console.warn('[AhButton] An icon-only button requires the "ariaLabel" prop.')
+      console.warn('[PmButton] An icon-only button requires the "ariaLabel" prop.')
     }
   })
 
@@ -92,106 +92,106 @@
 </script>
 
 <style scoped>
-.v-btn.ah-button {
-  --ah-button-height: 28px;
-  --ah-button-padding: var(--ah-space-3);
-  --ah-button-gap: var(--ah-space-2);
-  --ah-button-bg: transparent;
-  --ah-button-bg-hover: var(--ah-color-bg-hover);
-  --ah-button-fg: var(--ah-color-fg-primary);
-  --ah-button-border: transparent;
+.v-btn.pm-button {
+  --pm-button-height: 28px;
+  --pm-button-padding: var(--pm-space-3);
+  --pm-button-gap: var(--pm-space-2);
+  --pm-button-bg: transparent;
+  --pm-button-bg-hover: var(--pm-color-bg-hover);
+  --pm-button-fg: var(--pm-color-fg-primary);
+  --pm-button-border: transparent;
 
-  gap: var(--ah-button-gap);
+  gap: var(--pm-button-gap);
   min-width: 0;
-  height: var(--ah-button-height);
-  padding: 0 var(--ah-button-padding);
-  border: 1px solid var(--ah-button-border);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-button-bg);
-  color: var(--ah-button-fg);
-  font-family: var(--ah-font-family-ui);
-  font-size: var(--ah-font-size-md);
-  font-weight: var(--ah-font-weight-medium);
-  line-height: var(--ah-font-line-height-tight);
+  height: var(--pm-button-height);
+  padding: 0 var(--pm-button-padding);
+  border: 1px solid var(--pm-button-border);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-button-bg);
+  color: var(--pm-button-fg);
+  font-family: var(--pm-font-family-ui);
+  font-size: var(--pm-font-size-md);
+  font-weight: var(--pm-font-weight-medium);
+  line-height: var(--pm-font-line-height-tight);
   letter-spacing: normal;
   text-transform: none;
-  box-shadow: var(--ah-shadow-0);
+  box-shadow: var(--pm-shadow-0);
   transition:
-    background-color var(--ah-motion-duration-fast) var(--ah-motion-easing-standard),
-    border-color var(--ah-motion-duration-fast) var(--ah-motion-easing-standard);
+    background-color var(--pm-motion-duration-fast) var(--pm-motion-easing-standard),
+    border-color var(--pm-motion-duration-fast) var(--pm-motion-easing-standard);
 }
 
-.ah-button :deep(.v-btn__overlay),
-.ah-button :deep(.v-btn__underlay) {
+.pm-button :deep(.v-btn__overlay),
+.pm-button :deep(.v-btn__underlay) {
   display: none;
 }
 
-.ah-button :deep(.v-btn__content) {
+.pm-button :deep(.v-btn__content) {
   display: inline-flex;
   align-items: center;
-  gap: var(--ah-button-gap);
+  gap: var(--pm-button-gap);
   min-width: 0;
 }
 
-.ah-button__label {
+.pm-button__label {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.ah-button__icon {
+.pm-button__icon {
   font-size: 16px;
   width: 16px;
   height: 16px;
 }
 
-.ah-button__spinner {
+.pm-button__spinner {
   flex: none;
   box-sizing: border-box;
   width: 14px;
   height: 14px;
   border: 2px solid currentcolor;
   border-top-color: transparent;
-  border-radius: var(--ah-radius-full);
+  border-radius: var(--pm-radius-full);
 }
 
-.v-btn.ah-button--sm { --ah-button-height: 24px; --ah-button-padding: var(--ah-space-2); --ah-button-gap: var(--ah-space-1); font-size: var(--ah-font-size-sm); }
-.v-btn.ah-button--lg { --ah-button-height: 32px; --ah-button-padding: var(--ah-space-4); }
+.v-btn.pm-button--sm { --pm-button-height: 24px; --pm-button-padding: var(--pm-space-2); --pm-button-gap: var(--pm-space-1); font-size: var(--pm-font-size-sm); }
+.v-btn.pm-button--lg { --pm-button-height: 32px; --pm-button-padding: var(--pm-space-4); }
 
-.v-btn.ah-button--icon { width: var(--ah-button-height); padding: 0; }
+.v-btn.pm-button--icon { width: var(--pm-button-height); padding: 0; }
 
-.v-btn.ah-button--primary {
-  --ah-button-bg: var(--ah-color-accent-default);
-  --ah-button-bg-hover: var(--ah-color-accent-hover);
-  --ah-button-fg: var(--ah-color-fg-on-accent);
+.v-btn.pm-button--primary {
+  --pm-button-bg: var(--pm-color-accent-default);
+  --pm-button-bg-hover: var(--pm-color-accent-hover);
+  --pm-button-fg: var(--pm-color-fg-on-accent);
 }
 
-.v-btn.ah-button--secondary {
-  --ah-button-bg: var(--ah-color-bg-elevated);
-  --ah-button-border: var(--ah-color-border-default);
+.v-btn.pm-button--secondary {
+  --pm-button-bg: var(--pm-color-bg-elevated);
+  --pm-button-border: var(--pm-color-border-default);
 }
 
-.v-btn.ah-button--danger {
-  --ah-button-bg: var(--ah-color-danger-default);
-  --ah-button-bg-hover: var(--ah-color-danger-hover);
-  --ah-button-fg: var(--ah-color-fg-on-danger);
+.v-btn.pm-button--danger {
+  --pm-button-bg: var(--pm-color-danger-default);
+  --pm-button-bg-hover: var(--pm-color-danger-hover);
+  --pm-button-fg: var(--pm-color-fg-on-danger);
 }
 
-.ah-button:not(:disabled):hover { background: var(--ah-button-bg-hover); }
+.pm-button:not(:disabled):hover { background: var(--pm-button-bg-hover); }
 
-.ah-button--pressed.ah-button--secondary,
-.ah-button--pressed.ah-button--ghost { background: var(--ah-color-bg-selected); }
+.pm-button--pressed.pm-button--secondary,
+.pm-button--pressed.pm-button--ghost { background: var(--pm-color-bg-selected); }
 
-.ah-button:focus-visible {
-  outline: 2px solid var(--ah-color-border-focus);
+.pm-button:focus-visible {
+  outline: 2px solid var(--pm-color-border-focus);
   outline-offset: 2px;
 }
 
-.ah-button:disabled {
-  opacity: var(--ah-opacity-disabled);
+.pm-button:disabled {
+  opacity: var(--pm-opacity-disabled);
   cursor: not-allowed;
   pointer-events: auto;
 }
 
-.ah-button--loading { cursor: progress; }
+.pm-button--loading { cursor: progress; }
 </style>

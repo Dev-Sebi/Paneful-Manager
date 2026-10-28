@@ -1,18 +1,18 @@
 <template>
-  <div class="ah-tabs" :class="`ah-tabs--${density}`">
+  <div class="pm-tabs" :class="`pm-tabs--${density}`">
     <ul
       ref="listRef"
       :aria-label="ariaLabel"
       aria-orientation="horizontal"
-      class="ah-tabs__list"
+      class="pm-tabs__list"
       role="tablist"
       @keydown="onKeydown"
     >
       <slot />
     </ul>
 
-    <div v-if="addable || $slots.append" class="ah-tabs__append">
-      <AhButton
+    <div v-if="addable || $slots.append" class="pm-tabs__append">
+      <PmButton
         v-if="addable"
         ariaLabel="New tab"
         icon="mdi-plus"
@@ -24,19 +24,19 @@
       <slot name="append" />
     </div>
 
-    <div aria-live="polite" class="ah-tabs__live" role="status">{{ announcement }}</div>
+    <div aria-live="polite" class="pm-tabs__live" role="status">{{ announcement }}</div>
   </div>
 </template>
 
 <script lang="ts" setup>
   /* eslint-disable vue/custom-event-name-casing -- v-model event name is fixed by Vue */
-  import type { AhTabsContext } from './tabState'
-  import type { AhTabsEmits, AhTabsProps, AhTabsSlots } from './types'
+  import type { PmTabsContext } from './tabState'
+  import type { PmTabsEmits, PmTabsProps, PmTabsSlots } from './types'
   import { nextTick, onMounted, provide, reactive, ref, toRef } from 'vue'
-  import AhButton from './AhButton.vue'
+  import PmButton from './PmButton.vue'
   import { AH_TABS_KEY, TAB_ID_PREFIX } from './tabState'
 
-  const props = withDefaults(defineProps<AhTabsProps>(), {
+  const props = withDefaults(defineProps<PmTabsProps>(), {
     modelValue: undefined,
     reorderable: false,
     closable: false,
@@ -44,16 +44,16 @@
     density: 'default',
   })
 
-  const emit = defineEmits<AhTabsEmits>()
+  const emit = defineEmits<PmTabsEmits>()
 
-  defineSlots<AhTabsSlots>()
+  defineSlots<PmTabsSlots>()
 
   const listRef = ref<HTMLUListElement>()
   const announcement = ref('')
   const ready = ref(false)
   const closing = new Map<string, string>()
 
-  const context: AhTabsContext = {
+  const context: PmTabsContext = {
     activeValue: toRef(props, 'modelValue'),
     closable: toRef(props, 'closable'),
     ready,
@@ -146,22 +146,22 @@
 </script>
 
 <style scoped>
-.ah-tabs {
-  --ah-tabs-height: 32px;
+.pm-tabs {
+  --pm-tabs-height: 32px;
 
   display: flex;
   align-items: stretch;
-  height: var(--ah-tabs-height);
-  background: var(--ah-color-bg-surface);
-  border-bottom: 1px solid var(--ah-color-border-default);
-  font-family: var(--ah-font-family-ui);
-  font-size: var(--ah-font-size-md);
-  line-height: var(--ah-font-line-height-tight);
+  height: var(--pm-tabs-height);
+  background: var(--pm-color-bg-surface);
+  border-bottom: 1px solid var(--pm-color-border-default);
+  font-family: var(--pm-font-family-ui);
+  font-size: var(--pm-font-size-md);
+  line-height: var(--pm-font-line-height-tight);
 }
 
-.ah-tabs--compact { --ah-tabs-height: 28px; }
+.pm-tabs--compact { --pm-tabs-height: 28px; }
 
-.ah-tabs__list {
+.pm-tabs__list {
   display: flex;
   flex: 0 1 auto;
   min-width: 0;
@@ -172,15 +172,15 @@
   scrollbar-width: none;
 }
 
-.ah-tabs__append {
+.pm-tabs__append {
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--ah-space-1);
-  padding: 0 var(--ah-space-2);
+  gap: var(--pm-space-1);
+  padding: 0 var(--pm-space-2);
 }
 
-.ah-tabs__live {
+.pm-tabs__live {
   position: absolute;
   width: 1px;
   height: 1px;

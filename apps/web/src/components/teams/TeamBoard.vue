@@ -12,13 +12,13 @@
 
       <span class="team-board__updated">Updated {{ relativeTime(team.lastUpdated, now) }}</span>
 
-      <AhButton
+      <PmButton
         :disabled="team.members.length === 0"
         prepend-icon="mdi-view-grid-plus-outline"
         size="sm"
         variant="secondary"
         @click="emit('open-tab', team)"
-      >Open as tab</AhButton>
+      >Open as tab</PmButton>
     </header>
 
     <v-row class="team-board__columns">
@@ -46,9 +46,9 @@
 </template>
 
 <script lang="ts" setup>
-  import type { Team, TeamMember, TeamTask, TeamTaskStatus } from '@agent-hub/shared'
+  import type { Team, TeamMember, TeamTask, TeamTaskStatus } from '@paneful-manager/shared'
   import { computed } from 'vue'
-  import { AhButton } from '@/components/ah'
+  import { PmButton } from '@/components/pm'
   import { memberColorVar, relativeTime, safeId } from './teamColor'
   import { memberRole } from './teamTab'
   import TeamTaskCard from './TeamTaskCard.vue'
@@ -86,30 +86,30 @@
 
 <style scoped>
 .team-board {
-  padding: var(--ah-space-4);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-lg);
-  background: var(--ah-color-bg-surface);
+  padding: var(--pm-space-4);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-lg);
+  background: var(--pm-color-bg-surface);
 }
 
 .team-board__header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ah-space-3);
+  gap: var(--pm-space-3);
 }
 
 .team-board__title {
   margin: 0;
-  color: var(--ah-color-fg-primary);
-  font-size: var(--ah-font-size-xl);
+  color: var(--pm-color-fg-primary);
+  font-size: var(--pm-font-size-xl);
 }
 
 .team-board__members {
   display: flex;
   flex: 1;
   flex-wrap: wrap;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -118,47 +118,47 @@
 .team-board__member {
   display: inline-flex;
   align-items: center;
-  gap: var(--ah-space-1);
-  padding: 0 var(--ah-space-2);
-  border-radius: var(--ah-radius-full);
-  background: var(--ah-color-bg-elevated);
-  color: var(--ah-color-fg-primary);
-  font-size: var(--ah-font-size-sm);
+  gap: var(--pm-space-1);
+  padding: 0 var(--pm-space-2);
+  border-radius: var(--pm-radius-full);
+  background: var(--pm-color-bg-elevated);
+  color: var(--pm-color-fg-primary);
+  font-size: var(--pm-font-size-sm);
 }
 
 .team-board__dot {
   width: 8px;
   height: 8px;
-  border-radius: var(--ah-radius-full);
+  border-radius: var(--pm-radius-full);
 }
 
 .team-board__updated {
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
-.team-board__columns { margin-top: var(--ah-space-2); }
+.team-board__columns { margin-top: var(--pm-space-2); }
 
 .team-board__column-title {
-  margin: 0 0 var(--ah-space-2);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-md);
-  font-weight: var(--ah-font-weight-medium);
+  margin: 0 0 var(--pm-space-2);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-md);
+  font-weight: var(--pm-font-weight-medium);
 }
 
-.team-board__count { color: var(--ah-color-fg-disabled); }
+.team-board__count { color: var(--pm-color-fg-disabled); }
 
 .team-board__list {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   margin: 0;
   padding: 0;
 }
 
 .team-board__empty {
   margin: 0;
-  color: var(--ah-color-fg-disabled);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-disabled);
+  font-size: var(--pm-font-size-sm);
 }
 </style>

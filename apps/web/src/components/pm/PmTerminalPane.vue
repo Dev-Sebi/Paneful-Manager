@@ -1,34 +1,34 @@
 <template>
   <section
     :aria-label="`Terminal: ${title}`"
-    class="ah-terminal-pane"
+    class="pm-terminal-pane"
     :class="{
-      'ah-terminal-pane--focused': focused,
-      'ah-terminal-pane--maximized': maximized,
-      'ah-terminal-pane--readonly': readonly,
+      'pm-terminal-pane--focused': focused,
+      'pm-terminal-pane--maximized': maximized,
+      'pm-terminal-pane--readonly': readonly,
     }"
     role="group"
     @keydown="onKeydown"
     @mousedown="onPointerDown"
   >
-    <header v-if="!hideHeader" ref="headerRef" class="ah-terminal-pane__header">
-      <AhStatusBadge v-if="status" announce :state="status" variant="dot" />
-      <span class="ah-terminal-pane__title">{{ title }}</span>
-      <span v-if="stateLabel" class="ah-terminal-pane__since" data-testid="pane-state-since">{{ stateLabel }}</span>
+    <header v-if="!hideHeader" ref="headerRef" class="pm-terminal-pane__header">
+      <PmStatusBadge v-if="status" announce :state="status" variant="dot" />
+      <span class="pm-terminal-pane__title">{{ title }}</span>
+      <span v-if="stateLabel" class="pm-terminal-pane__since" data-testid="pane-state-since">{{ stateLabel }}</span>
 
-      <span v-if="member" class="ah-terminal-pane__member" :title="memberTooltip">
-        <span class="ah-terminal-pane__member-name">{{ member.name }}</span>
-        <AhStatusBadge :label="member.role" size="sm" state="idle" />
-        <span v-if="member.others?.length" class="ah-terminal-pane__member-more">+{{ member.others.length }}</span>
+      <span v-if="member" class="pm-terminal-pane__member" :title="memberTooltip">
+        <span class="pm-terminal-pane__member-name">{{ member.name }}</span>
+        <PmStatusBadge :label="member.role" size="sm" state="idle" />
+        <span v-if="member.others?.length" class="pm-terminal-pane__member-more">+{{ member.others.length }}</span>
       </span>
 
-      <span v-if="cwd" class="ah-terminal-pane__cwd" :title="cwd"><bdi>{{ cwd }}</bdi></span>
-      <span v-else class="ah-terminal-pane__spacer" />
-      <span v-if="readonly" class="ah-terminal-pane__readonly">Read-only</span>
+      <span v-if="cwd" class="pm-terminal-pane__cwd" :title="cwd"><bdi>{{ cwd }}</bdi></span>
+      <span v-else class="pm-terminal-pane__spacer" />
+      <span v-if="readonly" class="pm-terminal-pane__readonly">Read-only</span>
 
       <slot name="header-actions" />
 
-      <AhButton
+      <PmButton
         ariaLabel="Split vertical"
         icon="mdi-arrow-split-vertical"
         :shortcut="shortcutLabel('split-vertical')"
@@ -37,7 +37,7 @@
         @click="emit('split', 'vertical')"
       />
 
-      <AhButton
+      <PmButton
         ariaLabel="Split horizontal"
         icon="mdi-arrow-split-horizontal"
         :shortcut="shortcutLabel('split-horizontal')"
@@ -46,7 +46,7 @@
         @click="emit('split', 'horizontal')"
       />
 
-      <AhButton
+      <PmButton
         :ariaLabel="maximized ? 'Restore' : 'Maximize'"
         :icon="maximized ? 'mdi-arrow-collapse' : 'mdi-arrow-expand'"
         :pressed="maximized"
@@ -56,7 +56,7 @@
         @click="emit('toggle-maximize')"
       />
 
-      <AhButton
+      <PmButton
         ariaLabel="Close pane"
         icon="mdi-close"
         :shortcut="shortcutLabel('close')"
@@ -66,29 +66,29 @@
       />
     </header>
 
-    <div class="ah-terminal-pane__viewport">
-      <div ref="termRef" class="ah-terminal-pane__term" />
+    <div class="pm-terminal-pane__viewport">
+      <div ref="termRef" class="pm-terminal-pane__term" />
 
       <div
         v-if="shownConnection !== 'connected'"
-        class="ah-terminal-pane__overlay"
-        :class="`ah-terminal-pane__overlay--${shownConnection}`"
+        class="pm-terminal-pane__overlay"
+        :class="`pm-terminal-pane__overlay--${shownConnection}`"
       >
         <slot :connection="shownConnection" :exit-code="shownExitCode" name="overlay">
-          <div class="ah-terminal-pane__card" :role="shownConnection === 'failed' ? 'alert' : 'status'">
+          <div class="pm-terminal-pane__card" :role="shownConnection === 'failed' ? 'alert' : 'status'">
             <template v-if="shownConnection === 'connecting'">
-              <span aria-hidden="true" class="ah-spinner ah-terminal-pane__spinner" />
+              <span aria-hidden="true" class="pm-spinner pm-terminal-pane__spinner" />
               <span>Connecting…</span>
             </template>
 
             <template v-else-if="shownConnection === 'exited'">
               <span>Process exited{{ shownExitCode === undefined ? '' : ` (code ${shownExitCode})` }}</span>
-              <AhButton size="sm" variant="secondary" @click="emit('restart')">Restart</AhButton>
+              <PmButton size="sm" variant="secondary" @click="emit('restart')">Restart</PmButton>
             </template>
 
             <template v-else>
-              <span class="ah-terminal-pane__failed">Session unavailable</span>
-              <AhButton size="sm" variant="secondary" @click="retry">Retry</AhButton>
+              <span class="pm-terminal-pane__failed">Session unavailable</span>
+              <PmButton size="sm" variant="secondary" @click="retry">Retry</PmButton>
             </template>
           </div>
         </slot>
@@ -98,7 +98,7 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhTerminalConnection, AhTerminalPaneEmits, AhTerminalPaneExpose, AhTerminalPaneProps, AhTerminalPaneSlots } from './types'
+  import type { PmTerminalConnection, PmTerminalPaneEmits, PmTerminalPaneExpose, PmTerminalPaneProps, PmTerminalPaneSlots } from './types'
   import type { SessionAttach } from '@/terminal/attach'
   import type { PaneShortcutAction } from '@/terminal/shortcuts'
   import { FitAddon } from '@xterm/addon-fit'
@@ -114,11 +114,11 @@
   import { fontFamily, fontSize as fontSizes, lineHeight } from '@/styles/generated/tokens'
   import { useSessionAttach } from '@/terminal/attach'
   import { matchShortcut, shortcutLabel } from '@/terminal/shortcuts'
-  import AhButton from './AhButton.vue'
-  import AhStatusBadge from './AhStatusBadge.vue'
+  import PmButton from './PmButton.vue'
+  import PmStatusBadge from './PmStatusBadge.vue'
   import '@xterm/xterm/css/xterm.css'
 
-  const props = withDefaults(defineProps<AhTerminalPaneProps>(), {
+  const props = withDefaults(defineProps<PmTerminalPaneProps>(), {
     cwd: undefined,
     status: undefined,
     stateSince: undefined,
@@ -135,7 +135,7 @@
     member: undefined,
   })
 
-  const emit = defineEmits<AhTerminalPaneEmits>()
+  const emit = defineEmits<PmTerminalPaneEmits>()
 
   const now = useNow()
   const stateLabel = computed(() => {
@@ -145,7 +145,7 @@
     }
     return `${props.status} ${formatElapsed(now.value - since)}`
   })
-  defineSlots<AhTerminalPaneSlots>()
+  defineSlots<PmTerminalPaneSlots>()
 
   const theme = useTheme()
   const ui = useUiStore()
@@ -161,7 +161,7 @@
   let fitFrame: number | undefined
   const disposers: Array<() => void> = []
 
-  const shownConnection = computed<AhTerminalConnection>(() => {
+  const shownConnection = computed<PmTerminalConnection>(() => {
     if (props.connection === 'exited' || props.connection === 'failed') {
       return props.connection
     }
@@ -285,7 +285,7 @@
 
   function onPointerDown (event: MouseEvent): void {
     const target = event.target
-    if (target instanceof Element && !target.closest('button, .ah-terminal-pane__overlay')) {
+    if (target instanceof Element && !target.closest('button, .pm-terminal-pane__overlay')) {
       requestAnimationFrame(focus)
     }
   }
@@ -377,7 +377,7 @@
     term.value?.dispose()
   })
 
-  defineExpose<AhTerminalPaneExpose>({
+  defineExpose<PmTerminalPaneExpose>({
     write: data => term.value?.write(data),
     clear: () => term.value?.clear(),
     focus,
@@ -387,7 +387,7 @@
 </script>
 
 <style scoped>
-.ah-terminal-pane {
+.pm-terminal-pane {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -395,43 +395,43 @@
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-sm);
-  background: var(--ah-color-terminal-bg);
-  transition: border-color var(--ah-motion-duration-fast) var(--ah-motion-easing-standard);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-sm);
+  background: var(--pm-color-terminal-bg);
+  transition: border-color var(--pm-motion-duration-fast) var(--pm-motion-easing-standard);
 }
 
-.ah-terminal-pane--focused { border-color: var(--ah-color-border-focus); }
+.pm-terminal-pane--focused { border-color: var(--pm-color-border-focus); }
 
-.ah-terminal-pane--maximized {
+.pm-terminal-pane--maximized {
   position: absolute;
   inset: 0;
-  z-index: var(--ah-z-overlay);
+  z-index: var(--pm-z-overlay);
 }
 
-.ah-terminal-pane__header {
+.pm-terminal-pane__header {
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   height: 28px;
-  padding: 0 var(--ah-space-2);
-  background: var(--ah-color-bg-surface);
-  color: var(--ah-color-fg-muted);
-  font-family: var(--ah-font-family-ui);
-  font-size: var(--ah-font-size-sm);
-  font-weight: var(--ah-font-weight-medium);
+  padding: 0 var(--pm-space-2);
+  background: var(--pm-color-bg-surface);
+  color: var(--pm-color-fg-muted);
+  font-family: var(--pm-font-family-ui);
+  font-size: var(--pm-font-size-sm);
+  font-weight: var(--pm-font-weight-medium);
 }
 
-.ah-terminal-pane--focused .ah-terminal-pane__title { color: var(--ah-color-fg-primary); }
+.pm-terminal-pane--focused .pm-terminal-pane__title { color: var(--pm-color-fg-primary); }
 
-.ah-terminal-pane__since {
+.pm-terminal-pane__since {
   flex: none;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.ah-terminal-pane__title {
+.pm-terminal-pane__title {
   flex: none;
   max-width: 40%;
   overflow: hidden;
@@ -439,26 +439,26 @@
   text-overflow: ellipsis;
 }
 
-.ah-terminal-pane__member {
+.pm-terminal-pane__member {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: var(--ah-space-1);
+  gap: var(--pm-space-1);
   max-width: 30%;
   min-width: 0;
 }
 
-.ah-terminal-pane__member-name {
+.pm-terminal-pane__member-name {
   overflow: hidden;
-  color: var(--ah-color-fg-primary);
+  color: var(--pm-color-fg-primary);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.ah-terminal-pane__member-more { color: var(--ah-color-fg-muted); }
+.pm-terminal-pane__member-more { color: var(--pm-color-fg-muted); }
 
 /* rtl + bdi truncates from the start while the path itself keeps its order. */
-.ah-terminal-pane__cwd {
+.pm-terminal-pane__cwd {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -466,35 +466,35 @@
   text-align: left;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--ah-color-fg-muted);
-  font-family: var(--ah-font-family-mono);
-  font-size: var(--ah-font-size-xs);
-  font-weight: var(--ah-font-weight-regular);
+  color: var(--pm-color-fg-muted);
+  font-family: var(--pm-font-family-mono);
+  font-size: var(--pm-font-size-xs);
+  font-weight: var(--pm-font-weight-regular);
 }
 
-.ah-terminal-pane__spacer { flex: 1; }
+.pm-terminal-pane__spacer { flex: 1; }
 
-.ah-terminal-pane__readonly {
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-xs);
+.pm-terminal-pane__readonly {
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-xs);
 }
 
-.ah-terminal-pane__viewport {
+.pm-terminal-pane__viewport {
   position: relative;
   flex: 1;
   min-height: 0;
-  padding: var(--ah-space-2);
+  padding: var(--pm-space-2);
 }
 
-.ah-terminal-pane__term {
+.pm-terminal-pane__term {
   width: 100%;
   height: 100%;
 }
 
-.ah-terminal-pane--readonly :deep(.xterm-cursor) { visibility: hidden; }
+.pm-terminal-pane--readonly :deep(.xterm-cursor) { visibility: hidden; }
 
 /* Non-blocking: the terminal stays readable and scrollable under the overlay. */
-.ah-terminal-pane__overlay {
+.pm-terminal-pane__overlay {
   position: absolute;
   inset: 0;
   display: grid;
@@ -502,29 +502,29 @@
   pointer-events: none;
 }
 
-.ah-terminal-pane__card {
+.pm-terminal-pane__card {
   display: flex;
   align-items: center;
-  gap: var(--ah-space-2);
-  padding: var(--ah-space-2) var(--ah-space-4);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-elevated);
-  box-shadow: var(--ah-shadow-2);
-  color: var(--ah-color-fg-primary);
-  font-family: var(--ah-font-family-ui);
-  font-size: var(--ah-font-size-md);
+  gap: var(--pm-space-2);
+  padding: var(--pm-space-2) var(--pm-space-4);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-elevated);
+  box-shadow: var(--pm-shadow-2);
+  color: var(--pm-color-fg-primary);
+  font-family: var(--pm-font-family-ui);
+  font-size: var(--pm-font-size-md);
   pointer-events: auto;
 }
 
-.ah-terminal-pane__failed { color: var(--ah-color-status-error); }
+.pm-terminal-pane__failed { color: var(--pm-color-status-error); }
 
-.ah-terminal-pane__spinner {
+.pm-terminal-pane__spinner {
   flex: none;
   box-sizing: border-box;
   width: 14px;
   height: 14px;
   border: 2px solid currentcolor;
   border-top-color: transparent;
-  border-radius: var(--ah-radius-full);
+  border-radius: var(--pm-radius-full);
 }
 </style>

@@ -21,8 +21,8 @@
   height: 100%;
   min-height: 0;
   overflow: auto;
-  border: 1px dashed var(--ah-color-border-default);
-  background: var(--ah-color-bg-canvas);
+  border: 1px dashed var(--pm-color-border-default);
+  background: var(--pm-color-bg-canvas);
 }
 
 .pane-placeholder__header {
@@ -30,11 +30,11 @@
   flex: none;
   align-items: center;
   height: 28px;
-  padding: 0 var(--ah-space-2);
-  background: var(--ah-color-bg-surface);
-  color: var(--ah-color-fg-primary);
-  font-family: var(--ah-font-family-ui);
-  font-size: var(--ah-font-size-sm);
+  padding: 0 var(--pm-space-2);
+  background: var(--pm-color-bg-surface);
+  color: var(--pm-color-fg-primary);
+  font-family: var(--pm-font-family-ui);
+  font-size: var(--pm-font-size-sm);
 }
 
 .pane-placeholder__title {

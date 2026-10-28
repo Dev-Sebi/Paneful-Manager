@@ -1,5 +1,5 @@
-import type { ClientMessageInput, ServerMessage, ServerMessageType } from '@agent-hub/shared'
-import { parseServerMessage, WS_KEY_PROTOCOL_PREFIX, WS_PATH, WS_PROTOCOL_VERSION, WS_SUBPROTOCOL, WS_TOKEN_PROTOCOL_PREFIX } from '@agent-hub/shared'
+import type { ClientMessageInput, ServerMessage, ServerMessageType } from '@paneful-manager/shared'
+import { parseServerMessage, WS_KEY_PROTOCOL_PREFIX, WS_PATH, WS_PROTOCOL_VERSION, WS_SUBPROTOCOL, WS_TOKEN_PROTOCOL_PREFIX } from '@paneful-manager/shared'
 import { sessionKey } from './access'
 import { connection } from './connection'
 import { getToken, refreshToken } from './token'

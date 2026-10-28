@@ -2,13 +2,13 @@
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mountWithVuetify } from '@/test/mount'
-import AhDialog from './AhDialog.vue'
-import source from './AhDialog.vue?raw'
+import PmDialog from './PmDialog.vue'
+import source from './PmDialog.vue?raw'
 
 const BODY = '<input id="name" /><button id="extra" type="button">Extra</button>'
 
 function open (props: Record<string, unknown> = {}, body = BODY) {
-  return mountWithVuetify(AhDialog, {
+  return mountWithVuetify(PmDialog, {
     props: { modelValue: true, title: 'Close session', confirmText: 'Close', ...props },
     slots: { default: body },
     global: { stubs: { transition: false } },
@@ -16,7 +16,7 @@ function open (props: Record<string, unknown> = {}, body = BODY) {
 }
 
 function panel () {
-  return document.querySelector<HTMLElement>('.ah-dialog__panel')
+  return document.querySelector<HTMLElement>('.pm-dialog__panel')
 }
 
 function key (target: Element, init: KeyboardEventInit) {
@@ -25,23 +25,23 @@ function key (target: Element, init: KeyboardEventInit) {
 
 enableAutoUnmount(afterEach)
 
-describe('AhDialog layout', () => {
+describe('PmDialog layout', () => {
   it('centres the panel inside the full-width Vuetify content box', () => {
-    expect(source).toMatch(/\.ah-dialog__content \{[^}]*align-items: center;/)
+    expect(source).toMatch(/\.pm-dialog__content \{[^}]*align-items: center;/)
   })
 
   it('lets the panel size itself to its max-width instead of the viewport', () => {
-    expect(source).toMatch(/\.ah-dialog__panel \{[^}]*width: 100%;/)
+    expect(source).toMatch(/\.pm-dialog__panel \{[^}]*width: 100%;/)
   })
 
   it('applies the content class to the dialog content element', async () => {
     open()
     await flushPromises()
-    expect(panel()?.closest('.ah-dialog__content')).not.toBeNull()
+    expect(panel()?.closest('.pm-dialog__content')).not.toBeNull()
   })
 })
 
-describe('AhDialog', () => {
+describe('PmDialog', () => {
   it('does not move focus when mounted closed', async () => {
     const outside = document.createElement('button')
     document.body.append(outside)
@@ -56,7 +56,7 @@ describe('AhDialog', () => {
     open()
     await flushPromises()
     const root = document.querySelector('[role="dialog"]')
-    const title = document.querySelector('.ah-dialog__title')
+    const title = document.querySelector('.pm-dialog__title')
     expect(root).not.toBeNull()
     expect(root?.getAttribute('aria-modal')).toBe('true')
     expect(root?.getAttribute('aria-labelledby')).toBe(title?.id)
@@ -67,7 +67,7 @@ describe('AhDialog', () => {
     await flushPromises()
     const root = document.querySelector('[role="alertdialog"]')
     expect(root).not.toBeNull()
-    expect(root?.getAttribute('aria-describedby')).toBe(document.querySelector('.ah-dialog__body')?.id)
+    expect(root?.getAttribute('aria-describedby')).toBe(document.querySelector('.pm-dialog__body')?.id)
   })
 
   it('focuses the first body control initially', async () => {
@@ -79,7 +79,7 @@ describe('AhDialog', () => {
   it('focuses cancel in the danger tone without body controls', async () => {
     open({ tone: 'danger' }, 'Plain text')
     await flushPromises()
-    expect(document.activeElement?.hasAttribute('data-ah-cancel')).toBe(true)
+    expect(document.activeElement?.hasAttribute('data-pm-cancel')).toBe(true)
   })
 
   it('honours initialFocus', async () => {
@@ -100,7 +100,7 @@ describe('AhDialog', () => {
     expect(document.activeElement).toBe(first)
     key(first as Element, { key: 'Tab', shiftKey: true })
     expect(document.activeElement).toBe(last)
-    expect(last?.classList.contains('ah-dialog__close')).toBe(true)
+    expect(last?.classList.contains('pm-dialog__close')).toBe(true)
   })
 
   it('cancels on Escape', async () => {
@@ -114,12 +114,12 @@ describe('AhDialog', () => {
   it('blocks Escape when persistent and shows the helper text', async () => {
     const wrapper = open({ persistent: true })
     await flushPromises()
-    expect(document.querySelector('.ah-dialog__close')).toBeNull()
+    expect(document.querySelector('.pm-dialog__close')).toBeNull()
     key(document.activeElement as Element, { key: 'Escape' })
     await flushPromises()
     expect(wrapper.emitted('close-blocked')).toHaveLength(1)
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-    const status = document.querySelector('.ah-dialog__blocked')
+    const status = document.querySelector('.pm-dialog__blocked')
     expect(status?.getAttribute('role')).toBe('status')
     expect(status?.textContent).toBe('Finish or cancel the running action first')
     expect(panel()?.classList.contains('animate__headShake')).toBe(true)
@@ -130,7 +130,7 @@ describe('AhDialog', () => {
     await flushPromises()
     key(document.activeElement as Element, { key: 'Escape' })
     expect(wrapper.emitted('close-blocked')).toHaveLength(1)
-    expect(document.querySelector('.ah-dialog__body')?.getAttribute('aria-busy')).toBe('true')
+    expect(document.querySelector('.pm-dialog__body')?.getAttribute('aria-busy')).toBe('true')
   })
 
   it('confirms with Ctrl+Enter except in the danger tone', async () => {

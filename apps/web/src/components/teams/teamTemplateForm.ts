@@ -1,5 +1,5 @@
-import type { TeamTemplate, TeamTemplateInput } from '@agent-hub/shared'
-import { DEFAULT_COMMAND, TeamTemplateSchema } from '@agent-hub/shared'
+import type { TeamTemplate, TeamTemplateInput } from '@paneful-manager/shared'
+import { DEFAULT_COMMAND, TeamTemplateSchema } from '@paneful-manager/shared'
 
 /** Form model of a teammate; `extra` keeps keys the form has no field for. */
 export interface TeammateForm {

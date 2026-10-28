@@ -1,10 +1,10 @@
-import type { Theme } from '@agent-hub/shared'
-import { ThemeSchema, z } from '@agent-hub/shared'
+import type { Theme } from '@paneful-manager/shared'
+import { ThemeSchema, z } from '@paneful-manager/shared'
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { readStorage, writeStorage } from './storage'
 
-export const UI_STORAGE_KEY = 'agent-hub.ui.v1'
+export const UI_STORAGE_KEY = 'paneful-manager.ui.v1'
 
 const PersistedUiSchema = z.strictObject({
   rail: z.boolean().default(false),

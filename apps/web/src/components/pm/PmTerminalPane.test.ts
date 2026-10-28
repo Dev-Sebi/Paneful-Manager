@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import type { ClientMessageInput } from '@agent-hub/shared'
+import type { ClientMessageInput } from '@paneful-manager/shared'
 import { enableAutoUnmount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { mountWithVuetify } from '@/test/mount'
-import AhTerminalPane from './AhTerminalPane.vue'
+import PmTerminalPane from './PmTerminalPane.vue'
 
 const mocks = vi.hoisted(() => {
   const sent: ClientMessageInput[] = []
@@ -84,13 +84,13 @@ vi.mock('@/api/ws', () => ({
 enableAutoUnmount(afterEach)
 
 function mountPane (props: Record<string, unknown> = {}) {
-  return mountWithVuetify(AhTerminalPane, {
+  return mountWithVuetify(PmTerminalPane, {
     props: { sessionId: 's1', title: 'api', ...props },
     global: { plugins: [createPinia()] },
   })
 }
 
-describe('AhTerminalPane', () => {
+describe('PmTerminalPane', () => {
   beforeEach(() => {
     mocks.sent.length = 0
     mocks.terminals.length = 0
@@ -120,15 +120,15 @@ describe('AhTerminalPane', () => {
 
   it('shows the linked team member with a role badge', () => {
     const wrapper = mountPane({ status: 'waiting', member: { name: 'tester', role: 'Lead', others: ['dev', 'qa'] } })
-    const member = wrapper.get('.ah-terminal-pane__member')
+    const member = wrapper.get('.pm-terminal-pane__member')
     expect(member.text()).toContain('tester')
-    expect(member.get('.ah-status-badge--label.ah-status-badge--idle').text()).toBe('Lead')
+    expect(member.get('.pm-status-badge--label.pm-status-badge--idle').text()).toBe('Lead')
     expect(member.text()).toContain('+2')
     expect(member.attributes('title')).toBe('Same tmux window: dev, qa')
   })
 
   it('shows no member badge without a link', () => {
-    expect(mountPane().find('.ah-terminal-pane__member').exists()).toBe(false)
+    expect(mountPane().find('.pm-terminal-pane__member').exists()).toBe(false)
   })
 
   it('does not attach while hidden', () => {
@@ -160,7 +160,7 @@ describe('AhTerminalPane', () => {
     const wrapper = mountPane({ connection: 'exited', exitCode: 3 })
     await nextTick()
     expect(wrapper.text()).toContain('Process exited (code 3)')
-    await wrapper.get('.ah-terminal-pane__overlay button').trigger('click')
+    await wrapper.get('.pm-terminal-pane__overlay button').trigger('click')
     expect(wrapper.emitted('restart')).toHaveLength(1)
   })
 

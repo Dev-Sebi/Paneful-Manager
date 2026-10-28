@@ -14,14 +14,14 @@
     />
 
     <p class="claude-hooks__hint">
-      Agent Hub adds its own entries to
+      Paneful Manager adds its own entries to
       <code>{{ status?.settingsPath ?? 'settings.json' }}</code>
-      so sessions report working, waiting and idle. Other entries are kept; turning this off removes only Agent Hub's entries.
+      so sessions report working, waiting and idle. Other entries are kept; turning this off removes only Paneful Manager's entries.
     </p>
 
     <p v-if="loadError" class="claude-hooks__error" role="alert">
       {{ loadError }}
-      <AhButton size="sm" @click="load">Retry</AhButton>
+      <PmButton size="sm" @click="load">Retry</PmButton>
     </p>
 
     <p v-if="changeError" class="claude-hooks__error" role="alert">{{ changeError }}</p>
@@ -41,10 +41,10 @@
 </template>
 
 <script lang="ts" setup>
-  import type { HookStatus } from '@agent-hub/shared'
+  import type { HookStatus } from '@paneful-manager/shared'
   import { computed, onMounted, ref } from 'vue'
   import { api } from '@/api/client'
-  import AhButton from '@/components/ah/AhButton.vue'
+  import PmButton from '@/components/pm/PmButton.vue'
 
   const status = ref<HookStatus>()
   /** Follows the click while a change runs, then snaps back to the server's state (also after a failure). */
@@ -98,38 +98,38 @@
 .claude-hooks {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-2);
-  padding: var(--ah-space-4);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-surface);
+  gap: var(--pm-space-2);
+  padding: var(--pm-space-4);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-surface);
 }
 
 .claude-hooks__title {
-  font-size: var(--ah-font-size-md);
-  font-weight: var(--ah-font-weight-semibold);
+  font-size: var(--pm-font-size-md);
+  font-weight: var(--pm-font-weight-semibold);
 }
 
 .claude-hooks__hint,
 .claude-hooks__source {
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .claude-hooks__error {
   display: flex;
   align-items: center;
-  gap: var(--ah-space-2);
-  color: var(--ah-color-status-error);
-  font-size: var(--ah-font-size-sm);
+  gap: var(--pm-space-2);
+  color: var(--pm-color-status-error);
+  font-size: var(--pm-font-size-sm);
 }
 
 .claude-hooks__problems {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-1);
-  padding-left: var(--ah-space-4);
-  color: var(--ah-color-status-waiting);
-  font-size: var(--ah-font-size-sm);
+  gap: var(--pm-space-1);
+  padding-left: var(--pm-space-4);
+  color: var(--pm-color-status-waiting);
+  font-size: var(--pm-font-size-sm);
 }
 </style>

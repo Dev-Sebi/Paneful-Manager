@@ -4,12 +4,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { axe } from 'vitest-axe'
 import { defineComponent, h } from 'vue'
 import { mountWithVuetify } from '@/test/mount'
-import AhButton from './AhButton.vue'
-import AhDialog from './AhDialog.vue'
-import AhStatusBadge from './AhStatusBadge.vue'
-import AhTab from './AhTab.vue'
-import AhTabPanel from './AhTabPanel.vue'
-import AhTabs from './AhTabs.vue'
+import PmButton from './PmButton.vue'
+import PmDialog from './PmDialog.vue'
+import PmStatusBadge from './PmStatusBadge.vue'
+import PmTab from './PmTab.vue'
+import PmTabPanel from './PmTabPanel.vue'
+import PmTabs from './PmTabs.vue'
 
 enableAutoUnmount(afterEach)
 
@@ -20,42 +20,42 @@ async function violations (container: Element, extraOff: string[] = []) {
 }
 
 describe('axe, default state', () => {
-  it('AhButton', async () => {
-    const wrapper = mountWithVuetify(AhButton, { slots: { default: 'Save' } })
+  it('PmButton', async () => {
+    const wrapper = mountWithVuetify(PmButton, { slots: { default: 'Save' } })
     expect(await violations(wrapper.element)).toEqual([])
   })
 
-  it('AhButton icon-only', async () => {
-    const wrapper = mountWithVuetify(AhButton, { props: { icon: 'mdi-plus', ariaLabel: 'Add' } })
+  it('PmButton icon-only', async () => {
+    const wrapper = mountWithVuetify(PmButton, { props: { icon: 'mdi-plus', ariaLabel: 'Add' } })
     expect(await violations(wrapper.element)).toEqual([])
   })
 
-  it('AhStatusBadge label and dot', async () => {
+  it('PmStatusBadge label and dot', async () => {
     const wrapper = mountWithVuetify(defineComponent({
       render: () => h('div', [
-        h(AhStatusBadge, { state: 'waiting' }),
-        h(AhStatusBadge, { state: 'error', variant: 'dot' }),
+        h(PmStatusBadge, { state: 'waiting' }),
+        h(PmStatusBadge, { state: 'error', variant: 'dot' }),
       ]),
     }))
     expect(await violations(wrapper.element)).toEqual([])
   })
 
-  it('AhTabs, AhTab and AhTabPanel', async () => {
+  it('PmTabs, PmTab and PmTabPanel', async () => {
     const wrapper = mountWithVuetify(defineComponent({
       render: () => h('div', [
-        h(AhTabs, { modelValue: 'a', ariaLabel: 'Sessions', closable: true, addable: true }, () => [
-          h(AhTab, { value: 'a', title: 'api-server', status: 'working', dirty: true }),
-          h(AhTab, { value: 'b', title: 'web' }),
+        h(PmTabs, { modelValue: 'a', ariaLabel: 'Sessions', closable: true, addable: true }, () => [
+          h(PmTab, { value: 'a', title: 'api-server', status: 'working', dirty: true }),
+          h(PmTab, { value: 'b', title: 'web' }),
         ]),
-        h(AhTabPanel, { value: 'a' }, () => 'Panel a'),
-        h(AhTabPanel, { value: 'b' }, () => 'Panel b'),
+        h(PmTabPanel, { value: 'a' }, () => 'Panel a'),
+        h(PmTabPanel, { value: 'b' }, () => 'Panel b'),
       ]),
     }))
     expect(await violations(wrapper.element)).toEqual([])
   })
 
-  it('AhDialog', async () => {
-    mountWithVuetify(AhDialog, {
+  it('PmDialog', async () => {
+    mountWithVuetify(PmDialog, {
       props: { modelValue: true, title: 'Close session', confirmText: 'Close' },
       slots: { default: 'Unsaved work is lost.' },
       global: { stubs: { transition: false } },

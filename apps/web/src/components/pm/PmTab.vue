@@ -1,6 +1,6 @@
 <template>
   <li
-    class="ah-tab"
+    class="pm-tab"
     :class="classes"
     role="none"
     @auxclick.middle.prevent="requestClose"
@@ -13,7 +13,7 @@
       :aria-keyshortcuts="isClosable ? 'Delete' : undefined"
       :aria-label="accessibleName"
       :aria-selected="active ? 'true' : 'false'"
-      class="ah-tab__trigger"
+      class="pm-tab__trigger"
       role="tab"
       :tabindex="tabStop ? 0 : -1"
       :title="title"
@@ -23,20 +23,20 @@
       @keydown.delete.prevent="requestClose"
     >
       <slot name="prepend">
-        <AhStatusBadge v-if="status" size="sm" :state="status" variant="dot" />
-        <v-icon v-else-if="icon" aria-hidden="true" class="ah-tab__icon" :icon="icon" />
+        <PmStatusBadge v-if="status" size="sm" :state="status" variant="dot" />
+        <v-icon v-else-if="icon" aria-hidden="true" class="pm-tab__icon" :icon="icon" />
       </slot>
 
-      <span class="ah-tab__title"><slot>{{ title }}</slot></span>
+      <span class="pm-tab__title"><slot>{{ title }}</slot></span>
     </button>
 
-    <span v-if="isClosable || dirty" class="ah-tab__end">
-      <span v-if="dirty" aria-hidden="true" class="ah-tab__dirty" />
+    <span v-if="isClosable || dirty" class="pm-tab__end">
+      <span v-if="dirty" aria-hidden="true" class="pm-tab__dirty" />
 
       <button
         v-if="isClosable"
         aria-hidden="true"
-        class="ah-tab__close"
+        class="pm-tab__close"
         tabindex="-1"
         type="button"
         @click.stop="requestClose"
@@ -48,13 +48,13 @@
 </template>
 
 <script lang="ts" setup>
-  import type { AhTabEmits, AhTabProps, AhTabSlots } from './types'
+  import type { PmTabEmits, PmTabProps, PmTabSlots } from './types'
   import { computed, inject, onBeforeUnmount, ref, watchEffect } from 'vue'
-  import AhStatusBadge from './AhStatusBadge.vue'
+  import PmStatusBadge from './PmStatusBadge.vue'
   import { STATUS_LABELS } from './statusLabels'
   import { AH_TABS_KEY, claimTabValue, selectedTabs, TAB_ID_PREFIX, TABPANEL_ID_PREFIX } from './tabState'
 
-  const props = withDefaults(defineProps<AhTabProps>(), {
+  const props = withDefaults(defineProps<PmTabProps>(), {
     status: undefined,
     dirty: false,
     closable: undefined,
@@ -62,14 +62,14 @@
     icon: undefined,
   })
 
-  const emit = defineEmits<AhTabEmits>()
+  const emit = defineEmits<PmTabEmits>()
 
-  defineSlots<AhTabSlots>()
+  defineSlots<PmTabSlots>()
 
   const triggerRef = ref<HTMLButtonElement>()
   const ctx = inject(AH_TABS_KEY)
   if (!ctx) {
-    throw new Error('[AhTab] must be rendered inside AhTabs.')
+    throw new Error('[PmTab] must be rendered inside PmTabs.')
   }
   const tabs = ctx
   const releaseValue = claimTabValue(props.value)
@@ -102,11 +102,11 @@
 
   const classes = computed(() => [
     {
-      'ah-tab--active': active.value,
-      'ah-tab--disabled': props.disabled,
-      'ah-tab--dirty': props.dirty,
-      'ah-tab--closable': isClosable.value,
-      'animate__animated animate__fadeIn ah-tab--open': animateOpen,
+      'pm-tab--active': active.value,
+      'pm-tab--disabled': props.disabled,
+      'pm-tab--dirty': props.dirty,
+      'pm-tab--closable': isClosable.value,
+      'animate__animated animate__fadeIn pm-tab--open': animateOpen,
     },
   ])
 
@@ -148,69 +148,69 @@
 </script>
 
 <style scoped>
-.ah-tab {
-  --ah-tab-bg: var(--ah-color-bg-surface);
-  --ah-tab-fg: var(--ah-color-fg-muted);
+.pm-tab {
+  --pm-tab-bg: var(--pm-color-bg-surface);
+  --pm-tab-fg: var(--pm-color-fg-muted);
 
   position: relative;
   display: flex;
   flex: 0 1 auto;
   align-items: center;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   min-width: 96px;
   max-width: 240px;
-  padding: 0 var(--ah-space-3);
-  background: var(--ah-tab-bg);
-  color: var(--ah-tab-fg);
+  padding: 0 var(--pm-space-3);
+  background: var(--pm-tab-bg);
+  color: var(--pm-tab-fg);
   transition:
-    background-color var(--ah-motion-duration-fast) var(--ah-motion-easing-standard),
-    color var(--ah-motion-duration-fast) var(--ah-motion-easing-standard);
+    background-color var(--pm-motion-duration-fast) var(--pm-motion-easing-standard),
+    color var(--pm-motion-duration-fast) var(--pm-motion-easing-standard);
 }
 
-.ah-tab--open {
-  --animate-duration: var(--ah-motion-duration-normal);
+.pm-tab--open {
+  --animate-duration: var(--pm-motion-duration-normal);
 
-  animation-timing-function: var(--ah-motion-easing-decelerate);
+  animation-timing-function: var(--pm-motion-easing-decelerate);
 }
 
-.ah-tab:hover {
-  --ah-tab-bg: var(--ah-color-bg-hover);
-  --ah-tab-fg: var(--ah-color-fg-primary);
+.pm-tab:hover {
+  --pm-tab-bg: var(--pm-color-bg-hover);
+  --pm-tab-fg: var(--pm-color-fg-primary);
 }
 
-.ah-tab--active {
-  --ah-tab-bg: var(--ah-color-bg-canvas);
-  --ah-tab-fg: var(--ah-color-fg-primary);
+.pm-tab--active {
+  --pm-tab-bg: var(--pm-color-bg-canvas);
+  --pm-tab-fg: var(--pm-color-fg-primary);
 
-  font-weight: var(--ah-font-weight-medium);
+  font-weight: var(--pm-font-weight-medium);
 }
 
-.ah-tab--active::after {
+.pm-tab--active::after {
   content: "";
   position: absolute;
   right: 0;
   bottom: 0;
   left: 0;
   height: 2px;
-  background: var(--ah-color-accent-default);
+  background: var(--pm-color-accent-default);
 }
 
-.ah-tab--disabled {
-  --ah-tab-fg: var(--ah-color-fg-disabled);
+.pm-tab--disabled {
+  --pm-tab-fg: var(--pm-color-fg-disabled);
 
   cursor: not-allowed;
 }
 
-.ah-tab:has(:focus-visible) {
-  outline: 2px solid var(--ah-color-border-focus);
+.pm-tab:has(:focus-visible) {
+  outline: 2px solid var(--pm-color-border-focus);
   outline-offset: -2px;
 }
 
-.ah-tab__trigger {
+.pm-tab__trigger {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   min-width: 0;
   height: 100%;
   padding: 0;
@@ -222,20 +222,20 @@
   outline: none;
 }
 
-.ah-tab:not(.ah-tab--disabled) .ah-tab__trigger { cursor: pointer; }
+.pm-tab:not(.pm-tab--disabled) .pm-tab__trigger { cursor: pointer; }
 
-.ah-tab__title {
+.pm-tab__title {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.ah-tab__icon {
+.pm-tab__icon {
   flex: none;
   font-size: 16px;
 }
 
-.ah-tab__end {
+.pm-tab__end {
   position: relative;
   display: grid;
   flex: none;
@@ -244,38 +244,38 @@
   height: 16px;
 }
 
-.ah-tab__end > * { grid-area: 1 / 1; }
+.pm-tab__end > * { grid-area: 1 / 1; }
 
-.ah-tab__dirty {
+.pm-tab__dirty {
   width: 8px;
   height: 8px;
-  border-radius: var(--ah-radius-full);
-  background: var(--ah-color-fg-primary);
+  border-radius: var(--pm-radius-full);
+  background: var(--pm-color-fg-primary);
 }
 
-.ah-tab__close {
+.pm-tab__close {
   display: grid;
   place-items: center;
   width: 16px;
   height: 16px;
   padding: 0;
   border: 0;
-  border-radius: var(--ah-radius-sm);
+  border-radius: var(--pm-radius-sm);
   background: none;
   color: inherit;
   cursor: pointer;
   opacity: 0;
-  transition: opacity var(--ah-motion-duration-fast) var(--ah-motion-easing-standard);
+  transition: opacity var(--pm-motion-duration-fast) var(--pm-motion-easing-standard);
 }
 
-.ah-tab--active:not(.ah-tab--dirty) .ah-tab__close,
-.ah-tab:hover .ah-tab__close,
-.ah-tab:focus-within .ah-tab__close { opacity: 1; }
+.pm-tab--active:not(.pm-tab--dirty) .pm-tab__close,
+.pm-tab:hover .pm-tab__close,
+.pm-tab:focus-within .pm-tab__close { opacity: 1; }
 
-.ah-tab--dirty:not(:hover):not(:focus-within) .ah-tab__close { pointer-events: none; }
+.pm-tab--dirty:not(:hover):not(:focus-within) .pm-tab__close { pointer-events: none; }
 
-.ah-tab--closable:hover .ah-tab__dirty,
-.ah-tab--closable:focus-within .ah-tab__dirty { opacity: 0; }
+.pm-tab--closable:hover .pm-tab__dirty,
+.pm-tab--closable:focus-within .pm-tab__dirty { opacity: 0; }
 
-.ah-tab__close:hover { background: var(--ah-color-bg-selected); }
+.pm-tab__close:hover { background: var(--pm-color-bg-selected); }
 </style>

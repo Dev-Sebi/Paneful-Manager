@@ -4,10 +4,10 @@ import { reactive } from 'vue'
 /** Values of currently selected tabs; panels live outside the tablist, so they read this page-wide set. */
 export const selectedTabs = reactive(new Set<string>())
 
-export const TAB_ID_PREFIX = 'ah-tab-'
-export const TABPANEL_ID_PREFIX = 'ah-tabpanel-'
+export const TAB_ID_PREFIX = 'pm-tab-'
+export const TABPANEL_ID_PREFIX = 'pm-tabpanel-'
 
-export interface AhTabsContext {
+export interface PmTabsContext {
   activeValue: Ref<string | undefined>
   closable: Ref<boolean>
   ready: Ref<boolean>
@@ -21,7 +21,7 @@ export interface AhTabsContext {
   unmounted: (value: string) => void
 }
 
-export const AH_TABS_KEY: InjectionKey<AhTabsContext> = Symbol('ah-tabs')
+export const AH_TABS_KEY: InjectionKey<PmTabsContext> = Symbol('pm-tabs')
 
 const mounted = new Map<string, number>()
 
@@ -29,7 +29,7 @@ const mounted = new Map<string, number>()
 export function claimTabValue (value: string): () => void {
   const count = mounted.get(value) ?? 0
   if (import.meta.env.DEV && count > 0) {
-    console.warn(`[AhTab] Duplicate tab value "${value}"; values must be unique per page.`)
+    console.warn(`[PmTab] Duplicate tab value "${value}"; values must be unique per page.`)
   }
   mounted.set(value, count + 1)
   return () => {

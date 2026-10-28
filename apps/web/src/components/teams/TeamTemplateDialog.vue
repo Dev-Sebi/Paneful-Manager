@@ -1,5 +1,5 @@
 <template>
-  <AhDialog
+  <PmDialog
     v-model="open"
     :loading="saving"
     size="lg"
@@ -128,7 +128,7 @@
             variant="outlined"
           />
 
-          <AhButton
+          <PmButton
             :ariaLabel="`Remove teammate ${index + 1}`"
             :disabled="form.teammates.length === 1"
             icon="mdi-delete-outline"
@@ -151,13 +151,13 @@
       </fieldset>
 
       <div>
-        <AhButton
+        <PmButton
           :disabled="form.teammates.length >= MAX_TEAMMATES"
           prepend-icon="mdi-plus"
           size="sm"
           variant="ghost"
           @click="form.teammates.push(emptyTeammate())"
-        >Add teammate</AhButton>
+        >Add teammate</PmButton>
       </div>
 
       <v-textarea
@@ -181,18 +181,18 @@
     </form>
 
     <template #actions="{ cancel, confirm }">
-      <AhButton data-ah-cancel @click="cancel">Cancel</AhButton>
-      <AhButton data-ah-confirm :loading="saving" variant="primary" @click="confirm">Save</AhButton>
+      <PmButton data-pm-cancel @click="cancel">Cancel</PmButton>
+      <PmButton data-pm-confirm :loading="saving" variant="primary" @click="confirm">Save</PmButton>
     </template>
-  </AhDialog>
+  </PmDialog>
 </template>
 
 <script lang="ts" setup>
   import type { FormIssue, TeamTemplateForm } from './teamTemplateForm'
-  import type { TeamTemplate } from '@agent-hub/shared'
-  import { MAX_TEAMMATES, TEAM_TEMPLATE_ENV_KEYS } from '@agent-hub/shared'
+  import type { TeamTemplate } from '@paneful-manager/shared'
+  import { MAX_TEAMMATES, TEAM_TEMPLATE_ENV_KEYS } from '@paneful-manager/shared'
   import { ref, watch } from 'vue'
-  import { AhButton, AhDialog } from '@/components/ah'
+  import { PmButton, PmDialog } from '@/components/pm'
   import { useTeamTemplatesStore } from '@/stores/teamTemplates'
   import { useUiStore } from '@/stores/ui'
   import { emptyTeammate, emptyTemplateForm, templateToForm, validateTemplateForm } from './teamTemplateForm'
@@ -252,24 +252,24 @@
 .team-template-form {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-3);
-  padding-top: var(--ah-space-2);
+  gap: var(--pm-space-3);
+  padding-top: var(--pm-space-2);
 }
 
 .team-template-form__group {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-3);
+  gap: var(--pm-space-3);
   margin: 0;
-  padding: var(--ah-space-3);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
+  padding: var(--pm-space-3);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
 }
 
 .team-template-form__legend {
-  padding: 0 var(--ah-space-1);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  padding: 0 var(--pm-space-1);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .team-template-form__row {
@@ -277,16 +277,16 @@
   grid-auto-columns: 1fr;
   grid-auto-flow: column;
   align-items: start;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
 }
 
 .team-template-form__row--teammate { grid-template-columns: 1fr 1fr 1fr auto; grid-auto-flow: row; }
 
 .team-template-form__issues {
   margin: 0;
-  padding-left: var(--ah-space-6);
-  color: var(--ah-color-status-error);
-  font-size: var(--ah-font-size-sm);
+  padding-left: var(--pm-space-6);
+  color: var(--pm-color-status-error);
+  font-size: var(--pm-font-size-sm);
 }
 
 @media (max-width: 640px) {

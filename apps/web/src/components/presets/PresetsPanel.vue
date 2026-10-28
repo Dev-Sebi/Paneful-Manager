@@ -4,13 +4,13 @@
       <h2 class="presets__title">Presets</h2>
       <span class="presets__spacer" />
 
-      <AhButton
+      <PmButton
         :disabled="tabs.tabs.length === 0"
         prepend-icon="mdi-content-save-outline"
         @click="openFromTabs"
-      >Save current tabs</AhButton>
+      >Save current tabs</PmButton>
 
-      <AhButton prepend-icon="mdi-plus" variant="primary" @click="openCreate">New preset</AhButton>
+      <PmButton prepend-icon="mdi-plus" variant="primary" @click="openCreate">New preset</PmButton>
     </header>
 
     <p v-if="presets.error" class="presets__error" role="alert">Could not load presets: {{ presets.error }}</p>
@@ -25,16 +25,16 @@
           <span v-if="preset.description" class="presets__description">{{ preset.description }}</span>
         </div>
 
-        <AhButton
+        <PmButton
           :ariaLabel="`Launch ${preset.name}`"
           :loading="launching === preset.name"
           prepend-icon="mdi-play"
           size="sm"
           variant="primary"
           @click="launch(preset.name)"
-        >Launch</AhButton>
+        >Launch</PmButton>
 
-        <AhButton
+        <PmButton
           :ariaLabel="`Edit ${preset.name}`"
           icon="mdi-pencil-outline"
           size="sm"
@@ -42,7 +42,7 @@
           @click="openEdit(preset)"
         />
 
-        <AhButton
+        <PmButton
           :ariaLabel="`Delete ${preset.name}`"
           icon="mdi-delete-outline"
           size="sm"
@@ -54,9 +54,9 @@
 
     <PresetDialog v-model="editOpen" :initial="initial" :preset="editing" @saved="ui.notify('Preset saved', 'success')" />
 
-    <AhDialog
+    <PmDialog
       confirm-text="Delete"
-      initial-focus="[data-ah-cancel]"
+      initial-focus="[data-pm-cancel]"
       :loading="removing"
       :model-value="deleting !== undefined"
       :title="`Delete preset ${deleting?.name ?? ''}?`"
@@ -65,16 +65,16 @@
       @update:model-value="deleting = undefined"
     >
       <p>The file {{ deleting?.name }}.yaml is removed. Running sessions stay open.</p>
-    </AhDialog>
+    </PmDialog>
   </section>
 </template>
 
 <script lang="ts" setup>
   import type { PresetForm } from './presetForm'
-  import type { WorkspacePreset } from '@agent-hub/shared'
+  import type { WorkspacePreset } from '@paneful-manager/shared'
   import { ref } from 'vue'
   import { useRouter } from 'vue-router'
-  import { AhButton, AhDialog } from '@/components/ah'
+  import { PmButton, PmDialog } from '@/components/pm'
   import { usePresetsStore } from '@/stores/presets'
   import { useSessionsStore } from '@/stores/sessions'
   import { useTabsStore } from '@/stores/tabs'
@@ -161,7 +161,7 @@
 .presets {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-3);
+  gap: var(--pm-space-3);
   width: 100%;
   max-width: 640px;
 }
@@ -169,12 +169,12 @@
 .presets__toolbar {
   display: flex;
   align-items: center;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
 }
 
 .presets__title {
-  font-size: var(--ah-font-size-lg);
-  font-weight: var(--ah-font-weight-semibold);
+  font-size: var(--pm-font-size-lg);
+  font-weight: var(--pm-font-weight-semibold);
 }
 
 .presets__spacer { flex: 1; }
@@ -182,7 +182,7 @@
 .presets__list {
   display: flex;
   flex-direction: column;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -191,11 +191,11 @@
 .presets__item {
   display: flex;
   align-items: center;
-  gap: var(--ah-space-2);
-  padding: var(--ah-space-2) var(--ah-space-3);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-md);
-  background: var(--ah-color-bg-surface);
+  gap: var(--pm-space-2);
+  padding: var(--pm-space-2) var(--pm-space-3);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-md);
+  background: var(--pm-color-bg-surface);
 }
 
 .presets__info {
@@ -203,35 +203,35 @@
   flex: 1;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--ah-space-2);
+  gap: var(--pm-space-2);
   min-width: 0;
   text-align: left;
 }
 
 .presets__name {
-  color: var(--ah-color-fg-primary);
-  font-weight: var(--ah-font-weight-medium);
+  color: var(--pm-color-fg-primary);
+  font-weight: var(--pm-font-weight-medium);
 }
 
 .presets__badge {
-  padding: 0 var(--ah-space-2);
-  border: 1px solid var(--ah-color-border-default);
-  border-radius: var(--ah-radius-full);
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-xs);
+  padding: 0 var(--pm-space-2);
+  border: 1px solid var(--pm-color-border-default);
+  border-radius: var(--pm-radius-full);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-xs);
 }
 
 .presets__description {
   flex-basis: 100%;
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
 .presets__empty,
 .presets__error {
-  color: var(--ah-color-fg-muted);
-  font-size: var(--ah-font-size-sm);
+  color: var(--pm-color-fg-muted);
+  font-size: var(--pm-font-size-sm);
 }
 
-.presets__error { color: var(--ah-color-status-error); }
+.presets__error { color: var(--pm-color-status-error); }
 </style>

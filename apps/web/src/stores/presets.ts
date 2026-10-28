@@ -1,4 +1,4 @@
-import type { AppTab, WorkspacePreset } from '@agent-hub/shared'
+import type { AppTab, WorkspacePreset } from '@paneful-manager/shared'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '@/api/client'

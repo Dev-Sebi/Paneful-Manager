@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { HookStatus } from '@agent-hub/shared'
+import type { HookStatus } from '@paneful-manager/shared'
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mountWithVuetify } from '@/test/mount'
@@ -17,7 +17,7 @@ function hookStatus (overrides: Partial<HookStatus> = {}): HookStatus {
     portMatches: true,
     installedEvents: [],
     statusAvailable: false,
-    reasons: [{ code: 'not_installed', source: '/home/user/.claude/settings.json', message: 'Agent Hub hooks are not installed' }],
+    reasons: [{ code: 'not_installed', source: '/home/user/.claude/settings.json', message: 'Paneful Manager hooks are not installed' }],
     staleSessions: [],
     ...overrides,
   }
@@ -84,7 +84,7 @@ describe('ClaudeHooksSetting', () => {
   it('lists blocking settings but not the plain not-installed reason', async () => {
     status.mockResolvedValue(hookStatus({
       reasons: [
-        { code: 'not_installed', source: '/s.json', message: 'Agent Hub hooks are not installed' },
+        { code: 'not_installed', source: '/s.json', message: 'Paneful Manager hooks are not installed' },
         { code: 'disable_all_hooks', source: '/etc/claude-code/managed-settings.json', message: 'disableAllHooks is set' },
       ],
     }))

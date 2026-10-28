@@ -8,12 +8,12 @@ import {
   BIND_HOST,
   LOGIN_FRAGMENT_PARAM,
   RegisterDeviceResponseSchema,
-} from '@agent-hub/shared'
+} from '@paneful-manager/shared'
 import { ref } from 'vue'
 import { createDeviceKey, indexedDbDeviceStore, signChallenge } from './device'
 
 /** Where builds before the device login kept the access key itself; it is deleted on every start. */
-export const LEGACY_ACCESS_KEY_STORAGE_KEY = 'agent-hub.access-key.v1'
+export const LEGACY_ACCESS_KEY_STORAGE_KEY = 'paneful-manager.access-key.v1'
 
 /** True while the server refuses this browser; the shell shows the login hint then. */
 export const loginRequired = ref(false)
@@ -134,7 +134,7 @@ async function establish (): Promise<string | undefined> {
 }
 
 /**
- * Session key for `X-Agent-Hub-Key`, established once per page. Undefined without a usable device:
+ * Session key for `X-Paneful-Key`, established once per page. Undefined without a usable device:
  * the request then goes out without it and the server decides (scripts and e2e send the access key themselves).
  * A failure to reach the server is not remembered, so the next request tries again.
  */
