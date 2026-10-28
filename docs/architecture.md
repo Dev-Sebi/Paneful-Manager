@@ -24,7 +24,7 @@ flowchart LR
     TMUX[("tmux server -L agent-hub")]
     CC[claude processes]
     CONF[("config dir: config.yaml, workspaces/*.yaml")]
-    STATE[("state dir: sessions, tabs, hook token, backups")]
+    STATE[("state dir: sessions, launch ledgers, hook token, backups")]
     CLAUDE[("~/.claude and project files: settings.json, CLAUDE.md, skills")]
   end
   UI -->|"REST + token"| HTTP
@@ -98,7 +98,7 @@ On startup the engine runs `tmux -L agent-hub list-sessions -F '#{session_name}\
 | missing | `sessions/<id>.json` exists | Stale record deleted. Clients still referencing the id get `unknown_session` and drop the pane. |
 | name without `ah-` prefix | - | Ignored, never touched (someone used the socket manually). |
 
-Reconstructed orphan record: `cwd` from `session_path`, `createdAt` from `session_created`, `title: "Recovered"`. `pane_start_command` is a shell-quoted string that cannot be split back reliably, so it is only logged and the record stores `command: 'tmux'`, `args: []`. Required fields without a source get defaults: `cols` 80, `rows` 24, `state: idle`, `lastEventAt` now, `hostId: local`. Recovered sessions are shown in a synthetic "Recovered" tab. When loading `tabs.json` the server prunes session ids that no longer exist.
+Reconstructed orphan record: `cwd` from `session_path`, `createdAt` from `session_created`, `title: "Recovered"`. `pane_start_command` is a shell-quoted string that cannot be split back reliably, so it is only logged and the record stores `command: 'tmux'`, `args: []`. Required fields without a source get defaults: `cols` 80, `rows` 24, `state: idle`, `lastEventAt` now, `hostId: local`. Recovered sessions are not opened in a tab automatically; `GET /api/sessions` lists them. Tabs live in the browser (`localStorage`, `agent-hub.tabs.v1`), not on the server.
 
 Re-adopted sessions keep the environment they were created with, which is why the hook token is persisted and not per boot (see [Security model](#security-model)).
 
@@ -121,7 +121,6 @@ Re-adopted sessions keep the environment they were created with, which is why th
 | `$STATE/sessions/<id>.json` | one `Session` record, rewritten on every lifecycle or state change | server |
 | `$STATE/preset-launches.json` | preset name to the ids of the sessions it launched (autostart guard, see [Workspace presets](#workspace-presets)) | server |
 | `$STATE/team-launches.json` | team template launches: template, lead session id, expected team name (see [Agent teams](#agent-teams-experimental)) | server |
-| `$STATE/tabs.json` | runtime tabs (`AppTabSchema[]`) incl. pane sizes, so tabs survive browser close | server |
 | `$STATE/hook-token` | hook token, mode `0600`, created once | server |
 | `$STATE/tmux.conf` | tmux config, read by `agent-hub-tmux.service` at tmux start | installer |
 | `$STATE/backups/<encoded-path>/<timestamp>` | backups before overwriting or deleting files (see below) | server |

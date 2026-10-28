@@ -1,6 +1,6 @@
 # Configuration
 
-Agent Hub reads one app config file and one preset file per workspace. The server validates both with zod schemas from `packages/shared`. A missing config file means the defaults. An invalid file stops the server at startup with the path and the failing keys, so a typo is never ignored.
+Agent Hub reads one app config file and one preset file per workspace. The server validates both with zod schemas from `packages/shared`. A missing config file means the defaults. An invalid `config.yaml` stops the server at startup with the path and the failing keys, so a typo is never ignored. An invalid preset file does not stop the server: it is left out of the preset list and answers `409` when it is opened.
 
 Related: [Install guide](install.md), [Troubleshooting](troubleshooting.md).
 
@@ -14,16 +14,19 @@ Related: [Install guide](install.md), [Troubleshooting](troubleshooting.md).
 | `~/.config/agent-hub/workspaces/<name>.yaml` | one workspace preset per file; the file name is the preset `name` | you, and the server through the preset API |
 | `~/.local/state/agent-hub/` | runtime state, mode `0700` | server only |
 | `~/.local/state/agent-hub/sessions/<id>.json` | one record per session | server |
-| `~/.local/state/agent-hub/tabs.json` | open tabs, including pane sizes | server |
+| `~/.config/agent-hub/teams/<name>.yaml` | team templates (experimental), see [Team templates](#team-templates) | you, and the server through the team template API |
 | `~/.local/state/agent-hub/preset-launches.json` | preset name to the session ids it launched (autostart guard) | server |
+| `~/.local/state/agent-hub/team-launches.json` | team template launches whose lead session is still live | server |
 | `~/.local/state/agent-hub/hook-token` | hook token, mode `0600`, created once | server |
 | `~/.local/state/agent-hub/tmux.conf` | tmux config for the Agent Hub tmux server | installer |
 | `~/.local/state/agent-hub/backups/<encoded-path>/<timestamp>` | backups of Claude settings, CLAUDE.md, skills and presets before they are overwritten or deleted (mode `0600`, last 20 per file, at most 50 MB in total) | server |
 | `$CLAUDE_CONFIG_DIR/settings.json` (default `~/.claude/settings.json`) | Claude Code settings; Agent Hub only adds or removes its own `hooks` entries | server, on hook install |
-| `~/.claude.json`, `<project>/.mcp.json` | MCP server entries | server, through the `claude` CLI or a file edit |
+| `~/.claude.json` (`$CLAUDE_CONFIG_DIR/.claude.json` when set), `<project>/.mcp.json` | MCP server entries | server, through the `claude` CLI or a file edit |
 | journald (`journalctl --user -u agent-hub`) | server logs | server |
 
 The config and state directories follow `XDG_CONFIG_HOME` and `XDG_STATE_HOME` when they are set to absolute paths. A relative value is ignored.
+
+Open tabs, pane sizes and the theme chosen in the UI are not files: the web app keeps them in the browser's `localStorage`.
 
 ## config.yaml
 
@@ -31,9 +34,9 @@ Keys, types and defaults come from `AppConfigSchema` in `packages/shared/src/con
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `port` | integer, 1 to 65535 | `7337` | Port of the server on `127.0.0.1`. `AGENT_HUB_PORT` overrides it. A changed value takes effect after a restart. |
+| `port` | integer, 1 to 65535 | `7337` | Port of the server on `127.0.0.1`. `AGENT_HUB_PORT` overrides it. A changed value takes effect after a restart. The installed unit always sets `AGENT_HUB_PORT`, so change the port there with `install.sh --port` (see [Port](install.md#port)). |
 | `experimental.agentTeams` | boolean | `false` | Enables the experimental agent-team views (see [Agent teams](#agent-teams-experimental)). |
-| `confirmCloseTab` | boolean | `true` | Ask for confirmation before a tab is closed. Also available as a switch in the Settings view. |
+| `confirmCloseTab` | boolean | `true` | Ask for confirmation before closing a tab that still has running sessions (closing kills them). Also available as a switch in the Settings view. |
 | `projects` | list of paths | `[]` | Project directories. Each project and its git worktrees become scopes for CLAUDE.md, skills and MCP servers. A leading `~` is expanded. |
 | `logLevel` | `trace`, `debug`, `info`, `warn`, `error`, `fatal` | `info` | Server log level. |
 | `theme` | `dark`, `light`, `system` | `dark` | Default UI theme. A theme chosen in the UI is stored in the browser and takes precedence there. |
@@ -61,7 +64,7 @@ projects:
 
 | Variable | Read by | Effect |
 | --- | --- | --- |
-| `AGENT_HUB_PORT` | server | Port; overrides `port` in `config.yaml`. Only digits, 1 to 65535; any other value stops the server at startup. |
+| `AGENT_HUB_PORT` | server, Vite dev server | Port; overrides `port` in `config.yaml`. Only digits, 1 to 65535; any other value stops the server at startup. The Vite dev proxy forwards `/api` and `/ws` to this port (default `7337`) and does not read `config.yaml`. |
 | `AGENT_HUB_DEV_ORIGINS` | server | Comma-separated extra Origins, each `http://localhost:<port>` or `http://127.0.0.1:<port>`. Honored only when `NODE_ENV=development`; other entries are logged and ignored. |
 | `AGENT_HUB_WEB_DIST` | server | Directory of the built web app. Default: `apps/web/dist` next to the server. Without an `index.html` there, only the API is served. |
 | `XDG_CONFIG_HOME` | server, installer | Base of the config directory (absolute values only). |
@@ -194,7 +197,7 @@ Launch (`POST /api/team-templates/<name>/launch`, returns `201`):
 3. The server picks the lead's session id (a UUID, passed as `--session-id`), so the team name is known before Claude Code starts. The team name is `session-` followed by the first 8 characters of that id.
 4. One session is created with the command `lead.command`, the arguments `lead.args`, `--teammate-mode tmux`, `--session-id <uuid>`, `--settings` with the env (template `env` plus `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` and `CLAUDE_CODE_TASK_LIST_ID=<team name>`), optional `--model`, and the first prompt. The template args come first, so a variadic option ends before `--teammate-mode`.
 5. The launch (`template`, `sessionId`, `team`, `launchedAt`) is appended to `~/.local/state/agent-hub/team-launches.json`. Entries whose lead session has exited or is gone are dropped on the next write.
-6. If anything fails after the lead has started, the lead session is killed and nothing is recorded.
+6. If the launch record cannot be built after the lead has started, the lead session is killed and nothing is recorded. If only writing `team-launches.json` fails, a warning is logged and the launch still succeeds.
 
 No `.claude/agents/` files are written. Teammate roles travel in the first prompt only.
 

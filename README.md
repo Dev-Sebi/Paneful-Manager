@@ -19,7 +19,7 @@ Agent Hub is a local web app for running and organizing Claude Code sessions. It
 
 ## Experimental: agent teams
 
-Agent teams build on an experimental Claude Code feature (Claude Code 2.1.309 or later) and are off by default. Set `experimental.agentTeams: true` in `~/.config/agent-hub/config.yaml` (or in Settings) to get the Teams view: a read-only task board per team and team templates (`~/.config/agent-hub/teams/<name>.yaml`, see [examples/teams](examples/teams)). Launching a template starts the lead session; Claude Code spawns the teammates from the generated first prompt, so names and models are requests, not guarantees. Upstream changes can break this at any time; see [ADR 0010](docs/adr/0010-agent-teams.md) and [ADR 0012](docs/adr/0012-team-templates.md). Reference: [team templates and agent teams](docs/configuration.md#agent-teams-experimental).
+Agent teams build on an experimental Claude Code feature (Claude Code 2.1.309 or later) and are off by default. Set `experimental.agentTeams: true` in `~/.config/agent-hub/config.yaml` (or through `PATCH /api/config`) to get the Teams view: a read-only task board per team and team templates (`~/.config/agent-hub/teams/<name>.yaml`, see [examples/teams](examples/teams)). Launching a template starts the lead session; Claude Code spawns the teammates from the generated first prompt, so names and models are requests, not guarantees. Upstream changes can break this at any time; see [ADR 0010](docs/adr/0010-agent-teams.md) and [ADR 0012](docs/adr/0012-team-templates.md). Reference: [team templates and agent teams](docs/configuration.md#agent-teams-experimental).
 
 ## Quick start
 
@@ -51,7 +51,7 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:3000` in your browser (Vite dev server). The API server listens on the configured port (default `7337`).
+Open `http://localhost:3000` in your browser (Vite dev server). The API server listens on the configured port (default `7337`); the Vite proxy forwards to `AGENT_HUB_PORT` or `7337`, so set `AGENT_HUB_PORT` when `config.yaml` uses another port.
 
 ## Requirements
 

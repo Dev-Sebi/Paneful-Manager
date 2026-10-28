@@ -16,8 +16,8 @@ journalctl --user -u agent-hub -n 50
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Log shows `Port 7337 is already in use. Change port in config.yaml or set AGENT_HUB_PORT.` | another process listens on the port | `ss -ltnp \| grep 7337` shows the process. Stop it, or move Agent Hub: `~/.local/share/agent-hub/current/install.sh --port 7338` (rewrites the unit and `config.yaml`, restarts the server). |
-| Server stops with `Invalid config in ~/.config/agent-hub/config.yaml:` followed by `- <key>: <message>` | a key has a wrong type or value | fix the listed key (see [Configuration](configuration.md#configyaml)) and restart the service. |
+| Log shows ``Port 7337 is already in use. Change `port` in config.yaml or set AGENT_HUB_PORT.`` | another process listens on the port | `ss -ltnp \| grep 7337` shows the process. Stop it, or move Agent Hub: `~/.local/share/agent-hub/current/install.sh --port 7338` (rewrites the unit and `config.yaml`, restarts the server). |
+| Server stops with `Invalid config in <absolute path of config.yaml>:` followed by one `- <key>: <message>` line per key | a key has a wrong type or value | fix the listed key (see [Configuration](configuration.md#configyaml)) and restart the service. |
 | Server stops with `Invalid YAML in ...` | syntax error in `config.yaml` | fix the YAML, then `systemctl --user restart agent-hub.service`. |
 | Server stops with `Invalid AGENT_HUB_PORT "...": expected an integer between 1 and 65535` | the environment variable is not a valid port | unset it or set a valid port. |
 | Log shows `Backup directory ... must be outside the scope ...` | the backup directory (default `~/.local/state/agent-hub/backups`) lies inside a project or the Claude config directory | move the state directory with `XDG_STATE_HOME` or remove the project from `projects`. |
@@ -29,7 +29,7 @@ journalctl --user -u agent-hub -n 50
 | --- | --- | --- |
 | `/api/health` returns `"tmux": "unavailable"`; new sessions fail with HTTP 503 `tmux_unavailable` ("tmux server is not running") | the tmux server for socket `agent-hub` is not running. The server never starts tmux itself. | `systemctl --user start agent-hub-tmux.service`. If it fails, `systemctl --user status agent-hub-tmux.service` and `journalctl --user -u agent-hub-tmux` show why. |
 | Installer stops with `tmux 3.2 or later is required` | tmux is missing or older than 3.2 | `sudo apt-get install -y tmux`. Ubuntu 22.04 and later ship a recent enough version; on older releases upgrade the distro or build tmux. |
-| Sessions fail with `claude: not found` | the units use the `PATH` from install time, which had no `claude` | re-run the installer from a shell where `claude` is on `PATH`, then `systemctl --user restart agent-hub-tmux.service` (this ends all running sessions). |
+| A new pane exits right away with `env: 'claude': No such file or directory` | the units use the `PATH` from install time, which had no `claude` | re-run the installer from a shell where `claude` is on `PATH`, then `systemctl --user restart agent-hub-tmux.service` (this ends all running sessions). |
 
 ## Requests fail with 401 or 403
 
@@ -40,7 +40,7 @@ The server checks the Host header, the Origin header and a per-start token. See 
 | 403 `Host not allowed` | the page is opened through a name or address other than `localhost` or `127.0.0.1` (for example a LAN IP) | open `http://127.0.0.1:<port>/` or `http://localhost:<port>/`. |
 | 403 `Origin not allowed` | the request comes from another origin. Allowed origins are `http://localhost:<port>`, `http://127.0.0.1:<port>` and `http://[::1]:<port>`. | use the UI from one of these origins. In development the UI runs at `http://localhost:3000`; extra development origins are set with `AGENT_HUB_DEV_ORIGINS` and only work with `NODE_ENV=development`. |
 | 401 `Missing Origin or invalid token` on `POST`, `PUT`, `PATCH` or `DELETE` | the request has no `Origin` header, or its `X-Agent-Hub-Token` is missing or from an earlier server start | send `Origin: http://127.0.0.1:<port>` and the token from `GET /api/session-token` in `X-Agent-Hub-Token`. The token changes on every server restart. The web app fetches a new one after a 401 or 403 on its own; reload the page if it does not. |
-| 403 `forbidden` on `GET /api/session-token` | the request carries `Sec-Fetch-Site: cross-site` | open the UI directly in the browser, not from another site. |
+| 403 `Cross-site requests are not allowed` on `GET /api/session-token` | the request carries `Sec-Fetch-Site: cross-site` | open the UI directly in the browser, not from another site. |
 | 403 `Browser requests are not allowed on this route` on `POST /api/hooks` | the request carries an `Origin` header; the hook endpoint accepts only Claude Code | none. Claude Code sends no `Origin`. |
 | 401 `Invalid hook token` on `POST /api/hooks` | the `AGENT_HUB_HOOK_TOKEN` in the session's environment differs from `hook-token` in the state directory, for example because the file was replaced after the session started | restart that Claude session. Sessions keep the environment they were started with. |
 
@@ -78,7 +78,8 @@ The settings file is `$CLAUDE_CONFIG_DIR/settings.json` (default `~/.claude/sett
 | --- | --- | --- |
 | All sessions disappeared | the tmux unit was restarted or stopped (`agent-hub-tmux.service` owns the tmux server), or WSL stopped the distro after its idle timeout | restarting `agent-hub.service` alone keeps sessions. Keep WSL running, see [Keeping WSL running](install.md#keeping-wsl-running). |
 | A session is gone although its tmux session exists | the tmux session name does not start with `ah-` or belongs to another server | Agent Hub only manages `ah-<id>` sessions on socket `agent-hub`. Check with `tmux -L agent-hub ls`. |
-| A tab named `Recovered` appears | a tmux session without a metadata file was found on start and adopted | expected. Its command is shown as `tmux`, and it can be closed. |
+| `GET /api/sessions` lists a session titled `Recovered` with command `tmux` | a tmux session without a metadata file was found on start and adopted | expected. It is not opened in a tab by itself. Stop it with `DELETE /api/sessions/<id>` (Origin and token as in [401 and 403](#requests-fail-with-401-or-403)) or `tmux -L agent-hub kill-session -t ah-<id>`. |
+| Tabs are missing in another browser or after clearing site data | open tabs are stored in the browser (`localStorage`), not on the server | the sessions keep running; `GET /api/sessions` lists them. |
 
 Sessions that exited on their own stay visible until their tab is closed.
 

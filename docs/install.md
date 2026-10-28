@@ -42,7 +42,7 @@ pnpm release:pack                                     # or pack a tarball first
 ./install.sh --from-source dist/release/agent-hub-<tag>.tar.gz
 ```
 
-A source checkout must contain `apps/server/dist/index.js` and `apps/web/dist/index.html`. `pnpm release:pack` (`scripts/release-pack.sh`) builds and writes `dist/release/agent-hub-<tag>.tar.gz` plus `agent-hub-<tag>.tar.gz.sha256`; the tag defaults to `v<package version>`. A release publishes both files and `install.sh` as assets.
+A source checkout must contain `apps/server/dist/index.js` and `apps/web/dist/index.html`. `pnpm release:pack` (`scripts/release-pack.sh`) builds and writes `dist/release/agent-hub-<tag>.tar.gz` plus `agent-hub-<tag>.tar.gz.sha256`; the tag defaults to `v<package version>`. The installer downloads both files and `install.sh` from the GitHub release, so a release must publish all three as assets.
 
 ## Options
 
@@ -82,7 +82,7 @@ Environment: `AGENT_HUB_REPO` (`<owner>/<repo>` to download releases from).
 | `/etc/wsl.conf` | `[boot]` `systemd=true`, merged into the existing file; if the file existed, a backup is written to `/etc/wsl.conf.agent-hub.bak` (sudo) | only if systemd is off and you agree |
 | `build-essential`, `python3` (apt, sudo) | build tools for node-pty | only if missing and `--yes` is given |
 | Windows Task Scheduler: `AgentHub-<distro>` | runs `wsl.exe -d <distro> --exec true` at your Windows logon | only if you agree |
-| `~/.local/bin/pnpm` | corepack shim | only if pnpm is missing and you agree |
+| `~/.local/bin/pnpm` | corepack shim | only if pnpm is missing or older than the major version in `packageManager`, and you agree |
 
 All paths follow `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and `XDG_DATA_HOME` when they are set to absolute paths. The units pin the config and state values, so the server uses the same directories as the installer.
 
