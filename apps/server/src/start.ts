@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { BIND_HOST, HOOK_ENV, resolveStateDir, type AppConfig } from '@paneful-manager/shared'
-import type { FastifyBaseLogger } from 'fastify'
+import type { FastifyBaseLogger, FastifyListenOptions } from 'fastify'
+import type { Server } from 'node:http'
 import { buildApp } from './app.js'
 import { resolveConfigFile, resolveTeamTemplatesDir, resolveWorkspacesDir } from './config/load-config.js'
 import { createConfigStore } from './config/store.js'
@@ -22,6 +23,7 @@ import { createPresetStore } from './presets/store.js'
 import { discoverScopes } from './scopes/discover.js'
 import { assertLoopbackAddress, DEV_ORIGINS_ENV_VAR, parseDevOrigins } from './security/origin.js'
 import { SessionEngine } from './sessions/engine.js'
+import { closeServer, listenHintServer, takeListenFds } from './socket-activation.js'
 import { resolveWebDist } from './static.js'
 import { resolveClaudeDir } from './teams/reader.js'
 import { createTeamTemplateLauncher } from './team-templates/launch.js'
@@ -131,20 +133,33 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     hookStaleSessions: staleHookSessions,
     hookSettings,
   })
-  try {
-    await app.listen({ host: BIND_HOST, port: config.port })
-  } catch (error) {
+  // Under systemd socket activation the first socket is 127.0.0.1:<port>; the others (only [::1]) get the address hint.
+  const [trustedFd, ...otherFds] = takeListenFds(env, process.pid)
+  const hintServers: Server[] = []
+  const closeAll = async (): Promise<void> => {
+    await Promise.all(hintServers.map(async server => closeServer(server)))
     await app.close()
-    throw error
   }
-  const address = app.server.address()
+  let port: number
   try {
+    // Node takes `fd` before `port`; Fastify's options type does not list it. `host` keeps Fastify from binding `::1` too.
+    await app.listen(trustedFd === undefined ? { host: BIND_HOST, port: config.port } : ({ host: BIND_HOST, fd: trustedFd } as FastifyListenOptions))
+    const address = app.server.address()
     assertLoopbackAddress(address)
+    port = typeof address === 'object' && address !== null ? address.port : config.port
+    for (const fd of otherFds) {
+      hintServers.push(await listenHintServer(fd, port))
+    }
   } catch (error) {
-    await app.close()
+    await closeAll()
     throw error
   }
-  const port = typeof address === 'object' && address !== null ? address.port : config.port
+  if (trustedFd !== undefined) {
+    logger.info(`Using ${otherFds.length + 1} listening socket(s) from systemd (socket activation)`)
+    if (port !== config.port) {
+      logger.warn(`Listening on port ${port} from systemd, not on the configured port ${config.port}`)
+    }
+  }
   listeningPort = port
   serverUrl = `http://${BIND_HOST}:${port}`
   // Detached so startup is not delayed; shutdown waits for it so no session starts after close.
@@ -154,7 +169,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     const timeout = new Promise<false>(resolve => {
       timer = setTimeout(() => resolve(false), SHUTDOWN_TIMEOUT_MS)
     })
-    const closed = autostart.then(() => app.close()).then(() => true as const)
+    const closed = autostart.then(closeAll).then(() => true as const)
     const clean = await Promise.race([closed, timeout])
     clearTimeout(timer)
     if (!clean) {
