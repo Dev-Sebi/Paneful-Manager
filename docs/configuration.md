@@ -73,7 +73,7 @@ projects:
 | `CLAUDE_CONFIG_DIR` | server | Claude Code config directory; default `~/.claude`. |
 | `NODE_ENV` | server | `development` enables the Vite origins (`localhost:3000`, `127.0.0.1:3000`) and pretty logs. The systemd unit sets `production`. |
 | `TMUX_TMPDIR` | server | Passed to tmux calls, so tmux finds the socket directory. |
-| `AGENT_HUB_REPO` | installer | GitHub `<owner>/<repo>` to download releases from (default `agent-hub/agent-hub`). |
+| `AGENT_HUB_REPO` | installer | GitHub `<owner>/<repo>` to download releases from (default `Dev-Sebi/Paneful-Manager`). |
 
 The server also sets these variables in every session it starts: `AGENT_HUB_SESSION_ID`, `AGENT_HUB_HOOK_TOKEN` and `AGENT_HUB_URL`. The hook handler in Claude Code uses them to report session state.
 

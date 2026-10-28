@@ -20,10 +20,10 @@ Related: [Configuration](configuration.md), [Troubleshooting](troubleshooting.md
 ## Install
 
 ```bash
-curl -fsSL https://github.com/agent-hub/agent-hub/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/Dev-Sebi/Paneful-Manager/releases/latest/download/install.sh | sh
 ```
 
-The installer downloads from the GitHub repository `agent-hub/agent-hub` (the default). The repository can be overridden with `AGENT_HUB_REPO`, for example for a fork:
+The installer downloads from the GitHub repository `Dev-Sebi/Paneful-Manager` (the default). The repository can be overridden with `AGENT_HUB_REPO`, for example for a fork:
 
 ```bash
 curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/install.sh | AGENT_HUB_REPO=<owner>/<repo> sh

@@ -271,7 +271,7 @@ check "purge removes state" test ! -e "$STATE"
 DL="$HOME/dl"
 mkdir -p "$STUB_DIR/release"
 cp "$V1" "$STUB_DIR/release/"
-echo "https://github.com/agent-hub/agent-hub/releases" >"$STUB_DIR/latest-url"
+echo "https://github.com/Dev-Sebi/Paneful-Manager/releases" >"$STUB_DIR/latest-url"
 install_sh_fails --yes --no-systemd --no-windows-task --prefix "$DL"
 check "latest without a release is rejected" contains "$OUT" "Invalid release tag"
 install_sh_fails --yes --no-systemd --no-windows-task --prefix "$DL" --version v1.0.0
@@ -281,7 +281,7 @@ install_sh_fails --yes --no-systemd --no-windows-task --prefix "$DL" --version v
 check "checksum mismatch is refused" contains "$OUT" "Checksum mismatch"
 check "refused downloads leave no release" test ! -e "$DL/current"
 cp "$V1.sha256" "$STUB_DIR/release/"
-echo "https://github.com/agent-hub/agent-hub/releases/tag/v1.0.0" >"$STUB_DIR/latest-url"
+echo "https://github.com/Dev-Sebi/Paneful-Manager/releases/tag/v1.0.0" >"$STUB_DIR/latest-url"
 install_sh --yes --no-systemd --no-windows-task --prefix "$DL"
 check "latest resolves and verifies the download" contains "$OUT" "sha256 verified"
 check "downloaded release installed" test "$(readlink "$DL/current")" = releases/v1.0.0

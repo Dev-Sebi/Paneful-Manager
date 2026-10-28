@@ -4,7 +4,7 @@
 # Run with -h for all options. Docs: docs/install.md
 set -eu
 
-AGENT_HUB_REPO=${AGENT_HUB_REPO:-agent-hub/agent-hub}
+AGENT_HUB_REPO=${AGENT_HUB_REPO:-Dev-Sebi/Paneful-Manager}
 DEFAULT_PORT=7337
 MIN_NODE_MAJOR=22
 MIN_TMUX_VERSION=3.2
