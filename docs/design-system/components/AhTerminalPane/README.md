@@ -8,7 +8,7 @@ One terminal session inside the split layout: header with title, status and acti
 
 ```
 ┌ header ────────────────────────────────────────────────────────┐
-│ [status badge] title   ~/projects/api   [extra] [⇆] [⇅] [⤢] [x] │
+│ [status badge] title idle 3m   ~/projects/api   [extra] [⇆] [⇅] [⤢] [x] │
 ├ viewport (xterm) ──────────────────────────────────────────────┤
 │ $ ...                                                          │
 │ overlay (connecting / exited / failed), centered               │

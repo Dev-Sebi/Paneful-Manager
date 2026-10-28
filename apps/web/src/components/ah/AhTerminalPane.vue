@@ -14,6 +14,7 @@
     <header v-if="!hideHeader" ref="headerRef" class="ah-terminal-pane__header">
       <AhStatusBadge v-if="status" announce :state="status" variant="dot" />
       <span class="ah-terminal-pane__title">{{ title }}</span>
+      <span v-if="stateLabel" class="ah-terminal-pane__since" data-testid="pane-state-since">{{ stateLabel }}</span>
 
       <span v-if="member" class="ah-terminal-pane__member" :title="memberTooltip">
         <span class="ah-terminal-pane__member-name">{{ member.name }}</span>
@@ -107,6 +108,7 @@
   import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
   import { useTheme } from 'vuetify'
   import { wsClient } from '@/api/ws'
+  import { formatElapsed, useNow } from '@/composables/useNow'
   import { useUiStore } from '@/stores/ui'
   import { xtermDarkTheme, xtermLightTheme } from '@/styles/generated/theme'
   import { fontFamily, fontSize as fontSizes, lineHeight } from '@/styles/generated/tokens'
@@ -119,6 +121,7 @@
   const props = withDefaults(defineProps<AhTerminalPaneProps>(), {
     cwd: undefined,
     status: undefined,
+    stateSince: undefined,
     connection: 'connecting',
     exitCode: undefined,
     focused: false,
@@ -133,6 +136,15 @@
   })
 
   const emit = defineEmits<AhTerminalPaneEmits>()
+
+  const now = useNow()
+  const stateLabel = computed(() => {
+    const since = props.stateSince ? Date.parse(props.stateSince) : Number.NaN
+    if (!props.status || Number.isNaN(since) || shownConnection.value === 'exited') {
+      return ''
+    }
+    return `${props.status} ${formatElapsed(now.value - since)}`
+  })
   defineSlots<AhTerminalPaneSlots>()
 
   const theme = useTheme()
@@ -412,6 +424,12 @@
 }
 
 .ah-terminal-pane--focused .ah-terminal-pane__title { color: var(--ah-color-fg-primary); }
+
+.ah-terminal-pane__since {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 .ah-terminal-pane__title {
   flex: none;

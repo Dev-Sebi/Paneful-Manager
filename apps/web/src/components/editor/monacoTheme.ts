@@ -10,6 +10,33 @@ export const editorFontSize = fontSize.md
 
 const hex = (value: unknown): string => (typeof value === 'string' ? value : '').replace(/^#/, '')
 
+/**
+ * Markdown tokens. Dark keeps the base palette; light takes the darker `bright*` steps and styles
+ * more token kinds, so every one keeps a comfortable WCAG AA margin on the light editor background,
+ * its line highlight and the selection.
+ */
+function markdownRules (c: (name: string) => string, dark: boolean): editor.ITokenThemeRule[] {
+  if (dark) {
+    return [
+      { token: 'keyword.md', foreground: c('blue'), fontStyle: 'bold' },
+      { token: 'string.link.md', foreground: c('cyan'), fontStyle: 'underline' },
+      { token: 'variable.source.md', foreground: c('yellow') },
+    ]
+  }
+  return [
+    { token: 'keyword.md', foreground: c('brightBlue'), fontStyle: 'bold' },
+    { token: 'string.link.md', foreground: c('brightCyan'), fontStyle: 'underline' },
+    { token: 'string.target.md', foreground: c('brightGreen') },
+    { token: 'variable.md', foreground: c('brightYellow') },
+    { token: 'variable.source.md', foreground: c('brightYellow') },
+    { token: 'string.md', foreground: c('brightGreen') },
+    { token: 'comment.md', foreground: c('brightMagenta'), fontStyle: 'italic' },
+    { token: 'meta.separator.md', foreground: c('brightMagenta') },
+    { token: 'tag.md', foreground: c('brightRed') },
+    { token: 'attribute.name.html.md', foreground: c('brightBlue') },
+  ]
+}
+
 function build (
   dark: boolean,
   ui: Record<string, unknown>,
@@ -38,9 +65,7 @@ function build (
       rule('keyword.json', c('magenta')),
       rule('strong', c('foreground'), 'bold'),
       rule('emphasis', c('foreground'), 'italic'),
-      rule('keyword.md', c('blue'), 'bold'),
-      rule('string.link.md', c('cyan'), 'underline'),
-      rule('variable.source.md', c('yellow')),
+      ...markdownRules(c, dark),
       rule('delimiter', c('brightBlack')),
     ],
     colors: {

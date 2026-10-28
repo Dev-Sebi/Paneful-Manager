@@ -14,10 +14,21 @@ const mocks = vi.hoisted(() => ({
   listScopes: vi.fn(),
   listSessions: vi.fn(),
   listPresets: vi.fn(),
+  openHandlers: [] as Array<() => void>,
 }))
 vi.mock('@/api/client', () => ({ api: mocks }))
 vi.mock('@/api/ws', () => ({
-  wsClient: { connect: vi.fn(), close: vi.fn(), on: vi.fn(() => vi.fn()), onFatal: vi.fn(() => vi.fn()), send: vi.fn() },
+  wsClient: {
+    connect: vi.fn(),
+    close: vi.fn(),
+    on: vi.fn(() => vi.fn()),
+    onFatal: vi.fn(() => vi.fn()),
+    onOpen: vi.fn((handler: () => void) => {
+      mocks.openHandlers.push(handler)
+      return vi.fn()
+    }),
+    send: vi.fn(),
+  },
 }))
 
 async function mountAt (path: string, agentTeams = false) {
@@ -41,6 +52,17 @@ describe('AppShell', () => {
     localStorage.clear()
     connection.value = 'connecting'
     document.body.innerHTML = ''
+    mocks.openHandlers.length = 0
+  })
+
+  it('reloads the sessions on every websocket (re)connect', async () => {
+    await mountAt('/workspaces')
+    const before = mocks.listSessions.mock.calls.length
+    for (const handler of mocks.openHandlers) {
+      handler()
+    }
+    await flushPromises()
+    expect(mocks.listSessions.mock.calls.length).toBe(before + 1)
   })
 
   it('renders sidebar links without Teams when the flag is off', async () => {

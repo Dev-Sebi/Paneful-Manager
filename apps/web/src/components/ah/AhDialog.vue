@@ -223,6 +223,7 @@
 
 <style>
 .ah-dialog__content {
+  align-items: center;
   max-height: 80vh;
   overflow: visible;
 }
@@ -241,7 +242,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  width: calc(100vw - var(--ah-space-8));
+  width: 100%;
   max-width: 560px;
   max-height: 80vh;
   border: 1px solid var(--ah-color-border-default);

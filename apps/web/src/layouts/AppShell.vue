@@ -141,11 +141,14 @@
 
   let unbind: (() => void) | undefined
   let offFatal: (() => void) | undefined
+  let offOpen: (() => void) | undefined
 
   onMounted(() => {
     window.addEventListener('keydown', onKeydown)
     unbind = sessions.bind(wsClient)
     offFatal = wsClient.onFatal(() => ui.notify('Protocol mismatch, reload the page', 'error', true))
+    // State events missed while disconnected are not replayed, so resync the list on every (re)connect.
+    offOpen = wsClient.onOpen(() => void sessions.load())
     void config.ensureLoaded()
     void sessions.load()
     wsClient.connect()
@@ -155,6 +158,7 @@
     window.removeEventListener('keydown', onKeydown)
     unbind?.()
     offFatal?.()
+    offOpen?.()
     wsClient.close()
   })
 </script>

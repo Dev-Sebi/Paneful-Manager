@@ -44,12 +44,14 @@ export const useSessionsStore = defineStore('sessions', () => {
       events.on('state', message => {
         const current = byId.value.get(message.sessionId)
         if (current) {
+          const now = new Date().toISOString()
           upsert({
             ...current,
             state: message.state,
             lifecycle: message.lifecycle,
             exitCode: message.exitCode,
-            lastEventAt: new Date().toISOString(),
+            lastEventAt: now,
+            stateSince: message.stateSince ?? (message.state === current.state ? current.stateSince : now),
           })
         }
       }),

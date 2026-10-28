@@ -64,6 +64,7 @@
                 :maximized="maximized === pane.sessionId"
                 :member="paneMember(pane.sessionId)"
                 :session-id="pane.sessionId"
+                :state-since="sessions.byId.get(pane.sessionId)?.stateSince"
                 :status="sessions.byId.get(pane.sessionId)?.state"
                 :title="paneTitle(pane.sessionId)"
                 @close="ui.notify('Closing panes is not available yet')"
@@ -147,7 +148,7 @@
       <p>Closing this tab kills its running sessions:</p>
 
       <ul class="workspaces__sessions">
-        <li v-for="session in closing.pendingSessions.value" :key="session.id">{{ session.title }}</li>
+        <li v-for="session in closing.pendingSessions.value" :key="session.id">{{ paneTitle(session.id) }}</li>
       </ul>
 
       <v-checkbox v-model="closing.dontAskAgain.value" density="compact" hide-details label="Don't ask again" />
