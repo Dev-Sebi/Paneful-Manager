@@ -15,7 +15,7 @@ Agent Hub can spawn processes and write files as the user. v1 is single-user wit
 - The Origin check is the primary CSRF control; the token is defense in depth.
 - Per-boot random token, new on every restart, required on every mutating request (`X-Agent-Hub-Token`). The client fetches it from `GET /api/session-token` before every WS connect and refetches once after any `401`/`403`. Since ADR 0013 that route, like every other API route, also needs the persisted access key.
 - WebSocket auth uses `Sec-WebSocket-Protocol: agent-hub.v1, token.<t>`; the server echoes only `agent-hub.v1`. No secret in the URL, so nothing lands in access logs. pino redacts the token headers.
-- A separate persisted hook token in `$STATE/hook-token` (`0600`) authenticates Claude Code hook requests, because re-adopted sessions keep their environment across restarts. `POST /api/hooks` is exempt from the per-boot token and rejects any request carrying an `Origin` header.
+- A separate persisted hook token in `$STATE/hook-token` (`0600`) authenticates Claude Code hook requests, because re-adopted sessions keep their environment across restarts. It reaches new sessions through an owner-only tmux command file, never through argv (ADR 0013). `POST /api/hooks` is exempt from the per-boot token and rejects any request carrying an `Origin` header.
 - `execFile` with argument arrays only; path inputs resolved with `realpath` against an allowlist; secrets (MCP env, headers, tokens) never sent to the browser or logs.
 
 ## Consequences

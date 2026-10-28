@@ -87,7 +87,10 @@ function resolveKeep(input: McpServerConfigInput, existing: McpServerConfig | un
   return { ...input, headers: merge(input.headers, stored, 'header') }
 }
 
-/** MCP servers across Claude Code's user, project and local scopes; writes go through `claude mcp` when possible. */
+/**
+ * MCP servers across Claude Code's user, project and local scopes; writes go through `claude mcp` when possible.
+ * Entries with env or header values are always written to the file, so no secret is ever a process argument.
+ */
 export function createMcpService(options: McpServiceOptions): McpService {
   const { getScopes, env, logger, home = homedir() } = options
   const files: McpFileStore = createMcpFileStore({ env, backupDir: options.backupDir, home })
@@ -174,13 +177,15 @@ export function createMcpService(options: McpServiceOptions): McpService {
     }
   }
 
-  /** Puts the old entry back after a failed update: CLI first, then the file; 500 if both fail. */
-  async function restore(scope: McpScope, name: string, previous: NativeServer, secrets: string[]): Promise<void> {
-    try {
-      await cli.addJson(name, previous, scope.kind, cwdOf(scope), secrets)
-      return
-    } catch {
-      logger.warn({ name, scope: scope.kind }, 'CLI restore of MCP server failed, writing the file')
+  /** Puts the old entry back after a failed update: CLI first (only without secret values), then the file; 500 if both fail. */
+  async function restore(scope: McpScope, name: string, previous: NativeServer, previousSecrets: string[], secrets: string[]): Promise<void> {
+    if (previousSecrets.length === 0) {
+      try {
+        await cli.addJson(name, previous, scope.kind, cwdOf(scope), secrets)
+        return
+      } catch {
+        logger.warn({ name, scope: scope.kind }, 'CLI restore of MCP server failed, writing the file')
+      }
     }
     try {
       await files.write(scope, name, previous)
@@ -219,14 +224,17 @@ export function createMcpService(options: McpServiceOptions): McpService {
         const config = resolveKeep(request.config, existing)
         const native = toNative(config, existingRaw)
         const secrets = secretsOf(config)
-        const { mode } = await currentMode()
+        const { mode: available } = await currentMode()
+        // `claude mcp add-json` takes the entry as an argument, readable by other local users in /proc/<pid>/cmdline.
+        const mode: McpMode = available === 'cli' && secrets.length === 0 ? 'cli' : 'file'
         if (mode === 'cli' && existingRaw !== undefined) {
           // No update subcommand exists: remove, add, and on failure put the old entry back.
           await cli.remove(name, scope.kind, cwdOf(scope))
           try {
             await add(mode, scope, name, native, secrets)
           } catch (error) {
-            await restore(scope, name, existingRaw, [...secrets, ...(existing ? secretsOf(existing) : [])])
+            const previousSecrets = existing ? secretsOf(existing) : []
+            await restore(scope, name, existingRaw, previousSecrets, [...secrets, ...previousSecrets])
             throw error
           }
         } else {

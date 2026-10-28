@@ -197,13 +197,13 @@ describe('MCP routes in CLI mode', () => {
   it('answers 500 without secrets when no restore works', async () => {
     writeFileSync(claudeJson(), JSON.stringify({ mcpServers: { srv: { type: 'stdio', command: 'old', args: [], env: { K: SECRET } } } }))
     const fake = failingAdd(() => writeFileSync(claudeJson(), '{ broken'))
-    const response = await send(start(fake), { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'srv', scope: { kind: 'user' }, config: { transport: 'stdio', command: 'new', env: { K: { keep: true } } } } })
+    const response = await send(start(fake), { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'srv', scope: { kind: 'user' }, config: { transport: 'stdio', command: 'new' } } })
     expect(response.statusCode).toBe(500)
     expect(ApiErrorSchema.parse(response.json())).toEqual({ code: 'internal', message: 'MCP server "srv" update failed and the entry was removed; re-add it manually' })
     expect(response.body).not.toContain(SECRET)
   })
 
-  it('adds, updates and removes through claude mcp with exact argv', async () => {
+  it('adds, updates and removes through claude mcp with exact argv, keeping secret values out of it', async () => {
     writeFileSync(join(box.project, '.mcp.json'), JSON.stringify({ mcpServers: { srv: { type: 'http', url: 'https://old.example', oauth: { clientId: 'id' }, headers: { Authorization: SECRET } } } }))
     const fake = createFakeRun('2.1.311')
     const target = start(fake)
@@ -213,22 +213,26 @@ describe('MCP routes in CLI mode', () => {
     expect(list).toMatchObject({ mode: 'cli', cliVersion: '2.1.311' })
     expect(JSON.stringify(list)).not.toContain(SECRET)
 
-    const created = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'new_1', scope: { kind: 'user' }, config: { transport: 'stdio', command: 'npx', args: ['a b'], env: { K: 'v' } } } })
+    const created = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'new_1', scope: { kind: 'user' }, config: { transport: 'stdio', command: 'npx', args: ['a b'] } } })
     expect(UpsertMcpServerResponseSchema.parse(created.json())).toMatchObject({ created: true, server: { source: 'cli' } })
+
+    const withEnv = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'new_2', scope: { kind: 'user' }, config: { transport: 'stdio', command: 'npx', env: { K: SECRET } } } })
+    expect(UpsertMcpServerResponseSchema.parse(withEnv.json())).toMatchObject({ created: true, server: { source: 'file' } })
+    expect(readJson(claudeJson())).toMatchObject({ mcpServers: { new_2: { command: 'npx', env: { K: SECRET } } } })
 
     const updated = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'srv', scope, config: { transport: 'http', url: 'https://new.example', headers: { Authorization: { keep: true } } } } })
     expect(updated.statusCode).toBe(200)
+    expect(readJson(join(box.project, '.mcp.json'))).toEqual({ mcpServers: { srv: { type: 'http', url: 'https://new.example', oauth: { clientId: 'id' }, headers: { Authorization: SECRET } } } })
 
     await send(target, { method: 'DELETE', url: API_ROUTES.mcp, payload: { name: 'srv', scope } })
 
     expect(fake.mcpCalls()).toEqual([
-      ['mcp', 'add-json', '-s', 'user', 'new_1', '{"type":"stdio","command":"npx","args":["a b"],"env":{"K":"v"}}'],
-      ['mcp', 'remove', '-s', 'project', 'srv'],
-      ['mcp', 'add-json', '-s', 'project', 'srv', JSON.stringify({ type: 'http', url: 'https://new.example', oauth: { clientId: 'id' }, headers: { Authorization: SECRET } })],
+      ['mcp', 'add-json', '-s', 'user', 'new_1', '{"type":"stdio","command":"npx","args":["a b"],"env":{}}'],
       ['mcp', 'remove', '-s', 'project', 'srv'],
     ])
+    expect(JSON.stringify(fake.calls.map(call => call.args))).not.toContain(SECRET)
     const cwds = fake.calls.filter(call => call.args[0] === 'mcp').map(call => call.options.cwd)
-    expect(cwds).toEqual([box.home, box.project, box.project, box.project])
+    expect(cwds).toEqual([box.home, box.project])
     expect(fake.calls.filter(call => call.args[0] === '--version')).toHaveLength(1)
   })
 

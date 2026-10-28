@@ -23,6 +23,13 @@ Constraints:
 - The login URL is printed by the installer after a successful start and later by `install.sh --login-url`; in a checkout by `pnpm login-url [--port <vite port>]`. Nothing opens it automatically: a browser started with the URL as an argument would expose the key in its command line.
 - Without a stored key, or after a `401 login_required`, the web app shows only a hint to open the login URL and loads nothing.
 
+### Secrets in process arguments
+
+Every process's argv is readable by all local users in `/proc/<pid>/cmdline` (unless `/proc` is mounted with `hidepid`), so no secret is passed as an argument:
+
+- Hook token: the engine writes `set-environment -g AGENT_HUB_HOOK_TOKEN '<token>'` to `$STATE/session-env.tmux` (`0600`, atomic) and runs `tmux source-file <file> ; new-session ...` in one call. tmux reads the file and puts the token into its global environment, from which the pane inherits it. Only non-secret values (`AGENT_HUB_SESSION_ID`, `AGENT_HUB_URL`) stay as `new-session -e` arguments. Names and values are validated, so the file holds only these commands.
+- MCP secrets: an entry with env or header values is written in file mode instead of through `claude mcp add-json <json>` ([ADR 0009](0009-mcp-config-via-cli.md)).
+
 ## Consequences
 
 - Other OS users cannot read the key, so they get `401 login_required` on every route except health and the hook route.
@@ -31,6 +38,7 @@ Constraints:
 - Script access to the API needs the header. Pass the key through stdin, not in `curl`'s arguments: `printf 'X-Agent-Hub-Key: %s\n' "$(cat ~/.local/state/agent-hub/access-key)" | curl -H @- ...` (`printf` is a shell builtin).
 - A script running in the owner's page (XSS) could read the key from `localStorage`. Such a script can already drive the API, and the CSP limits where it can send data (`connect-src`).
 - Root and processes of the same user can still read the key; they are out of scope as in ADR 0005.
+- The hook token sits in the global environment of Agent Hub's own tmux server (socket `agent-hub`), so every pane there inherits it, also windows a user opens by hand. Only the same user can read it.
 - Real WSL localhost forwarding was not tested automatically; the design does not depend on the peer address, so forwarded and direct connections behave the same.
 
 ## Alternatives considered

@@ -68,8 +68,10 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const accessKey = await loadAccessKey(stateDir)
   // The URL is only known after listen; sessions are created through the server, so never before that.
   let serverUrl = `http://${BIND_HOST}:${config.port}`
-  const sessionEnv = (): Record<string, string> => ({ [HOOK_ENV.token]: hookToken, [HOOK_ENV.url]: serverUrl })
-  const engine = new SessionEngine({ stateDir, logger, sessionEnv, ...(tmux === undefined ? {} : { tmux }) })
+  const sessionEnv = (): Record<string, string> => ({ [HOOK_ENV.url]: serverUrl })
+  // The hook token never goes into tmux's argv, where other local users could read it from /proc.
+  const secretEnv = (): Record<string, string> => ({ [HOOK_ENV.token]: hookToken })
+  const engine = new SessionEngine({ stateDir, logger, sessionEnv, secretEnv, ...(tmux === undefined ? {} : { tmux }) })
   await engine.start()
   const files = createFileService({ getScopes, backupDir, logger })
   const hookSettings = createHookSettings({ settingsPath: resolveClaudeSettingsPath(env), backups: createBackupStore({ dir: backupDir }) })

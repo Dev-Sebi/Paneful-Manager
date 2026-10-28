@@ -42,8 +42,26 @@ export interface NewSessionOptions {
   command: string
   args: readonly string[]
   env: Readonly<Record<string, string>>
+  /** tmux command file (owner-only) sourced before `new-session`, e.g. `set-environment -g` for secrets kept out of argv. */
+  secretEnvFile?: string
   cols: number
   rows: number
+}
+
+const ENV_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/
+const ENV_VALUE_PATTERN = /^[\w.:/@+=-]*$/
+
+/**
+ * tmux commands that set `env` in the server's global environment; read by `source-file`, never passed as arguments.
+ * Values are limited to characters that need no quoting beyond single quotes.
+ */
+export function secretEnvCommands(env: Readonly<Record<string, string>>): string {
+  return Object.entries(env).map(([key, value]) => {
+    if (!ENV_NAME_PATTERN.test(key) || !ENV_VALUE_PATTERN.test(value)) {
+      throw new Error(`Cannot pass ${key} through tmux set-environment`)
+    }
+    return `set-environment -g ${key} '${value}'\n`
+  }).join('')
 }
 
 export interface TmuxOptions {
@@ -211,10 +229,14 @@ export class Tmux {
     return parsePaneList(await this.exec(['list-panes', '-a', '-F', '#{pane_id}\t#{session_name}']))
   }
 
-  /** Runs `command args...` directly: `env --` guarantees tmux gets several words and never uses `sh -c`. */
-  async newSession({ id, cwd, command, args, env, cols, rows }: NewSessionOptions): Promise<void> {
+  /**
+   * Runs `command args...` directly: `env --` guarantees tmux gets several words and never uses `sh -c`.
+   * `secretEnvFile` is sourced in the same tmux invocation, so its values reach the pane without appearing in argv.
+   */
+  async newSession({ id, cwd, command, args, env, secretEnvFile, cols, rows }: NewSessionOptions): Promise<void> {
     const envArgs = Object.entries(env).flatMap(([key, value]) => ['-e', `${key}=${value}`])
     await this.exec([
+      ...(secretEnvFile === undefined ? [] : ['source-file', secretEnvFile, ';']),
       'new-session', '-d', '-s', tmuxName(id), '-c', escapeFormat(cwd), '-x', String(cols), '-y', String(rows),
       ...envArgs, '--', 'env', '--', command, ...args,
     ])
