@@ -77,11 +77,14 @@ function secretsOf(config: McpServerConfig): string[] {
 const reenter = (what: string): AppError =>
   new AppError(`${what} contains ${MCP_MASKED_PLACEHOLDER} but no stored value matches; enter the value again`, 400, 'bad_request')
 
-/** An argument still holding the placeholder gets the stored argument it was masked from (same position first). */
+/**
+ * An argument still holding the placeholder gets the stored argument it was masked from (same position first).
+ * The result must mask back to the request, so a stored secret cannot be moved to a position where it is shown.
+ */
 function unmaskArgs(args: string[], stored: string[] | undefined): string[] {
   const storedArgs = stored ?? []
   const masked = maskMcpArgs(storedArgs)
-  return args.map((arg, index) => {
+  const restored = args.map((arg, index) => {
     if (!arg.includes(MCP_MASKED_PLACEHOLDER)) {
       return arg
     }
@@ -94,6 +97,13 @@ function unmaskArgs(args: string[], stored: string[] | undefined): string[] {
     }
     return [...candidates][0] ?? arg
   })
+  const remasked = maskMcpArgs(restored)
+  args.forEach((arg, index) => {
+    if (restored[index] !== arg && remasked[index] !== arg) {
+      throw reenter(`Argument ${index + 1}`)
+    }
+  })
+  return restored
 }
 
 function unmaskUrl(url: string, stored: string | undefined): string {

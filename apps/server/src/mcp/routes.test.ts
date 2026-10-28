@@ -267,6 +267,14 @@ describe('MCP routes in CLI mode', () => {
     const unknown = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'remote', scope: user, config: { transport: 'http', url: 'https://other.example.com/?token=<masked>' } } })
     expect(unknown.statusCode).toBe(400)
     expect(ApiErrorSchema.parse(unknown.json()).message).toBe('The URL contains <masked> but no stored value matches; enter the value again')
+
+    // Moving the placeholder to a position that is not masked would return the stored secret in plain text.
+    for (const moved of [['--verbose', '<masked>'], ['<masked>', '--token', 'x'], ['-y', 'server-github', '--name', '<masked>']]) {
+      const leak = await send(target, { method: 'PUT', url: API_ROUTES.mcp, payload: { name: 'gh', scope: user, config: { transport: 'stdio', command: 'npx', args: moved } } })
+      expect(leak.statusCode).toBe(400)
+      expect(leak.body).not.toContain(SECRET)
+    }
+    expect(readJson(claudeJson())).toMatchObject({ mcpServers: { gh: { args: ['--verbose', ...args] } } })
   })
 
   it('validates the name before any CLI call', async () => {
