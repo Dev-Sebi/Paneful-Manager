@@ -45,7 +45,7 @@ Options:
   --no-windows-task       Never offer the Windows logon task that boots the distro
   --force                 Reinstall the same version; allow a prefix outside HOME or without install marker
   --no-verify             Install a downloaded release without a published .sha256 file
-  --login-url             Print the login URL to open once per browser, then exit
+  --login-url             Print a one-time login URL for a browser, then exit
   --rollback              Switch back to the previously installed release
   --uninstall             Remove services, units and the install directory
   --purge                 With --uninstall: also remove config and state without asking
@@ -695,17 +695,18 @@ health_check() {
   return 1
 }
 
-# print_login_url <port>: the URL carries the owner-only access key in its fragment (never sent to the server).
+# print_login_url <port>: writes a one-time login code (10 minutes) to the owner-only state dir; the URL carries it in its fragment.
 print_login_url() {
-  if [ -r "$STATE_DIR/access-key" ]; then
-    key=$(tr -d '[:space:]' <"$STATE_DIR/access-key")
-    say "  Open this login URL once per browser (it contains your access key, do not share it):"
-    say "  http://127.0.0.1:$1/#key=$key"
-    return 0
+  code=$(od -An -vtx1 -N32 /dev/urandom | tr -d ' \n')
+  tmp="$STATE_DIR/.login-code.$$.tmp"
+  if ! (umask 077 && mkdir -p "$STATE_DIR" && printf '%s %s\n' "$code" "$(($(date +%s) + 600))" >"$tmp" && mv -f "$tmp" "$STATE_DIR/login-code"); then
+    rm -f "$tmp"
+    warn "Could not write $STATE_DIR/login-code"
+    return 1
   fi
-  say "  No access key yet; the server creates $STATE_DIR/access-key on its first start."
-  say "  Then print the login URL with: $CURRENT_LINK/install.sh --login-url"
-  return 1
+  say "  Open this login URL in the browser you use for Agent Hub (it works once, within 10 minutes):"
+  say "  http://127.0.0.1:$1/#login=$code"
+  say "  For another browser, or later, print a new one with: $CURRENT_LINK/install.sh --login-url"
 }
 
 do_login_url() {
@@ -783,7 +784,10 @@ do_install() {
     say "Agent Hub $TAG installed."
   fi
   if [ "$SERVICES" -eq 1 ]; then health_check || exit 1; fi
-  if [ "$DRY_RUN" -eq 0 ]; then print_login_url "$EFFECTIVE_PORT" || true; fi
+  if [ "$DRY_RUN" -eq 1 ]; then :
+  elif [ "$CHANGED" -eq 1 ]; then print_login_url "$EFFECTIVE_PORT" || true
+  else say "  Log a browser in with the URL from: $CURRENT_LINK/install.sh --login-url"
+  fi
   if is_wsl; then
     say "Note: WSL stops an idle distro, which ends all sessions. See 'Keeping WSL running' in docs/install.md."
   fi

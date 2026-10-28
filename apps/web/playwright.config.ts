@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
-import { ACCESS_KEY_STORAGE_KEY, E2E_ACCESS_KEY } from './e2e/access'
+import { E2E_ACCESS_KEY } from './e2e/access'
 
 const isCI = Boolean(process.env.CI)
 /** Real server for e2e; kept off the default port so a running Agent Hub is never touched. */
@@ -18,8 +18,8 @@ export default defineConfig({
   use: {
     baseURL,
     trace: 'on-first-retry',
-    // Every page starts logged in, as after opening the login URL once.
-    storageState: { cookies: [], origins: [{ origin: baseURL, localStorage: [{ name: ACCESS_KEY_STORAGE_KEY, value: E2E_ACCESS_KEY }] }] },
+    // Pages authenticate like a script, with the access key of the private server; login.spec.ts covers the device login.
+    extraHTTPHeaders: { 'x-agent-hub-key': E2E_ACCESS_KEY },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [

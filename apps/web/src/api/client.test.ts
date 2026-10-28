@@ -25,19 +25,25 @@ describe('api client', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  it('sends the stored access key on every request', async () => {
-    localStorage.setItem('agent-hub.access-key.v1', 'the-key')
+  it('sends the session key of the registered device on every request', async () => {
     const { fetchJson } = await load()
+    const { useDeviceStore } = await import('./access')
+    const { createDeviceKey } = await import('./device')
+    const { privateKey } = await createDeviceKey()
+    useDeviceStore({ load: async () => ({ id: 'd'.repeat(43), privateKey }), save: async () => {} })
     fetchMock
+      .mockResolvedValueOnce(jsonResponse({ nonce: 'n'.repeat(43) }))
+      .mockResolvedValueOnce(jsonResponse({ key: 's'.repeat(43), expiresInSec: 900 }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }))
       .mockResolvedValueOnce(jsonResponse({ token: 't1' }))
       .mockResolvedValueOnce(jsonResponse({ ok: true }))
     await fetchJson('/api/x', { schema })
     await fetchJson('/api/x', { schema, method: 'POST' })
-    for (const call of fetchMock.mock.calls) {
-      expect(new Headers(call[1]?.headers).get('x-agent-hub-key')).toBe('the-key')
+    const apiCalls = fetchMock.mock.calls.slice(2)
+    expect(apiCalls.map(call => call[0])).toEqual(['/api/x', '/api/session-token', '/api/x'])
+    for (const call of apiCalls) {
+      expect(new Headers(call[1]?.headers).get('x-agent-hub-key')).toBe('s'.repeat(43))
     }
-    localStorage.clear()
   })
 
   it('shows the login hint when the server rejects the key', async () => {

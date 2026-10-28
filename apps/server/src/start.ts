@@ -11,6 +11,7 @@ import { assertBackupDirOutsideScopes } from './files/state-dir.js'
 import { createHookSettings, resolveClaudeSettingsPath } from './hooks/install.js'
 import { loadHookToken } from './hooks/token.js'
 import { loadAccessKey } from './security/access-key.js'
+import { DeviceAuth } from './security/device-auth.js'
 import { createHealthRunner } from './mcp/health.js'
 import { createMcpService } from './mcp/service.js'
 import { expandHome } from './paths.js'
@@ -91,6 +92,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     config,
     logger,
     accessKey,
+    deviceAuth: new DeviceAuth(stateDir),
     devOrigins,
     files,
     engine,

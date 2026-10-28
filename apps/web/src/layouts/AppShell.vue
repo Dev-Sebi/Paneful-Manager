@@ -82,7 +82,7 @@
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { useTheme } from 'vuetify'
-  import { loginRequired, untrustedHost } from '@/api/access'
+  import { loginCodeRejected, loginRequired, untrustedHost } from '@/api/access'
   import { connection } from '@/api/connection'
   import { wsClient } from '@/api/ws'
   import { AhButton, AhStatusBadge } from '@/components/ah'
@@ -108,9 +108,13 @@
   const visibleSections = computed(() => SECTIONS.filter(section => !section.flagged || config.agentTeams))
   const current = computed(() => ui.snackbars[0])
   const activeTheme = computed(() => ui.theme ?? config.theme)
-  const loginMessage = computed(() => untrustedHost.value
-    ? `Open Agent Hub at http://${BIND_HOST}:${location.port}/ instead: on this host name another local user's server can answer. Then open the login URL once.`
-    : 'Open the login URL once in this browser. Print it with install.sh --login-url (or pnpm login-url in a checkout).')
+  const loginMessage = computed(() => {
+    if (untrustedHost.value) {
+      return `Open Agent Hub at http://${BIND_HOST}:${location.port}/ instead: on this host name another local user's server can answer. Then open a login URL.`
+    }
+    const hint = 'Print a new one with install.sh --login-url (or pnpm login-url in a checkout); it works once and expires after 10 minutes.'
+    return loginCodeRejected.value ? `This login URL was already used or has expired. ${hint}` : `Open a login URL in this browser to log in. ${hint}`
+  })
 
   const CONNECTION_BADGES: Record<ConnectionState, { state: AhStatusBadgeState, label: string }> = {
     connected: { state: 'idle', label: 'Connected' },
@@ -132,6 +136,12 @@
   }
 
   watch(activeTheme, value => theme.change(value), { immediate: true })
+  // Without a login every reconnect would only be refused again.
+  watch(loginRequired, required => {
+    if (required) {
+      wsClient.close()
+    }
+  })
 
   function onKeydown (event: KeyboardEvent) {
     if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.code === 'KeyN') {

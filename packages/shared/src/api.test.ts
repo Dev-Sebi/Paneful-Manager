@@ -4,6 +4,9 @@ import {
   API_ROUTES,
   ApiErrorSchema,
   CreateSessionRequestSchema,
+  DevicePublicKeySchema,
+  deviceSignatureMessage,
+  RegisterDeviceRequestSchema,
   DeletePresetResponseSchema,
   LaunchPresetResponseSchema,
   GetConfigResponseSchema,
@@ -183,5 +186,25 @@ describe('scopes API', () => {
       ],
     })
     expect(ScopesResponseSchema.safeParse({ scopes: [], extra: 1 }).success).toBe(false)
+  })
+})
+
+describe('device login', () => {
+  const publicKey = { kty: 'EC', crv: 'P-256', x: 'x'.repeat(43), y: 'y'.repeat(43) }
+
+  it('accepts only a minimal P-256 public key', () => {
+    expect(DevicePublicKeySchema.safeParse(publicKey).success).toBe(true)
+    for (const bad of [{ ...publicKey, crv: 'P-384' }, { ...publicKey, kty: 'RSA' }, { ...publicKey, x: 'x' }, { ...publicKey, d: 'd'.repeat(43) }]) {
+      expect(DevicePublicKeySchema.safeParse(bad).success).toBe(false)
+    }
+  })
+
+  it('needs a long random login code', () => {
+    expect(RegisterDeviceRequestSchema.safeParse({ code: 'c'.repeat(43), publicKey }).success).toBe(true)
+    expect(RegisterDeviceRequestSchema.safeParse({ code: 'short', publicKey }).success).toBe(false)
+  })
+
+  it('binds signatures to the session context', () => {
+    expect(deviceSignatureMessage('abc')).toBe('agent-hub.session.v1\nabc')
   })
 })

@@ -25,6 +25,7 @@ import { registerPresets } from './presets/routes.js'
 import type { PresetStore } from './presets/store.js'
 import { registerScopes } from './scopes/routes.js'
 import { runFile } from './scopes/run-git.js'
+import type { DeviceAuth } from './security/device-auth.js'
 import { registerSecurity } from './security/register-security.js'
 import { createSessionToken } from './security/token.js'
 import { authorizeUpgrade } from './security/upgrade.js'
@@ -50,6 +51,8 @@ export interface BuildAppOptions {
   sessionToken?: string
   /** Persisted access key every API request must carry; loaded from the state directory by `startServer`. */
   accessKey: string
+  /** Browser device login; the login routes only exist with it (see `registerSecurity`). */
+  deviceAuth?: DeviceAuth
   /** Allows the Vite dev origins; defaults to `NODE_ENV === 'development'`. */
   dev?: boolean
   /** Extra dev origins (see `parseDevOrigins`); only used when `dev` is on. */
@@ -125,7 +128,7 @@ function registerErrorHandlers(app: FastifyInstance): void {
   })
 }
 
-export function buildApp({ config, logger, sessionToken, accessKey, dev, devOrigins = [], engine, files, presets, worktrees, mcp, configStore, teams, teamTemplates, webDist, hookToken, hookSettings }: BuildAppOptions): FastifyInstance {
+export function buildApp({ config, logger, sessionToken, accessKey, deviceAuth, dev, devOrigins = [], engine, files, presets, worktrees, mcp, configStore, teams, teamTemplates, webDist, hookToken, hookSettings }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
     genReqId: () => randomUUID(),
@@ -140,7 +143,7 @@ export function buildApp({ config, logger, sessionToken, accessKey, dev, devOrig
   }
   const token = sessionToken ?? createSessionToken()
   const isDev = dev ?? process.env.NODE_ENV === 'development'
-  registerSecurity(app, { getPort, token, accessKey, dev: isDev, devOrigins })
+  registerSecurity(app, { getPort, token, accessKey, deviceAuth, dev: isDev, devOrigins })
   registerCore(app, engine)
   const store = configStore ?? createConfigStore(config)
   registerConfig(app, { store })

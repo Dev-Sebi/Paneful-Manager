@@ -3,7 +3,7 @@ import { flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
-import { loginRequired, untrustedHost } from '@/api/access'
+import { loginCodeRejected, loginRequired, untrustedHost } from '@/api/access'
 import { connection } from '@/api/connection'
 import { wsClient } from '@/api/ws'
 import AppShell from '@/layouts/AppShell.vue'
@@ -52,6 +52,7 @@ async function mountAt (path: string, agentTeams = false) {
 describe('AppShell', () => {
   beforeEach(() => {
     loginRequired.value = false
+    loginCodeRejected.value = false
     untrustedHost.value = false
     vi.clearAllMocks()
     localStorage.clear()
@@ -163,12 +164,23 @@ describe('AppShell', () => {
     expect(wrapper.find('.v-navigation-drawer--rail').exists()).toBe(true)
   })
 
-  it('shows the login hint instead of the view and loads nothing without an access key', async () => {
+  it('shows the login hint instead of the view and loads nothing without a login', async () => {
     loginRequired.value = true
     const { wrapper } = await mountAt('/workspaces')
-    expect(wrapper.text()).toContain('Open the login URL once in this browser')
+    expect(wrapper.text()).toContain('Open a login URL in this browser')
     expect(mocks.listSessions).not.toHaveBeenCalled()
     expect(wsClient.connect).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('says when the login URL was already used and stops reconnecting once the server refuses this browser', async () => {
+    const { wrapper } = await mountAt('/workspaces')
+    expect(wsClient.connect).toHaveBeenCalled()
+    loginCodeRejected.value = true
+    loginRequired.value = true
+    await flushPromises()
+    expect(wrapper.text()).toContain('This login URL was already used or has expired')
+    expect(wsClient.close).toHaveBeenCalled()
     wrapper.unmount()
   })
 

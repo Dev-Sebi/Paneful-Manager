@@ -12,7 +12,6 @@ import type {
   z,
 } from '@agent-hub/shared'
 import {
-  ACCESS_KEY_HEADER,
   API_ROUTES,
   ApiErrorSchema,
   CreateFileResponseSchema,
@@ -41,7 +40,7 @@ import {
   UpsertMcpServerResponseSchema,
   WriteFileResponseSchema,
 } from '@agent-hub/shared'
-import { loginRequired, readAccessKey } from './access'
+import { authorizedFetch, loginRequired } from './access'
 import { getToken, refreshToken } from './token'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -75,15 +74,11 @@ async function send (route: string, init: RequestInit, mutating: boolean, token?
   if (init.body !== undefined) {
     headers.set('content-type', 'application/json')
   }
-  const key = readAccessKey()
-  if (key) {
-    headers.set(ACCESS_KEY_HEADER, key)
-  }
   if (mutating && token) {
     headers.set(SESSION_TOKEN_HEADER, token)
   }
   try {
-    return await fetch(route, { ...init, headers })
+    return await authorizedFetch(route, { ...init, headers })
   } catch (error) {
     throw new ApiClientError(0, 'network', error instanceof Error ? error.message : 'Network error')
   }
@@ -102,7 +97,7 @@ async function toError (response: Response): Promise<ApiClientError> {
 }
 
 /**
- * Fetches `route` with the access key, sends the session token on mutations and retries a mutation once with a fresh token on 401/403.
+ * Fetches `route` with the session key, sends the session token on mutations and retries a mutation once with a fresh token on 401/403.
  * The body is validated with `init.schema`.
  */
 export async function fetchJson<S extends z.ZodType> (route: string, init: FetchJsonInit<S>): Promise<z.infer<S>> {

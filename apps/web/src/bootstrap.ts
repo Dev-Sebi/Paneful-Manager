@@ -7,7 +7,7 @@
 // Composables
 import { createApp } from 'vue'
 
-import { consumeLoginFragment, initAccess } from '@/api/access'
+import { consumeLoginFragment, initAccess, sessionKey } from '@/api/access'
 // Plugins
 import { registerPlugins } from '@/plugins'
 
@@ -23,12 +23,16 @@ import '@/styles/generated/tokens.css'
 import '@/styles/base.css'
 import '@/styles/motion.css'
 
-// Before the router reads the URL, so the key never shows up in a route or the history.
+// Before the router reads the URL, so the login code never shows up in a route or the history.
 initAccess()
-// Opening the login URL in a tab that already shows the app only changes the fragment.
+// Opening the login URL in a tab that already shows the app only changes the fragment; reload once logged in.
 window.addEventListener('hashchange', () => {
   if (consumeLoginFragment()) {
-    location.reload()
+    void sessionKey().then(key => {
+      if (key !== undefined) {
+        location.reload()
+      }
+    })
   }
 })
 
