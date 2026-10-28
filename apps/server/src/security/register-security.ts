@@ -3,6 +3,7 @@ import {
   API_PREFIX,
   API_ROUTES,
   type AuthChallengeResponse,
+  BIND_HOST,
   type AuthSessionResponse,
   CreateAuthSessionRequestSchema,
   RegisterDeviceRequestSchema,
@@ -51,6 +52,22 @@ function rejectCrossSite(request: FastifyRequest): void {
 
 const loginFailed = (message: string): AppError => new AppError(message, 401, 'login_required')
 
+/** Static page for a browser that opened `localhost` instead of the bound address; it holds no secrets. */
+function wrongHostPage(port: number): string {
+  const url = `http://${BIND_HOST}:${port}/`
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark"><title>Use 127.0.0.1</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:36rem;margin:15vh auto;padding:0 16px}a{font-weight:600}</style></head>
+<body><h1>Use 127.0.0.1</h1><p>Paneful Manager only answers on its bound address. Open <a href="${url}">${url}</a> instead.</p></body></html>
+`
+}
+
+/** A page load on `localhost` with the server port, in production only. */
+function isWrongLoopbackHost(method: string, path: string, host: string | undefined, port: number): boolean {
+  const value = host?.toLowerCase()
+  return (method === 'GET' || method === 'HEAD') && !isApiPath(path) && value === `localhost:${port}`
+}
+
 /**
  * Whether a request needs the access key. Decided on the matched route, because the router decodes the path
  * (`/%61pi/...` matches `/api/...`), and on the raw path as a second line. Fails closed: unmatched requests need it.
@@ -79,6 +96,9 @@ export function registerSecurity(app: FastifyInstance, { getPort, token, accessK
     }
     const port = getPort()
     if (!isAllowedHost(request.headers.host, port, dev)) {
+      if (isWrongLoopbackHost(request.method, path, request.headers.host, port)) {
+        return reply.code(403).header('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'").type('text/html; charset=utf-8').send(wrongHostPage(port))
+      }
       throw new AppError('Host not allowed', 403, 'forbidden')
     }
     const origin = single(request.headers.origin)
