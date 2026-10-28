@@ -17,7 +17,7 @@
   "dependencies": {
     "@paneful-manager/shared": "workspace:*",
     "@fastify/static": "^10.1.7",
-    "chokidar": "^5.0.0",
+    "chokidar": "^6.0.0",
     "fastify": "^5.12.7",
     "jsonc-parser": "3.3.1",
     "node-pty": "^1.1.0",
