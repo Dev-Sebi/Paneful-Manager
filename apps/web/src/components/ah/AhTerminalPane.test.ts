@@ -103,6 +103,8 @@ describe('AhTerminalPane', () => {
     const wrapper = mountPane({ status: 'idle', stateSince: new Date(Date.now() - 180_000).toISOString() })
     expect(wrapper.get('[data-testid="pane-state-since"]').text()).toBe('idle 3m')
     expect(mountPane({ status: 'idle' }).find('[data-testid="pane-state-since"]').exists()).toBe(false)
+    const exited = mountPane({ status: 'idle', connection: 'exited', stateSince: new Date(Date.now() - 180_000).toISOString() })
+    expect(exited.find('[data-testid="pane-state-since"]').exists()).toBe(false)
   })
 
   it('renders the header, configures xterm and attaches with the fitted size', () => {

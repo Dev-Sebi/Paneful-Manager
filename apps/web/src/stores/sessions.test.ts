@@ -66,6 +66,7 @@ describe('sessions store', () => {
   })
 
   it('keeps stateSince from state events and falls back sensibly', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-27T10:10:00.000Z') })
     const store = useSessionsStore()
     const { events, emit } = fakeEvents()
     store.bind(events)
@@ -78,7 +79,8 @@ describe('sessions store', () => {
     expect(store.byId.get('a')?.stateSince).toBe('2026-10-27T10:05:00.000Z')
 
     emit({ type: 'state', sessionId: 'a', state: 'waiting', lifecycle: 'running' })
-    expect(store.byId.get('a')?.stateSince).not.toBe('2026-10-27T10:05:00.000Z')
+    expect(store.byId.get('a')?.stateSince).toBe('2026-10-27T10:10:00.000Z')
+    vi.useRealTimers()
   })
 
   it('stops applying events after unbinding', () => {

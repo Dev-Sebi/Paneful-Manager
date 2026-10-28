@@ -140,7 +140,10 @@
   const now = useNow()
   const stateLabel = computed(() => {
     const since = props.stateSince ? Date.parse(props.stateSince) : Number.NaN
-    return props.status && !Number.isNaN(since) ? `${props.status} ${formatElapsed(now.value - since)}` : ''
+    if (!props.status || Number.isNaN(since) || shownConnection.value === 'exited') {
+      return ''
+    }
+    return `${props.status} ${formatElapsed(now.value - since)}`
   })
   defineSlots<AhTerminalPaneSlots>()
 
