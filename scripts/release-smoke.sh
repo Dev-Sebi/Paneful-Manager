@@ -68,6 +68,15 @@ cat "$T/install.log"
 grep -q 'Using the prebuilt production dependencies' "$T/install.log" || { echo "install.sh did not use the prebuilt dependencies" >&2; exit 1; }
 [ "$(readlink "$PREFIX/current")" = "releases/$TAG" ] || { echo "current does not point at releases/$TAG" >&2; exit 1; }
 
+echo "==> Spawning a pty with the installed node-pty"
+(cd "$PREFIX/current/apps/server" && node -e '
+  const p = require("node-pty").spawn("/bin/sh", ["-c", "echo pty-ok"], { cols: 80, rows: 24 })
+  let out = ""
+  p.onData(d => { out += d })
+  p.onExit(({ exitCode }) => { if (exitCode !== 0 || !out.includes("pty-ok")) { console.error("pty spawn failed: " + JSON.stringify(out)); process.exit(1) } })
+') || { echo "node-pty cannot spawn a pty" >&2; exit 1; }
+echo "  node-pty spawns a pty"
+
 echo "==> Starting the server on port $PORT"
 cd "$PREFIX/current" || exit 1
 NODE_ENV=production PANEFUL_MANAGER_PORT=$PORT node "$PREFIX/current/apps/server/dist/index.js" >"$T/server.log" 2>&1 &

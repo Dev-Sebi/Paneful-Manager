@@ -95,6 +95,8 @@ if [ "$NO_DEPS" -eq 0 ]; then
     rm -rf "$PTY_DIR/build"
     find "$PTY_DIR/prebuilds" -mindepth 1 -maxdepth 1 ! -name "$TARGET" -exec rm -rf {} +
   fi
+  # node-pty 1.1.0 publishes the macOS spawn-helper without the executable bit; without it every pty spawn fails.
+  find "$PTY_DIR" -type f -name spawn-helper -exec chmod 0755 {} +
   (cd "$STAGE/$NAME/apps/server" && node -e "require('node-pty')") || { echo "The bundled node-pty does not load" >&2; exit 1; }
   rm -f "$STAGE/$NAME/node_modules/.modules.yaml" "$STAGE/$NAME/node_modules/.pnpm-workspace-state"*.json
   # The .bin shims are not used at runtime and embed the staging directory in NODE_PATH.

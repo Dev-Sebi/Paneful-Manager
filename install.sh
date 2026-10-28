@@ -804,6 +804,8 @@ install_release() {
     (cd "$work/release" && CI=true pnpm install --prod --frozen-lockfile --filter '@paneful-manager/server...') ||
       die "pnpm install failed. If node-pty failed to build, see 'node-pty build failure' in docs/install.md"
   fi
+  # node-pty 1.1.0 ships its macOS spawn-helper without the executable bit, so every pty spawn would fail.
+  find "$work/release/node_modules" -type f -name spawn-helper -path '*node-pty*' -exec chmod 0755 {} + 2>/dev/null || true
   if [ -e "$RELEASES_DIR/$TAG" ]; then
     mv "$RELEASES_DIR/$TAG" "$work/replaced"
   fi
