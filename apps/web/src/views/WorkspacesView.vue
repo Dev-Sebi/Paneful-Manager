@@ -148,7 +148,7 @@
       <p>Closing this tab kills its running sessions:</p>
 
       <ul class="workspaces__sessions">
-        <li v-for="session in closing.pendingSessions.value" :key="session.id">{{ session.title }}</li>
+        <li v-for="session in closing.pendingSessions.value" :key="session.id">{{ paneTitle(session.id) }}</li>
       </ul>
 
       <v-checkbox v-model="closing.dontAskAgain.value" density="compact" hide-details label="Don't ask again" />
