@@ -18,6 +18,7 @@ function hookStatus (overrides: Partial<HookStatus> = {}): HookStatus {
     installedEvents: [],
     statusAvailable: false,
     reasons: [{ code: 'not_installed', source: '/home/user/.claude/settings.json', message: 'Agent Hub hooks are not installed' }],
+    staleSessions: [],
     ...overrides,
   }
 }
@@ -91,6 +92,12 @@ describe('ClaudeHooksSetting', () => {
     const problems = wrapper.find('[role="status"]').text()
     expect(problems).toContain('disableAllHooks is set')
     expect(problems).not.toContain('not installed')
+  })
+
+  it('tells which running sessions need a restart after the token was renewed', async () => {
+    status.mockResolvedValue(hookStatus({ installed: true, reasons: [], staleSessions: ['s1', 's2'] }))
+    const wrapper = await mountSetting()
+    expect(wrapper.find('[role="status"]').text()).toContain('2 running sessions were started with an older hook token')
   })
 
   it('shows a load error with a working retry', async () => {

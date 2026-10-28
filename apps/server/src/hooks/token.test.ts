@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { HOOK_TOKEN_FILE, HOOK_TOKEN_LOCK_FILE, loadHookToken, withHookTokenLock } from './token.js'
+import { HOOK_TOKEN_FILE, HOOK_TOKEN_LOCK_FILE, HOOK_TOKEN_VERSION_FILE, loadHookToken, rotateHookToken, withHookTokenLock, type HookTokenOptions } from './token.js'
 
 let dir: string
 
@@ -19,7 +19,7 @@ function childCode(stateDir: string, barrier: string, index: number): string {
     `const fs = await import('node:fs')`,
     `fs.writeFileSync(${JSON.stringify(join(barrier, `ready-${index}`))}, '')`,
     `while (!fs.existsSync(${JSON.stringify(join(barrier, 'go'))})) { await new Promise(r => setTimeout(r, 1)) }`,
-    `process.stdout.write(await loadHookToken(${JSON.stringify(stateDir)}))`,
+    `process.stdout.write((await loadHookToken(${JSON.stringify(stateDir)}, { version: '1.0.0' })).token)`,
   ].join('\n')
 }
 
@@ -50,20 +50,25 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
+/** Token only, for tests that do not care whether it was renewed. */
+async function tokenIn(stateDir: string, options: HookTokenOptions = {}): Promise<string> {
+  return (await loadHookToken(stateDir, options)).token
+}
+
 describe('loadHookToken', () => {
   it('creates the token once with mode 0600 and reuses it', async () => {
     const state = join(dir, 'state')
-    const token = await loadHookToken(state)
+    const token = await tokenIn(state)
     expect(token).toMatch(/^[\w-]{43}$/)
     const file = join(state, HOOK_TOKEN_FILE)
     expect((await stat(file)).mode & 0o777).toBe(0o600)
     expect((await stat(state)).mode & 0o777).toBe(0o700)
-    expect(await loadHookToken(state)).toBe(token)
+    expect(await tokenIn(state)).toBe(token)
     expect((await readFile(file, 'utf8')).trim()).toBe(token)
   })
 
   it('creates exactly one token when called concurrently', async () => {
-    const tokens = await Promise.all([1, 2, 3, 4].map(() => loadHookToken(dir)))
+    const tokens = await Promise.all([1, 2, 3, 4].map(() => tokenIn(dir)))
     expect(new Set(tokens).size).toBe(1)
     expect((await readFile(join(dir, HOOK_TOKEN_FILE), 'utf8')).trim()).toBe(tokens[0])
   })
@@ -72,10 +77,10 @@ describe('loadHookToken', () => {
     const file = join(dir, HOOK_TOKEN_FILE)
     const existing = 'a'.repeat(43)
     await writeFile(file, `${existing}\n`, { mode: 0o644 })
-    expect(await loadHookToken(dir)).toBe(existing)
+    expect(await tokenIn(dir)).toBe(existing)
     expect((await stat(file)).mode & 0o777).toBe(0o600)
     await writeFile(file, 'short')
-    const replaced = await loadHookToken(dir)
+    const replaced = await tokenIn(dir)
     expect(replaced).not.toBe('short')
     expect((await readFile(file, 'utf8')).trim()).toBe(replaced)
   })
@@ -89,13 +94,13 @@ describe('loadHookToken', () => {
     await writeFile(join(dir, '.hook-token.fff000.tmp'), 'in progress')
     await writeFile(join(dir, 'unrelated.tmp'), 'keep')
     await utimes(join(dir, 'unrelated.tmp'), old, old)
-    await loadHookToken(dir)
+    await tokenIn(dir)
     expect((await readdir(dir)).toSorted()).toEqual(['.hook-token.fff000.tmp', HOOK_TOKEN_FILE, 'unrelated.tmp'])
   })
 
   it('breaks a lock left by a process that no longer exists', async () => {
     await writeFile(join(dir, HOOK_TOKEN_LOCK_FILE), '2147483646:dead\n')
-    const token = await loadHookToken(dir)
+    const token = await tokenIn(dir)
     expect(token).toMatch(/^[\w-]{43}$/)
     expect(await readdir(dir)).toEqual([HOOK_TOKEN_FILE])
   })
@@ -104,13 +109,13 @@ describe('loadHookToken', () => {
     await writeFile(join(dir, HOOK_TOKEN_LOCK_FILE), `${process.pid}:old\n`)
     const old = new Date(Date.now() - 60_000)
     await utimes(join(dir, HOOK_TOKEN_LOCK_FILE), old, old)
-    await loadHookToken(dir)
+    await tokenIn(dir)
     expect(await readdir(dir)).toEqual([HOOK_TOKEN_FILE])
   })
 
   it('waits for a live lock and gives up after the timeout', async () => {
     await writeFile(join(dir, HOOK_TOKEN_LOCK_FILE), `${process.pid}:other\n`)
-    await expect(loadHookToken(dir, { lockTimeoutMs: 100 })).rejects.toThrow('Timed out waiting')
+    await expect(tokenIn(dir, { lockTimeoutMs: 100 })).rejects.toThrow('Timed out waiting')
     expect(await readdir(dir)).toEqual([HOOK_TOKEN_LOCK_FILE])
   })
 
@@ -144,7 +149,40 @@ describe('loadHookToken', () => {
       const onDisk = (await readFile(join(state, HOOK_TOKEN_FILE), 'utf8')).trim()
       expect(onDisk).toMatch(/^[\w-]{43}$/)
       expect(tokens).toEqual(Array.from({ length: PROCESSES }, () => onDisk))
-      expect(await readdir(state)).toEqual([HOOK_TOKEN_FILE])
+      expect((await readdir(state)).toSorted()).toEqual([HOOK_TOKEN_FILE, HOOK_TOKEN_VERSION_FILE])
     }
   }, 120_000)
+})
+
+describe('hook token renewal', () => {
+  it('renews a token without a recorded version once, then keeps it', async () => {
+    const legacy = 'b'.repeat(43)
+    await writeFile(join(dir, HOOK_TOKEN_FILE), `${legacy}\n`)
+    const first = await loadHookToken(dir, { version: '1.2.0' })
+    expect(first.renewed).toBe(true)
+    expect(first.token).not.toBe(legacy)
+    expect((await readFile(join(dir, HOOK_TOKEN_VERSION_FILE), 'utf8')).trim()).toBe('1.2.0')
+    expect((await stat(join(dir, HOOK_TOKEN_VERSION_FILE))).mode & 0o777).toBe(0o600)
+    expect(await loadHookToken(dir, { version: '1.2.0' })).toEqual({ token: first.token, renewed: false })
+  })
+
+  it('renews the token when the installed version changes', async () => {
+    const before = await loadHookToken(dir, { version: '1.2.0' })
+    const after = await loadHookToken(dir, { version: '1.3.0' })
+    expect(after.renewed).toBe(true)
+    expect(after.token).not.toBe(before.token)
+    expect((await readFile(join(dir, HOOK_TOKEN_FILE), 'utf8')).trim()).toBe(after.token)
+  })
+
+  it('reports a freshly created token as renewed', async () => {
+    expect((await loadHookToken(dir, { version: '1.0.0' })).renewed).toBe(true)
+  })
+
+  it('rotates on demand and keeps the version', async () => {
+    const { token } = await loadHookToken(dir, { version: '1.0.0' })
+    const rotated = await rotateHookToken(dir, { version: '1.0.0' })
+    expect(rotated).not.toBe(token)
+    expect(await loadHookToken(dir, { version: '1.0.0' })).toEqual({ token: rotated, renewed: false })
+    expect((await readdir(dir)).toSorted()).toEqual([HOOK_TOKEN_FILE, HOOK_TOKEN_VERSION_FILE])
+  })
 })

@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { removeStaleTempFiles } from '../files/temp-cleanup.js'
 
 export const HOOK_TOKEN_FILE = 'hook-token'
+/** Server version that wrote the token; a different or missing one renews it (older builds exposed it in argv). */
+export const HOOK_TOKEN_VERSION_FILE = 'hook-token.version'
 /** Held while the token file is created or replaced, so concurrent server starts agree on one token. */
 export const HOOK_TOKEN_LOCK_FILE = 'hook-token.lock'
 /** A lock older than this, or held by a process that no longer exists, is left over from a crash. */
@@ -14,9 +16,11 @@ const LOCK_RETRY_MS = 20
 
 const TOKEN_PATTERN = /^[\w-]{32,}$/
 /** Temp files of interrupted token writes and broken locks. */
-const TEMP_PATTERN = /^(\.hook-token\.[0-9a-f]+\.tmp|hook-token\.lock\.[0-9a-f]+\.stale)$/
+const TEMP_PATTERN = /^(\.hook-token(\.version)?\.[0-9a-f]+\.tmp|hook-token\.lock\.[0-9a-f]+\.stale)$/
 
 export interface HookTokenOptions {
+  /** Installed server version; when given, a token written by another version (or none recorded) is renewed. */
+  version?: string
   lockStaleMs?: number
   lockTimeoutMs?: number
   /** Age after which temp files count as left over; tests lower it. */
@@ -143,26 +147,54 @@ async function existingToken(file: string): Promise<string | undefined> {
   }
 }
 
+export interface LoadedHookToken {
+  token: string
+  /** A new token was written: the file was missing or corrupt, or it came from another version. */
+  renewed: boolean
+}
+
+async function versionMatches(stateDir: string, version: string | undefined): Promise<boolean> {
+  return version === undefined || (await readText(join(stateDir, HOOK_TOKEN_VERSION_FILE))) === version
+}
+
+/** Writes a fresh token, then the version; a crash in between only renews the token once more on the next start. */
+async function writeNewToken(stateDir: string, version: string | undefined): Promise<string> {
+  const token = randomBytes(32).toString('base64url')
+  await writeAtomic(stateDir, HOOK_TOKEN_FILE, `${token}\n`)
+  if (version !== undefined) {
+    await writeAtomic(stateDir, HOOK_TOKEN_VERSION_FILE, `${version}\n`)
+  }
+  return token
+}
+
+function cleanupOptions(options: HookTokenOptions): { maxAgeMs?: number } {
+  return options.tempMaxAgeMs === undefined ? {} : { maxAgeMs: options.tempMaxAgeMs }
+}
+
 /**
- * Loads `<stateDir>/hook-token` (mode 0600) or creates it with 32 random bytes in base64url.
- * Creating or replacing a missing or corrupt file happens under a lock file, so concurrent server starts agree on
- * one token. Temp files left by interrupted writes (they may hold a token) are removed first.
+ * Loads `<stateDir>/hook-token` (mode 0600) or writes a new one with 32 random bytes in base64url.
+ * A missing or corrupt file, or one written by another `version`, is replaced under a lock file, so concurrent server
+ * starts agree on one token. Temp files left by interrupted writes (they may hold a token) are removed first.
  */
-export async function loadHookToken(stateDir: string, options: HookTokenOptions = {}): Promise<string> {
+export async function loadHookToken(stateDir: string, options: HookTokenOptions = {}): Promise<LoadedHookToken> {
   await mkdir(stateDir, { recursive: true, mode: 0o700 })
   const file = join(stateDir, HOOK_TOKEN_FILE)
-  await removeStaleTempFiles(stateDir, TEMP_PATTERN, options.tempMaxAgeMs === undefined ? {} : { maxAgeMs: options.tempMaxAgeMs })
+  await removeStaleTempFiles(stateDir, TEMP_PATTERN, cleanupOptions(options))
   const fast = await existingToken(file)
-  if (fast !== undefined) {
-    return fast
+  if (fast !== undefined && await versionMatches(stateDir, options.version)) {
+    return { token: fast, renewed: false }
   }
   return withHookTokenLock(stateDir, async () => {
     const current = await existingToken(file)
-    if (current !== undefined) {
-      return current
+    if (current !== undefined && await versionMatches(stateDir, options.version)) {
+      return { token: current, renewed: false }
     }
-    const token = randomBytes(32).toString('base64url')
-    await writeAtomic(stateDir, HOOK_TOKEN_FILE, `${token}\n`)
-    return token
+    return { token: await writeNewToken(stateDir, options.version), renewed: true }
   }, options)
+}
+
+/** Replaces the token unconditionally (explicit hook install or uninstall); sessions holding the old one get 401. */
+export async function rotateHookToken(stateDir: string, options: HookTokenOptions = {}): Promise<string> {
+  await mkdir(stateDir, { recursive: true, mode: 0o700 })
+  return withHookTokenLock(stateDir, () => writeNewToken(stateDir, options.version), options)
 }

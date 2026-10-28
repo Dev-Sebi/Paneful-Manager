@@ -1,10 +1,11 @@
-import { ACCESS_KEY_HEADER, DEFAULT_CONFIG, HealthResponseSchema, API_ROUTES, ListMcpServersResponseSchema } from '@agent-hub/shared'
+import { ACCESS_KEY_HEADER, DEFAULT_CONFIG, HOOK_SESSION_HEADER, HOOK_TOKEN_HEADER, SESSION_TOKEN_HEADER, SessionTokenResponseSchema, HealthResponseSchema, API_ROUTES, ListMcpServersResponseSchema } from '@agent-hub/shared'
 import { pino } from 'pino'
 import { EventEmitter } from 'node:events'
-import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+import { HOOK_TOKEN_FILE, HOOK_TOKEN_VERSION_FILE } from './hooks/token.js'
 import { RunError } from './process/exec.js'
 import { ACCESS_KEY_FILE, portArgument, resolveLoginUrl } from './security/access-key.js'
 import { SHUTDOWN_TIMEOUT_MS, installShutdown, startServer } from './start.js'
@@ -155,5 +156,46 @@ describe('file service wiring', () => {
     await expect(startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), {
       env: { CLAUDE_CONFIG_DIR: '/nonexistent/claude', XDG_STATE_HOME: '/nonexistent/claude/state' },
     })).rejects.toThrow(/outside the scope/)
+  })
+})
+
+describe('hook token rotation', () => {
+  it('renews a token from an older build on start and rotates it on an explicit install', async () => {
+    const stateHome = await mkdtemp(join(tmpdir(), 'agent-hub-start-'))
+    const state = join(stateHome, 'agent-hub')
+    const legacy = 'l'.repeat(43)
+    await mkdir(state, { recursive: true, mode: 0o700 })
+    await writeFile(join(state, HOOK_TOKEN_FILE), `${legacy}\n`, { mode: 0o600 })
+    const env = { CLAUDE_CONFIG_DIR: join(stateHome, 'claude'), XDG_STATE_HOME: stateHome, XDG_CONFIG_HOME: stateHome }
+    const server = await startServer({ ...DEFAULT_CONFIG, port: 0 }, pino({ level: 'silent' }), { env, tmux: missingTmux() })
+    const tokenOnDisk = async () => (await readFile(join(state, HOOK_TOKEN_FILE), 'utf8')).trim()
+    const hook = (token: string) => fetch(`${server.url}${API_ROUTES.hooks}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', [HOOK_TOKEN_HEADER]: token, [HOOK_SESSION_HEADER]: 'someSession' },
+      body: JSON.stringify({ hook_event_name: 'Stop' }),
+    })
+    try {
+      const renewed = await tokenOnDisk()
+      expect(renewed).not.toBe(legacy)
+      expect(await readFile(join(state, HOOK_TOKEN_VERSION_FILE), 'utf8')).toMatch(/^\d+\.\d+\.\d+/)
+      expect((await hook(legacy)).status).toBe(401)
+      expect((await hook(renewed)).status).toBe(204)
+
+      const key = await accessKeyOf(stateHome)
+      const { token } = SessionTokenResponseSchema.parse(await (await fetch(`${server.url}${API_ROUTES.sessionToken}`, { headers: { [ACCESS_KEY_HEADER]: key } })).json())
+      const install = await fetch(`${server.url}${API_ROUTES.hooksInstall}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: server.url, [ACCESS_KEY_HEADER]: key, [SESSION_TOKEN_HEADER]: token },
+        body: '{}',
+      })
+      expect(install.status).toBe(200)
+      const rotated = await tokenOnDisk()
+      expect(rotated).not.toBe(renewed)
+      expect((await hook(renewed)).status).toBe(401)
+      expect((await hook(rotated)).status).toBe(204)
+    } finally {
+      await server.shutdown()
+      await rm(stateHome, { recursive: true, force: true })
+    }
   })
 })

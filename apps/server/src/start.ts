@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { BIND_HOST, HOOK_ENV, resolveStateDir, type AppConfig } from '@agent-hub/shared'
 import type { FastifyBaseLogger } from 'fastify'
@@ -9,7 +10,8 @@ import { createFileService } from './files/service.js'
 import { AppError } from './errors.js'
 import { assertBackupDirOutsideScopes } from './files/state-dir.js'
 import { createHookSettings, resolveClaudeSettingsPath } from './hooks/install.js'
-import { loadHookToken } from './hooks/token.js'
+import { StaleHookSessions } from './hooks/stale.js'
+import { loadHookToken, rotateHookToken } from './hooks/token.js'
 import { loadAccessKey } from './security/access-key.js'
 import { createHealthRunner } from './mcp/health.js'
 import { createMcpService } from './mcp/service.js'
@@ -26,6 +28,8 @@ import { createTeamTemplateLauncher } from './team-templates/launch.js'
 import { TeamLaunchLedger } from './team-templates/ledger.js'
 import { createTeamTemplateStore } from './team-templates/store.js'
 import type { Tmux } from './tmux/tmux.js'
+
+const { version: SERVER_VERSION } = createRequire(import.meta.url)('../package.json') as { version: string }
 
 /** Backups live in `<stateDir>/backups` (see the file-write policy). */
 export const BACKUPS_DIR_NAME = 'backups'
@@ -64,7 +68,9 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   })
   const getScopes = () => discoverScopes({ config: store.get(), env, logger })
   assertBackupDirOutsideScopes(backupDir, await getScopes())
-  const hookToken = await loadHookToken(stateDir)
+  // Renewed when the installed version changes: older builds exposed the token in tmux's argv (SEC-017).
+  const loadedHookToken = await loadHookToken(stateDir, { version: SERVER_VERSION })
+  let hookToken = loadedHookToken.token
   const accessKey = await loadAccessKey(stateDir)
   // The URL is only known after listen; sessions are created through the server, so never before that.
   let serverUrl = `http://${BIND_HOST}:${config.port}`
@@ -73,8 +79,26 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const secretEnv = (): Record<string, string> => ({ [HOOK_ENV.token]: hookToken })
   const engine = new SessionEngine({ stateDir, logger, sessionEnv, secretEnv, ...(tmux === undefined ? {} : { tmux }) })
   await engine.start()
+  const staleHookSessions = new StaleHookSessions(id => engine.get(id)?.lifecycle === 'running')
+  const markRunningStale = (): void => staleHookSessions.mark(engine.list().map(session => session.id))
+  if (loadedHookToken.renewed) {
+    // Re-adopted sessions keep the environment they were started with, so they still carry the old token.
+    markRunningStale()
+    if (staleHookSessions.list().length > 0) {
+      logger.warn('Hook token renewed; running sessions report no status until they are restarted')
+    }
+  }
   const files = createFileService({ getScopes, backupDir, logger })
-  const hookSettings = createHookSettings({ settingsPath: resolveClaudeSettingsPath(env), backups: createBackupStore({ dir: backupDir }) })
+  const hookSettings = createHookSettings({
+    settingsPath: resolveClaudeSettingsPath(env),
+    backups: createBackupStore({ dir: backupDir }),
+    staleSessions: () => staleHookSessions.list(),
+    // New sessions read the token through `secretEnv`, which rewrites `session-env.tmux` before every start.
+    onChange: async () => {
+      hookToken = await rotateHookToken(stateDir, { version: SERVER_VERSION })
+      markRunningStale()
+    },
+  })
   const webDist = resolveWebDist(env)
   const mcp = createMcpService({ getScopes, env, backupDir, logger })
   const devOrigins = parseDevOrigins(env[DEV_ORIGINS_ENV_VAR], message => logger.warn(message))
@@ -101,7 +125,8 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     teams: { claudeDir: resolveClaudeDir(env) },
     teamTemplates: { store: teamTemplateStore, launcher: teamLauncher },
     ...(webDist === undefined ? {} : { webDist }),
-    hookToken,
+    hookToken: () => hookToken,
+    hookStaleSessions: staleHookSessions,
     hookSettings,
   })
   try {

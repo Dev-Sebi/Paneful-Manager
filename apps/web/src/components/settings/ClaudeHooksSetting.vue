@@ -26,9 +26,14 @@
 
     <p v-if="changeError" class="claude-hooks__error" role="alert">{{ changeError }}</p>
 
-    <ul v-if="problems.length > 0" class="claude-hooks__problems" role="status">
+    <ul v-if="problems.length > 0 || staleCount > 0" class="claude-hooks__problems" role="status">
       <li v-for="problem in problems" :key="`${problem.code}:${problem.source}`">
         {{ problem.message }} <span class="claude-hooks__source">({{ problem.source }})</span>
+      </li>
+      <li v-if="staleCount > 0">
+        {{ staleCount === 1
+          ? '1 running session was started with an older hook token and reports no status until it is restarted.'
+          : `${staleCount} running sessions were started with an older hook token and report no status until they are restarted.` }}
       </li>
     </ul>
   </section>
@@ -49,6 +54,9 @@
 
   /** `not_installed` is what the switch already shows; everything else needs the user's attention. */
   const problems = computed(() => (status.value?.reasons ?? []).filter(reason => reason.code !== 'not_installed'))
+
+  /** Sessions whose hooks are rejected since the token was renewed; only relevant while the hooks are installed. */
+  const staleCount = computed(() => status.value?.installed ? status.value.staleSessions.length : 0)
 
   function messageOf (error: unknown, fallback: string): string {
     return error instanceof Error && error.message !== '' ? error.message : fallback

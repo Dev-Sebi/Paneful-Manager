@@ -45,6 +45,8 @@ export interface HookStatusOptions {
   settingsPath: string
   port: number
   managedDir?: string
+  /** Running sessions started with an older hook token. */
+  staleSessions?: string[]
 }
 
 const HOOK_HEADERS = {
@@ -375,7 +377,7 @@ function installedState(settings: JsonObject | undefined, port: number): { insta
  * Installed state plus every setting found in the user and managed settings that would block the hook requests.
  * Project settings depend on the session's directory and are not checked.
  */
-export async function getHookStatus({ settingsPath, port, managedDir = MANAGED_SETTINGS_DIR }: HookStatusOptions): Promise<HookStatus> {
+export async function getHookStatus({ settingsPath, port, managedDir = MANAGED_SETTINGS_DIR, staleSessions = [] }: HookStatusOptions): Promise<HookStatus> {
   const url = hookUrl(port)
   const reasons: HookBlockReason[] = []
   const user = await readSettingsFile(settingsPath)
@@ -426,7 +428,7 @@ export async function getHookStatus({ settingsPath, port, managedDir = MANAGED_S
   if (envRule !== undefined && !required.every(name => envRule.names.includes(name))) {
     reasons.push({ code: 'env_vars_not_allowed', source: envRule.source, message: `httpHookAllowedEnvVars must list ${required.join(' and ')}` })
   }
-  return { settingsPath, installed, portMatches, installedEvents, statusAvailable: installed && reasons.length === 0, reasons }
+  return { settingsPath, installed, portMatches, installedEvents, statusAvailable: installed && reasons.length === 0, reasons, staleSessions }
 }
 
 export interface HookSettings {
@@ -440,21 +442,31 @@ export interface HookSettingsOptions {
   settingsPath: string
   backups: BackupStore
   managedDir?: string
+  /** Running sessions started with an older hook token, reported in the status. */
+  staleSessions?: () => string[]
+  /** Runs after install or uninstall changed the settings file (the server rotates the hook token there). */
+  onChange?: () => Promise<void>
 }
 
 /** Install, uninstall and status for one settings file, as used by the REST routes. */
-export function createHookSettings({ settingsPath, backups, managedDir }: HookSettingsOptions): HookSettings {
-  const status = (port: number): Promise<HookStatus> => getHookStatus({ settingsPath, port, ...(managedDir === undefined ? {} : { managedDir }) })
+export function createHookSettings({ settingsPath, backups, managedDir, staleSessions, onChange }: HookSettingsOptions): HookSettings {
+  const status = (port: number): Promise<HookStatus> => getHookStatus({
+    settingsPath,
+    port,
+    ...(managedDir === undefined ? {} : { managedDir }),
+    ...(staleSessions === undefined ? {} : { staleSessions: staleSessions() }),
+  })
+  const changedBy = async (result: Promise<HookChangeResult>, port: number): Promise<HookChangeResponse> => {
+    const { changed } = await result
+    if (changed) {
+      await onChange?.()
+    }
+    return { changed, status: await status(port) }
+  }
   return {
     settingsPath,
-    async install(port) {
-      const { changed } = await installHooks({ settingsPath, port, backups })
-      return { changed, status: await status(port) }
-    },
-    async uninstall(port) {
-      const { changed } = await uninstallHooks({ settingsPath, backups })
-      return { changed, status: await status(port) }
-    },
+    install: port => changedBy(installHooks({ settingsPath, port, backups }), port),
+    uninstall: port => changedBy(uninstallHooks({ settingsPath, backups }), port),
     status,
   }
 }
