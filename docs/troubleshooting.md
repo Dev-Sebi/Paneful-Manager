@@ -129,4 +129,4 @@ The status badge in the app bar shows `Disconnected` when the WebSocket is close
 | The connection stops with a `protocol_mismatch` error (WebSocket close code 4001) | the web app and the server speak different protocol versions, for example after a partial update | reload the page. If it persists, re-run the installer so both come from the same release. The server reports its protocol version in the error message. |
 | `Disconnected` stays and the UI cannot connect | the session token cannot be fetched from `GET /api/session-token`, for example because of a 403 from the Host, Origin or cross-site check | see [Requests fail with 401 or 403](#requests-fail-with-401-or-403). |
 
-<!-- screenshot: app bar with the Disconnected status badge next to the Connected badge -->
+![App bar with the Disconnected status badge](images/disconnected-badge.png)

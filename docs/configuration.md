@@ -4,7 +4,7 @@ Agent Hub reads one app config file and one preset file per workspace. The serve
 
 Related: [Install guide](install.md), [Troubleshooting](troubleshooting.md).
 
-<!-- screenshot: Settings view with the "Confirm before closing a tab" switch and the read-only config dump -->
+![Settings view with the "Confirm before closing a tab" switch and the read-only config](images/settings.png)
 
 ## Files
 

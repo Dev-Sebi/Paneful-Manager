@@ -6,7 +6,7 @@
 
 Agent Hub is a local web app for running and organizing Claude Code sessions. It runs inside WSL and shows the sessions as terminal tabs with split panes in the browser.
 
-<!-- screenshot: Agent Hub with a preset tab of four Claude Code panes side by side -->
+![Agent Hub with a preset tab of four Claude Code panes](docs/images/workspace-four-panes.png)
 
 ## Features
 
