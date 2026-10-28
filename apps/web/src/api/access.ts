@@ -12,8 +12,8 @@ import {
 import { ref } from 'vue'
 import { createDeviceKey, indexedDbDeviceStore, signChallenge } from './device'
 
-/** Where builds before the device login kept the access key itself; it is deleted on every start. */
-export const LEGACY_ACCESS_KEY_STORAGE_KEY = 'paneful-manager.access-key.v1'
+/** Where builds before the device login (and the rename) kept the access key itself; it is deleted on every start. */
+export const LEGACY_ACCESS_KEY_STORAGE_KEY = 'agent-hub.access-key.v1'
 
 /** True while the server refuses this browser; the shell shows the login hint then. */
 export const loginRequired = ref(false)
