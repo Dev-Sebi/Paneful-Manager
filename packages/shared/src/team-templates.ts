@@ -117,7 +117,7 @@ export const TeamEnvValueSchema = z.string().max(MAX_TEAM_ENV_VALUE_LENGTH).rege
 export const TeamEnvSchema = z.partialRecord(z.enum(TEAM_TEMPLATE_ENV_KEYS), TeamEnvValueSchema)
 export type TeamEnv = z.infer<typeof TeamEnvSchema>
 
-/** Team template file `~/.config/agent-hub/teams/<name>.yaml` (experimental). */
+/** Team template file `~/.config/paneful-manager/teams/<name>.yaml` (experimental). */
 export const TeamTemplateSchema = z
   .looseObject({
     name: TeamTemplateNameSchema,

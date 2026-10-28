@@ -1,5 +1,5 @@
 {
-  "name": "agent-hub",
+  "name": "paneful-manager",
   "private": true,
   "type": "module",
   "version": "0.0.0",
@@ -10,14 +10,14 @@
     "pnpm": ">=11"
   },
   "scripts": {
-    "dev": "pnpm --filter @agent-hub/shared build && pnpm -r --parallel run dev",
-    "login-url": "pnpm --silent --filter @agent-hub/server login-url",
+    "dev": "pnpm --filter @paneful-manager/shared build && pnpm -r --parallel run dev",
+    "login-url": "pnpm --silent --filter @paneful-manager/server login-url",
     "build": "pnpm -r run build",
     "lint": "eslint . && pnpm -r --if-present run lint",
     "lint:fix": "eslint . --fix",
-    "typecheck": "pnpm --filter @agent-hub/shared build && pnpm -r run typecheck",
+    "typecheck": "pnpm --filter @paneful-manager/shared build && pnpm -r run typecheck",
     "test": "pnpm -r --if-present run test",
-    "e2e": "pnpm --filter @agent-hub/web e2e",
+    "e2e": "pnpm --filter @paneful-manager/web e2e",
     "release:pack": "sh scripts/release-pack.sh"
   },
   "devDependencies": {

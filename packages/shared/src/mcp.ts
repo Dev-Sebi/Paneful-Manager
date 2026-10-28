@@ -25,7 +25,7 @@ export const McpUrlSchema = z.string().regex(/^(https?:\/\/[^\s/]+|\$\{)\S*$/i, 
 const StringMapSchema = z.record(z.string().min(1), z.string())
 const remote = { url: McpUrlSchema, headers: StringMapSchema.default(() => ({})) }
 
-/** MCP server config; Claude Code stores the transport as `type`, Agent Hub as `transport`. */
+/** MCP server config; Claude Code stores the transport as `type`, Paneful Manager as `transport`. */
 export const McpServerConfigSchema = z.discriminatedUnion('transport', [
   z.strictObject({
     transport: z.literal('stdio'),
@@ -50,7 +50,7 @@ export const McpScopeSchema = z.discriminatedUnion('kind', [
 export type McpScope = z.infer<typeof McpScopeSchema>
 
 /**
- * Maps an Agent Hub scope to a Claude Code MCP scope: global -> user; a project or worktree -> `project`
+ * Maps a Paneful Manager scope to a Claude Code MCP scope: global -> user; a project or worktree -> `project`
  * (`.mcp.json`, committed) when `shared`, otherwise `local` (private, per-project section of `~/.claude.json`).
  */
 export function toMcpScope(scope: Scope, shared: boolean): McpScope {

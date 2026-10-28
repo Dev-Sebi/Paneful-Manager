@@ -5,7 +5,7 @@ import { issuePaths } from './test-utils.js'
 const valid = {
   id: 'a1b2c3',
   cwd: '~/git/project1',
-  tmuxSession: 'agent-hub-a1b2c3',
+  tmuxSession: 'paneful-manager-a1b2c3',
   createdAt: '2026-10-27T10:00:00.000Z',
   state: 'idle',
   lifecycle: 'running',

@@ -30,7 +30,7 @@ const session = {
   cwd: '~/git/project1',
   command: 'claude',
   args: [],
-  tmuxSession: 'agent-hub-s1',
+  tmuxSession: 'paneful-manager-s1',
   createdAt: '2026-10-27T10:00:00.000Z',
   state: 'working',
   lifecycle: 'running',
@@ -81,7 +81,7 @@ describe('ApiErrorSchema', () => {
 
 describe('health', () => {
   it('parses and round-trips', () => {
-    roundTrip(HealthResponseSchema, { status: 'ok', name: 'Agent Hub', version: '0.0.0', protocolVersion: 1, uptimeSec: 3.5, tmux: 'available' })
+    roundTrip(HealthResponseSchema, { status: 'ok', name: 'Paneful Manager', version: '0.0.0', protocolVersion: 1, uptimeSec: 3.5, tmux: 'available' })
     expect(issuePaths(HealthResponseSchema, { status: 'down', name: 'a', version: '1', protocolVersion: 1, uptimeSec: 0, tmux: 'gone' })).toEqual([
       'status',
       'tmux',
@@ -205,6 +205,6 @@ describe('device login', () => {
   })
 
   it('binds signatures to the session context', () => {
-    expect(deviceSignatureMessage('abc')).toBe('agent-hub.session.v1\nabc')
+    expect(deviceSignatureMessage('abc')).toBe('paneful-manager.session.v1\nabc')
   })
 })

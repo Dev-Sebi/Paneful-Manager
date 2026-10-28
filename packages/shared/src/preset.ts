@@ -42,7 +42,7 @@ export const PresetTabSchema = z
   })
 export type PresetTab = z.infer<typeof PresetTabSchema>
 
-/** Workspace preset file `~/.config/agent-hub/workspaces/<name>.yaml`. */
+/** Workspace preset file `~/.config/paneful-manager/workspaces/<name>.yaml`. */
 export const WorkspacePresetSchema = z.looseObject({
   name: PresetNameSchema,
   description: z.string().optional(),

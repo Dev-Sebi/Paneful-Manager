@@ -1,5 +1,5 @@
 export { z } from 'zod'
-export const APP_NAME = 'Agent Hub'
+export const APP_NAME = 'Paneful Manager'
 
 export * from './api.js'
 export * from './config.js'

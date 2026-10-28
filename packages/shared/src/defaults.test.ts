@@ -10,8 +10,8 @@ describe('defaults', () => {
   })
 
   it('points to the config locations', () => {
-    expect(CONFIG_FILE).toBe('~/.config/agent-hub/config.yaml')
-    expect(WORKSPACES_DIR).toBe('~/.config/agent-hub/workspaces')
+    expect(CONFIG_FILE).toBe('~/.config/paneful-manager/config.yaml')
+    expect(WORKSPACES_DIR).toBe('~/.config/paneful-manager/workspaces')
   })
 
   it('DEFAULT_CONFIG equals the schema defaults', () => {

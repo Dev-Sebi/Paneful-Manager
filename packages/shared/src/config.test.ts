@@ -79,7 +79,7 @@ describe('resolvePort', () => {
 
   it('throws a clear error on invalid env values', () => {
     for (const value of ['0', '70000', '80.5', '1e3', 'abc']) {
-      expect(() => resolvePort(7337, value)).toThrow(`Invalid AGENT_HUB_PORT "${value}": expected an integer between 1 and 65535`)
+      expect(() => resolvePort(7337, value)).toThrow(`Invalid PANEFUL_MANAGER_PORT "${value}": expected an integer between 1 and 65535`)
     }
   })
 
@@ -91,26 +91,26 @@ describe('resolvePort', () => {
 
 describe('resolveConfigDir', () => {
   it('falls back to ~/.config without XDG_CONFIG_HOME', () => {
-    expect(resolveConfigDir({})).toBe('~/.config/agent-hub')
-    expect(resolveConfigDir({ XDG_CONFIG_HOME: '  ' })).toBe('~/.config/agent-hub')
-    expect(resolveConfigDir({ XDG_CONFIG_HOME: 'relative/dir' })).toBe('~/.config/agent-hub')
+    expect(resolveConfigDir({})).toBe('~/.config/paneful-manager')
+    expect(resolveConfigDir({ XDG_CONFIG_HOME: '  ' })).toBe('~/.config/paneful-manager')
+    expect(resolveConfigDir({ XDG_CONFIG_HOME: 'relative/dir' })).toBe('~/.config/paneful-manager')
   })
 
   it('respects XDG_CONFIG_HOME', () => {
-    expect(resolveConfigDir({ XDG_CONFIG_HOME: '/home/dev/.cfg' })).toBe('/home/dev/.cfg/agent-hub')
-    expect(resolveConfigDir({ XDG_CONFIG_HOME: '/home/dev/.cfg/' })).toBe('/home/dev/.cfg/agent-hub')
+    expect(resolveConfigDir({ XDG_CONFIG_HOME: '/home/dev/.cfg' })).toBe('/home/dev/.cfg/paneful-manager')
+    expect(resolveConfigDir({ XDG_CONFIG_HOME: '/home/dev/.cfg/' })).toBe('/home/dev/.cfg/paneful-manager')
   })
 })
 
 describe('resolveStateDir', () => {
   it('falls back to ~/.local/state without XDG_STATE_HOME', () => {
-    expect(resolveStateDir({})).toBe('~/.local/state/agent-hub')
-    expect(resolveStateDir({ XDG_STATE_HOME: '' })).toBe('~/.local/state/agent-hub')
-    expect(resolveStateDir({ XDG_STATE_HOME: 'relative/state' })).toBe('~/.local/state/agent-hub')
+    expect(resolveStateDir({})).toBe('~/.local/state/paneful-manager')
+    expect(resolveStateDir({ XDG_STATE_HOME: '' })).toBe('~/.local/state/paneful-manager')
+    expect(resolveStateDir({ XDG_STATE_HOME: 'relative/state' })).toBe('~/.local/state/paneful-manager')
   })
 
   it('respects XDG_STATE_HOME and ignores XDG_CONFIG_HOME', () => {
-    expect(resolveStateDir({ XDG_STATE_HOME: '/home/dev/.st/' })).toBe('/home/dev/.st/agent-hub')
-    expect(resolveStateDir({ XDG_CONFIG_HOME: '/home/dev/.cfg' })).toBe('~/.local/state/agent-hub')
+    expect(resolveStateDir({ XDG_STATE_HOME: '/home/dev/.st/' })).toBe('/home/dev/.st/paneful-manager')
+    expect(resolveStateDir({ XDG_CONFIG_HOME: '/home/dev/.cfg' })).toBe('~/.local/state/paneful-manager')
   })
 })

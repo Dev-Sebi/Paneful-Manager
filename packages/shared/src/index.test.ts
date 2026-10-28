@@ -3,7 +3,7 @@ import * as shared from './index.js'
 
 describe('index', () => {
   it('re-exports the app name, schemas and constants', () => {
-    expect(shared.APP_NAME).toBe('Agent Hub')
+    expect(shared.APP_NAME).toBe('Paneful Manager')
     expect(shared.DEFAULT_PORT).toBe(7337)
     expect(shared.WS_PROTOCOL_VERSION).toBe(1)
     for (const name of [
