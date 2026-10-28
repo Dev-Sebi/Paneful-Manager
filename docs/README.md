@@ -13,6 +13,7 @@
 | Document | Content |
 | --- | --- |
 | [architecture.md](architecture.md) | Components, process model, WebSocket behavior, file-write policy, security model, session states, REST and WebSocket contracts |
+| [releasing.md](releasing.md) | Release procedure, release workflow, release assets |
 | [adr/](adr/README.md) | Architecture decision records |
 | [design-system/](design-system/README.md) | Design tokens, motion rules, component specs |
 | [tasks.md](tasks.md) | Task board: waves, owners, status |

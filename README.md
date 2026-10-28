@@ -23,7 +23,7 @@ Agent teams build on an experimental Claude Code feature (Claude Code 2.1.309 or
 
 ## Quick start
 
-Inside WSL2 with systemd, Node.js 22 or later and tmux 3.2 or later (the installer adds pnpm if it is missing):
+Inside WSL2 with systemd, Node.js 22 or later and tmux 3.2 or later (on x64 the release ships a prebuilt node-pty, so no compiler is needed):
 
 ```bash
 curl -fsSL https://github.com/Dev-Sebi/Paneful-Manager/releases/latest/download/install.sh | sh

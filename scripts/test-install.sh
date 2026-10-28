@@ -21,6 +21,7 @@ not_contains() { ! grep -q -- "$2" "$1"; }
 
 # ---------- sandbox ----------
 
+REAL_HOME=$HOME
 export HOME="$T/home"
 export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_STATE_HOME="$HOME/.local/state"
@@ -120,8 +121,13 @@ if [ ! -f "$ROOT/apps/server/dist/index.js" ] || [ ! -f "$ROOT/apps/web/dist/ind
   echo "Build first: pnpm build" >&2
   exit 1
 fi
-sh "$ROOT/scripts/release-pack.sh" --skip-build --tag v1.0.0 --out "$T/pkg" >/dev/null
-sh "$ROOT/scripts/release-pack.sh" --skip-build --tag v1.1.0 --out "$T/pkg" >/dev/null
+# Packs with the real HOME, so pnpm uses its usual store instead of writing into the sandbox.
+pack() {
+  env -u XDG_CONFIG_HOME -u XDG_STATE_HOME -u XDG_DATA_HOME HOME="$REAL_HOME" \
+    sh "$ROOT/scripts/release-pack.sh" --skip-build --out "$T/pkg" "$@" >/dev/null
+}
+pack --tag v1.0.0
+pack --tag v1.1.0
 V1="$T/pkg/agent-hub-v1.0.0.tar.gz"
 V2="$T/pkg/agent-hub-v1.1.0.tar.gz"
 
@@ -156,6 +162,7 @@ install_sh --yes --from-source "$V1" --no-windows-task
 check "release extracted" test -f "$PREFIX/releases/v1.0.0/apps/server/dist/index.js"
 check "web build shipped" test -f "$PREFIX/releases/v1.0.0/apps/web/dist/index.html"
 check "node-pty installed" test -d "$PREFIX/releases/v1.0.0/apps/server/node_modules/node-pty"
+check "prebuilt dependencies used" contains "$OUT" "Using the prebuilt production dependencies"
 check "current symlink points at the release" test "$(readlink "$PREFIX/current")" = releases/v1.0.0
 check "install marker written" contains "$PREFIX/.agent-hub-install" "v1.0.0"
 check "config written with the default port" contains "$CONFIG" "^port: 7337$"
@@ -286,6 +293,13 @@ install_sh --yes --no-systemd --no-windows-task --prefix "$DL"
 check "latest resolves and verifies the download" contains "$OUT" "sha256 verified"
 check "downloaded release installed" test "$(readlink "$DL/current")" = releases/v1.0.0
 check "latest lookup is https only" contains "$STUB_LOG" "--proto =https"
+
+# ---------- release without prebuilt dependencies ----------
+
+pack --no-deps --tag v1.2.0
+install_sh --yes --no-systemd --no-windows-task --prefix "$HOME/nodeps" --from-source "$T/pkg/agent-hub-v1.2.0.tar.gz"
+check "tarball without node_modules falls back to pnpm install" contains "$OUT" "compiles node-pty"
+check "fallback installs node-pty" test -d "$HOME/nodeps/releases/v1.2.0/apps/server/node_modules/node-pty"
 
 printf '\n%s tests, %s failed\n' "$TESTS" "$FAILS"
 [ "$FAILS" -eq 0 ]
