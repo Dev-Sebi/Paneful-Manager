@@ -9,6 +9,8 @@ AGENT_HUB_REPO=${AGENT_HUB_REPO:-Dev-Sebi/Paneful-Manager}
 DEFAULT_PORT=7337
 MIN_NODE_MAJOR=22
 MIN_TMUX_VERSION=3.2
+# Reads headers from stdin (7.55) and keeps a custom Authorization header off redirect hosts (7.58).
+MIN_CURL_TOKEN_VERSION=7.58
 TMUX_UNIT=agent-hub-tmux.service
 SERVER_UNIT=agent-hub.service
 HEALTH_TIMEOUT_SEC=20
@@ -171,6 +173,8 @@ while [ $# -gt 0 ]; do
 done
 
 # Read once and unset, so no child process (curl, pnpm, node, systemctl) inherits the token.
+# API_TOKEN is unset first: one imported from the environment would stay exported.
+unset API_TOKEN TOKEN_SOURCE
 API_TOKEN=${GITHUB_TOKEN:-${GH_TOKEN:-}}
 if [ -n "${GITHUB_TOKEN:-}" ]; then TOKEN_SOURCE=GITHUB_TOKEN; else TOKEN_SOURCE=GH_TOKEN; fi
 unset GITHUB_TOKEN GH_TOKEN
@@ -458,6 +462,10 @@ load_token() {
   case "$API_TOKEN" in
     *[!A-Za-z0-9_.-]*) die "The token from $TOKEN_SOURCE contains unexpected characters" ;;
   esac
+  curl_version=$(curl --version 2>/dev/null | sed -n '1s/^curl \([0-9][0-9.]*\).*/\1/p')
+  if [ -z "$curl_version" ] || ! version_ge "$curl_version" "$MIN_CURL_TOKEN_VERSION"; then
+    die "curl $MIN_CURL_TOKEN_VERSION or later is required to download with a token (found '${curl_version:-unknown}'); without a token: see 'Private repository' in docs/install.md"
+  fi
 }
 
 # gh_curl <curl args...>: the token header goes in on stdin, so it never shows up in a process list.

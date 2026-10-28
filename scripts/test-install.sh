@@ -41,6 +41,7 @@ echo "Linux version 6.0 (generic)" >"$AGENT_HUB_PROC_VERSION"
 cat >"$T/bin/systemctl" <<'EOF'
 #!/bin/sh
 echo "systemctl $*" >>"$STUB_LOG"
+[ ! -f "$STUB_DIR/token" ] || ! env | grep -qF -- "$(cat "$STUB_DIR/token")" || echo "${0##*/} saw a token in its environment" >>"$STUB_LOG"
 if [ "$2" = show-environment ] && [ -f "$STUB_DIR/no-systemd" ]; then exit 1; fi
 exit 0
 EOF
@@ -55,11 +56,17 @@ echo "sudo $*" >>"$STUB_LOG"
 exec "$@"
 EOF
 # Serves release files by URL basename and GitHub API answers from $STUB_DIR/api; health checks always succeed.
+# 'curl --version' reports $STUB_DIR/curl-version (default 8.5.0). Stubs log when the token value is in their environment.
 # The API needs 'Authorization: Bearer <$STUB_DIR/token>' on stdin (-H @-); headers read there go to headers.log.
 cat >"$T/bin/curl" <<'EOF'
 #!/bin/sh
 echo "curl $*" >>"$STUB_LOG"
 [ -z "${GITHUB_TOKEN:-}${GH_TOKEN:-}" ] || echo "curl saw a token in its environment" >>"$STUB_LOG"
+[ ! -f "$STUB_DIR/token" ] || ! env | grep -qF -- "$(cat "$STUB_DIR/token")" || echo "${0##*/} saw a token in its environment" >>"$STUB_LOG"
+if [ "${1:-}" = --version ]; then
+  echo "curl $(cat "$STUB_DIR/curl-version" 2>/dev/null || echo 8.5.0) (x86_64-pc-linux-gnu)"
+  exit 0
+fi
 out=""
 url=""
 write=""
@@ -121,6 +128,7 @@ EOF
 cat >"$T/bin/gh" <<'EOF'
 #!/bin/sh
 echo "gh $*" >>"$STUB_LOG"
+[ ! -f "$STUB_DIR/token" ] || ! env | grep -qF -- "$(cat "$STUB_DIR/token")" || echo "${0##*/} saw a token in its environment" >>"$STUB_LOG"
 [ "$1 $2" = "auth token" ] && [ -f "$STUB_DIR/gh-token" ] && cat "$STUB_DIR/gh-token"
 EOF
 cat >"$T/bin/powershell.exe" <<'EOF'
@@ -402,6 +410,19 @@ check "tag: assets of a renamed repo downloaded" contains "$STUB_LOG" "Panefull-
 check "tag: release installed" test "$(readlink "$HOME/tok/current")" = releases/v1.1.0
 check "GH_TOKEN is used" contains "$OUT" "token from GH_TOKEN"
 check "GH_TOKEN never leaked" token_never_leaked
+
+export API_TOKEN=preset GITHUB_TOKEN="$TOKEN"
+install_sh --yes --no-systemd --no-windows-task --prefix "$HOME/tok" --version v1.1.0 --force
+unset API_TOKEN GITHUB_TOKEN
+check "an API_TOKEN from the environment does not export the token" token_never_leaked
+
+echo 7.57.0 >"$STUB_DIR/curl-version"
+export GITHUB_TOKEN="$TOKEN"
+install_sh_fails --yes --no-systemd --no-windows-task --prefix "$HOME/tok2"
+unset GITHUB_TOKEN
+rm -f "$STUB_DIR/curl-version"
+check "curl older than 7.58 refused for token downloads" contains "$OUT" "curl 7.58 or later is required"
+check "old curl never gets the token" not_contains "$STUB_LOG" "api.github.com"
 
 printf '%s\n' "$TOKEN" >"$STUB_DIR/gh-token"
 : >"$STUB_DIR/headers.log"

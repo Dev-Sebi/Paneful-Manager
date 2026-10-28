@@ -44,7 +44,7 @@ GITHUB_TOKEN=<token> sh install.sh
 
 When `GITHUB_TOKEN` (or `GH_TOKEN`) is set, or `gh auth token` works because `gh` is installed and logged in, the installer looks the release up through the GitHub API (`/repos/<repo>/releases/latest`, or `/releases/tags/<tag>` with `--version`) and downloads the tarball and its `.sha256` as API assets. Without a token it uses the anonymous URLs as before. Use a fine-grained personal access token limited to this repository with read-only **Contents** access; nothing more is needed.
 
-The token never leaves the installer process: it is read once from the environment and unset, so no child process (`pnpm`, `node`, `systemctl`) inherits it; `curl` gets the `Authorization` header on stdin (`-H @-`), so it does not appear in the process list; it is never written to disk or printed. `curl` does not forward the header to the storage host GitHub redirects asset downloads to.
+The token never leaves the installer process: it is read once from the environment and unset, so no child process (`pnpm`, `node`, `systemctl`) inherits it; `curl` gets the `Authorization` header on stdin (`-H @-`), so it does not appear in the process list; it is never written to disk or printed (unless you trace the installer with `sh -x`). `curl` does not forward the header to the storage host GitHub redirects asset downloads to; the token path needs curl 7.58 or later for that and refuses older versions.
 
 **b) Without a token in the installer.** Download the release with `gh` and install the tarball:
 
