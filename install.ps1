@@ -141,8 +141,11 @@ function Invoke-PmInstallSh([hashtable]$Options, [string]$Distro, [string[]]$Ins
   $env:WSLENV = if ([string]::IsNullOrEmpty($saved.WSLENV)) { $shared } else { "$($saved.WSLENV):$shared" }
   $wslArgs = @('-d', $Distro)
   if ($User -ne '') { $wslArgs += @('-u', $User) }
-  # Downloaded to a file first: with 'curl | sh' a failed download would end as a successful empty script.
-  $shell = 'f=$(mktemp) || exit 1; curl -fsSL --proto =https --tlsv1.2 -o $f $PM_INSTALL_URL && sh $f $PM_INSTALL_ARGS; c=$?; rm -f $f; exit $c'
+  # wsl.exe -e reads no profile, so PATH comes from the login shell (nvm, ~/.local/bin): the units keep it for node and claude.
+  # --foreground: an interactive shell in a background process group stops on the console. Downloaded to a file first:
+  # with 'curl | sh' a failed download would end as a successful empty script.
+  $shell = 'p=; s=$(getent passwd $(id -u) | cut -d: -f7); case $s in /*) p=$(timeout --foreground 20 $s -lic env </dev/null 2>/dev/null | sed -n s/^PATH=//p | tail -n 1);; esac; case $p in /*) PATH=$p; export PATH;; esac; '
+  $shell += 'f=$(mktemp) || exit 1; curl -fsSL --proto =https --tlsv1.2 -o $f $PM_INSTALL_URL && sh $f $PM_INSTALL_ARGS; c=$?; rm -f $f; exit $c'
   $wslArgs += @('--cd', '~', '-e', 'sh', '-c', $shell)
   try {
     Write-PmSay "  + wsl.exe -d $Distro$(if ($User -ne '') { " -u $User" }) -- sh install.sh $($env:PM_INSTALL_ARGS)   (from $($env:PM_INSTALL_URL))"
