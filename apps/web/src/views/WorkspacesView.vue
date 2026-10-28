@@ -64,6 +64,7 @@
                 :maximized="maximized === pane.sessionId"
                 :member="paneMember(pane.sessionId)"
                 :session-id="pane.sessionId"
+                :state-since="sessions.byId.get(pane.sessionId)?.stateSince"
                 :status="sessions.byId.get(pane.sessionId)?.state"
                 :title="paneTitle(pane.sessionId)"
                 @close="ui.notify('Closing panes is not available yet')"

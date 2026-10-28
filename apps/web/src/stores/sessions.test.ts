@@ -65,6 +65,22 @@ describe('sessions store', () => {
     expect(store.sessions).toHaveLength(0)
   })
 
+  it('keeps stateSince from state events and falls back sensibly', () => {
+    const store = useSessionsStore()
+    const { events, emit } = fakeEvents()
+    store.bind(events)
+    emit({ type: 'session.created', session: makeSession('a', { state: 'idle', stateSince: '2026-10-27T10:00:00.000Z' }) })
+
+    emit({ type: 'state', sessionId: 'a', state: 'idle', lifecycle: 'running' })
+    expect(store.byId.get('a')?.stateSince).toBe('2026-10-27T10:00:00.000Z')
+
+    emit({ type: 'state', sessionId: 'a', state: 'working', lifecycle: 'running', stateSince: '2026-10-27T10:05:00.000Z' })
+    expect(store.byId.get('a')?.stateSince).toBe('2026-10-27T10:05:00.000Z')
+
+    emit({ type: 'state', sessionId: 'a', state: 'waiting', lifecycle: 'running' })
+    expect(store.byId.get('a')?.stateSince).not.toBe('2026-10-27T10:05:00.000Z')
+  })
+
   it('stops applying events after unbinding', () => {
     const store = useSessionsStore()
     const { events, emit } = fakeEvents()

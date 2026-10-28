@@ -20,6 +20,8 @@ export interface AhTerminalPaneProps {
   cwd?: string
   /** Agent state shown as AhStatusBadge in the header. */
   status?: AhStatusBadgeState
+  /** ISO time the session entered its current state; the header shows "<state> <elapsed>" (e.g. "idle 3m") after the title. */
+  stateSince?: string
   /** 'exited' and 'failed' override the pane's live binding; otherwise the binding decides. @default 'connecting' */
   connection?: AhTerminalConnection
   /** Exit code shown in the exited overlay. */
