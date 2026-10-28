@@ -1,6 +1,6 @@
 #!/bin/sh
 # Smoke test for install.sh: installs from a locally packed tarball into a temp HOME.
-# systemctl, loginctl, sudo, powershell.exe and curl are stubs that only log, so the real system is never touched.
+# systemctl, loginctl, sudo, powershell.exe, gh and curl are stubs that only log, so the real system is never touched.
 set -eu
 
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
@@ -32,7 +32,9 @@ export AGENT_HUB_WSL_CONF="$T/wsl.conf"
 export AGENT_HUB_PROC_VERSION="$T/proc-version"
 export STUB_LOG="$T/calls.log"
 export STUB_DIR="$T/stub-state"
-mkdir -p "$HOME" "$T/bin" "$STUB_DIR"
+export TMPDIR="$T/tmp"
+unset GITHUB_TOKEN GH_TOKEN
+mkdir -p "$HOME" "$T/bin" "$STUB_DIR" "$TMPDIR"
 : >"$STUB_LOG"
 echo "Linux version 6.0 (generic)" >"$AGENT_HUB_PROC_VERSION"
 
@@ -52,28 +54,74 @@ cat >"$T/bin/sudo" <<'EOF'
 echo "sudo $*" >>"$STUB_LOG"
 exec "$@"
 EOF
-# Serves files from $STUB_DIR/release by URL basename; health checks always succeed.
+# Serves release files by URL basename and GitHub API answers from $STUB_DIR/api; health checks always succeed.
+# The API needs 'Authorization: Bearer <$STUB_DIR/token>' on stdin (-H @-); headers read there go to headers.log.
 cat >"$T/bin/curl" <<'EOF'
 #!/bin/sh
 echo "curl $*" >>"$STUB_LOG"
+[ -z "${GITHUB_TOKEN:-}${GH_TOKEN:-}" ] || echo "curl saw a token in its environment" >>"$STUB_LOG"
 out=""
 url=""
-effective=0
+write=""
+fail=0
+stdin_headers=0
+accept=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -o) out=$2; shift ;;
-    -w) effective=1; shift ;;
-    --proto|--max-time) shift ;;
+    -w) write=$2; shift ;;
+    -H)
+      case "$2" in @-) stdin_headers=1 ;; Accept:*) accept=$2 ;; esac
+      shift
+      ;;
+    --proto|--proto-redir|--max-time) shift ;;
+    --*) ;;
+    -*f*) fail=1 ;;
     -*) ;;
     *) url=$1 ;;
   esac
   shift
 done
-if [ "$effective" -eq 1 ]; then cat "$STUB_DIR/latest-url"; exit 0; fi
-case "$url" in */api/health) exit 0 ;; esac
-file="$STUB_DIR/release/${url##*/}"
-[ -f "$file" ] || exit 22
-[ -z "$out" ] || [ "$out" = /dev/null ] || cp "$file" "$out"
+auth=""
+if [ "$stdin_headers" -eq 1 ]; then
+  auth=$(cat)
+  printf '%s\n' "$auth" >>"$STUB_DIR/headers.log"
+fi
+code=200
+effective=$url
+file=""
+case "$url" in
+  */api/health) ;;
+  https://api.github.com/*)
+    if [ ! -f "$STUB_DIR/token" ] || [ "$auth" != "Authorization: Bearer $(cat "$STUB_DIR/token")" ]; then
+      code=404
+    else
+      case "$url" in
+        */releases/latest) file=$STUB_DIR/api/latest.json ;;
+        */releases/tags/*) file=$STUB_DIR/api/tag-${url##*/}.json ;;
+        */releases/assets/*) [ "$accept" != "Accept: application/octet-stream" ] || file=$STUB_DIR/api/asset-${url##*/} ;;
+      esac
+      [ -n "$file" ] || code=415
+    fi
+    ;;
+  */releases/latest)
+    if [ -f "$STUB_DIR/private" ]; then code=404; else effective=$(cat "$STUB_DIR/latest-url"); fi
+    ;;
+  *)
+    if [ -f "$STUB_DIR/private" ]; then code=404; else file=$STUB_DIR/release/${url##*/}; fi
+    ;;
+esac
+[ -z "$file" ] || [ -f "$file" ] || code=404
+if [ "$code" = 200 ] && [ -n "$file" ] && [ -n "$out" ] && [ "$out" != /dev/null ]; then cp "$file" "$out"; fi
+[ -z "$write" ] || printf '%s' "$write" | sed "s|%{http_code}|$code|g; s|%{url_effective}|$effective|g"
+if [ "$code" != 200 ] && [ "$fail" -eq 1 ]; then exit 22; fi
+exit 0
+EOF
+# 'gh auth token' prints $STUB_DIR/gh-token when it exists, like a logged-in gh.
+cat >"$T/bin/gh" <<'EOF'
+#!/bin/sh
+echo "gh $*" >>"$STUB_LOG"
+[ "$1 $2" = "auth token" ] && [ -f "$STUB_DIR/gh-token" ] && cat "$STUB_DIR/gh-token"
 EOF
 cat >"$T/bin/powershell.exe" <<'EOF'
 #!/bin/sh
@@ -300,6 +348,79 @@ install_sh --yes --no-systemd --no-windows-task --prefix "$DL"
 check "latest resolves and verifies the download" contains "$OUT" "sha256 verified"
 check "downloaded release installed" test "$(readlink "$DL/current")" = releases/v1.0.0
 check "latest lookup is https only" contains "$STUB_LOG" "--proto =https"
+
+# ---------- private repository ----------
+
+TOKEN=github_pat_TestOnly0123456789abcdef
+API="https://api.github.com/repos/Dev-Sebi/Paneful-Manager/releases/assets"
+mkdir -p "$STUB_DIR/api"
+# api_release <tag> <tarball id> <sha id> <tarball>: the API answer for one release with its two assets.
+api_release() {
+  cp "$4" "$STUB_DIR/api/asset-$2"
+  cp "$4.sha256" "$STUB_DIR/api/asset-$3"
+  printf '{"tag_name":"%s","assets":[{"name":"agent-hub-%s.tar.gz","url":"%s/%s"},{"name":"agent-hub-%s.tar.gz.sha256","url":"%s/%s"}]}\n' \
+    "$1" "$1" "$API" "$2" "$1" "$API" "$3"
+}
+api_release v1.0.0 101 102 "$V1" >"$STUB_DIR/api/latest.json"
+api_release v1.1.0 201 202 "$V2" >"$STUB_DIR/api/tag-v1.1.0.json"
+touch "$STUB_DIR/private"
+token_never_leaked() {
+  not_contains "$STUB_LOG" "$TOKEN" && not_contains "$OUT" "$TOKEN" && not_contains "$STUB_LOG" "saw a token" &&
+    ! grep -rqF -- "$TOKEN" "$HOME" "$TMPDIR"
+}
+
+install_sh_fails --yes --no-systemd --no-windows-task --prefix "$HOME/anon"
+check "anonymous 404 on latest hints at a private repo" contains "$OUT" "may be private"
+check "private repo hint names GITHUB_TOKEN" contains "$OUT" "Set GITHUB_TOKEN"
+check "private repo hint names gh" contains "$OUT" "gh auth login"
+install_sh_fails --yes --no-systemd --no-windows-task --prefix "$HOME/anon" --version v1.0.0
+check "anonymous 404 on a download hints at a private repo" contains "$OUT" "may be private"
+check "gh without a login falls back to anonymous" contains "$STUB_LOG" "gh auth token --hostname github.com"
+
+printf '%s' "$TOKEN" >"$STUB_DIR/token"
+: >"$STUB_DIR/headers.log"
+export GITHUB_TOKEN="$TOKEN"
+install_sh --yes --no-systemd --no-windows-task --prefix "$HOME/tok"
+unset GITHUB_TOKEN
+check "token: latest resolved through the API" contains "$STUB_LOG" "api.github.com/repos/Dev-Sebi/Paneful-Manager/releases/latest"
+check "token: assets fetched as octet-stream" contains "$STUB_LOG" "Accept: application/octet-stream -o .* $API/101$"
+check "token: checksum asset verified" contains "$OUT" "sha256 verified"
+check "token: release installed" test "$(readlink "$HOME/tok/current")" = releases/v1.0.0
+check "token: header passed on stdin" contains "$STUB_LOG" "-H @-"
+check "token: bearer header sent" contains "$STUB_DIR/headers.log" "^Authorization: Bearer $TOKEN$"
+check "token: no anonymous download" not_contains "$STUB_LOG" "releases/download"
+check "token: gh not asked" not_contains "$STUB_LOG" "gh auth"
+check "token: names its source" contains "$OUT" "token from GITHUB_TOKEN"
+check "token: never in argv, output, child env or files" token_never_leaked
+
+export GH_TOKEN="$TOKEN"
+install_sh --yes --no-systemd --no-windows-task --prefix "$HOME/tok" --version v1.1.0
+unset GH_TOKEN
+check "tag: looked up by tag" contains "$STUB_LOG" "releases/tags/v1.1.0"
+check "tag: tag assets downloaded" contains "$STUB_LOG" "$API/201"
+check "tag: release installed" test "$(readlink "$HOME/tok/current")" = releases/v1.1.0
+check "GH_TOKEN is used" contains "$OUT" "token from GH_TOKEN"
+check "GH_TOKEN never leaked" token_never_leaked
+
+printf '%s\n' "$TOKEN" >"$STUB_DIR/gh-token"
+: >"$STUB_DIR/headers.log"
+install_sh --yes --no-systemd --no-windows-task --prefix "$HOME/ghtok"
+check "gh: token taken from gh auth token" contains "$STUB_LOG" "gh auth token --hostname github.com"
+check "gh: bearer header sent" contains "$STUB_DIR/headers.log" "^Authorization: Bearer $TOKEN$"
+check "gh: release installed" test "$(readlink "$HOME/ghtok/current")" = releases/v1.0.0
+check "gh: token never leaked" token_never_leaked
+rm -f "$STUB_DIR/gh-token"
+
+export GITHUB_TOKEN=github_pat_WrongToken
+install_sh_fails --yes --no-systemd --no-windows-task --prefix "$HOME/tok2"
+check "token without access explains the needed permission" contains "$OUT" "Contents read-only"
+install_sh_fails --yes --no-systemd --no-windows-task --prefix "$HOME/tok2" --version 'v1;x'
+check "invalid tag is refused before any request" not_contains "$STUB_LOG" "api.github.com"
+export GITHUB_TOKEN='bad token'
+install_sh_fails --yes --no-systemd --no-windows-task --prefix "$HOME/tok2"
+check "token with odd characters refused without echoing it" not_contains "$OUT" "bad token"
+unset GITHUB_TOKEN
+rm -f "$STUB_DIR/private"
 
 # ---------- release without prebuilt dependencies ----------
 
