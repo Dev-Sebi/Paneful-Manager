@@ -27,8 +27,8 @@ import { registerScopes } from './scopes/routes.js'
 import { runFile } from './scopes/run-git.js'
 import type { DeviceAuth } from './security/device-auth.js'
 import { registerSecurity } from './security/register-security.js'
-import { createSessionToken } from './security/token.js'
-import { authorizeUpgrade } from './security/upgrade.js'
+import { createSessionToken, tokenMatches } from './security/token.js'
+import { type AuthenticateKey, authorizeKeyedUpgrade } from './security/upgrade.js'
 import type { SessionEngine } from './sessions/engine.js'
 import { registerSessions } from './sessions/routes.js'
 import { registerStatic } from './static.js'
@@ -160,7 +160,14 @@ export function buildApp({ config, logger, sessionToken, accessKey, deviceAuth, 
   if (engine !== undefined) {
     registerSessions(app, { engine })
     registerHooks(app, { getPort, engine, ...(hookToken === undefined ? {} : { token: hookToken }) })
-    hub = registerWs(app, { engine, authorizeUpgrade: request => authorizeUpgrade(request, { port: getPort(), token, dev: isDev, devOrigins }) })
+    const authenticateKey: AuthenticateKey = async key => {
+      if (tokenMatches(key, accessKey)) {
+        return {}
+      }
+      const deviceId = await deviceAuth?.sessionDevice(key)
+      return deviceAuth === undefined || deviceId === undefined ? undefined : { revalidate: () => deviceAuth.isRegistered(deviceId) }
+    }
+    hub = registerWs(app, { engine, authorizeUpgrade: request => authorizeKeyedUpgrade(request, { port: getPort(), token, dev: isDev, devOrigins }, authenticateKey) })
     app.addHook('onClose', async () => {
       await engine.close()
     })

@@ -150,6 +150,19 @@ describe('registerWs', () => {
     expect(await nextClose(ws)).toBe(1006)
   })
 
+  it('closes a socket with 1008 once its browser is logged out, and keeps the others', async () => {
+    let loggedIn = true
+    await start(request => (request.headers['sec-websocket-protocol']?.includes('browser') === true
+      ? { ok: true, revalidate: async () => loggedIn }
+      : { ok: true }), undefined, 50)
+    const browser = await connect('/ws?v=1', [WS_SUBPROTOCOL, 'browser'])
+    const script = await connect('/ws?v=1', [WS_SUBPROTOCOL])
+    loggedIn = false
+    expect(await nextClose(browser.ws)).toBe(1008)
+    expect(script.ws.readyState).toBe(WebSocket.OPEN)
+    script.ws.close()
+  })
+
   it('closes open sockets with 1001 on shutdown', async () => {
     await start()
     const { ws } = await connect('/ws?v=1')

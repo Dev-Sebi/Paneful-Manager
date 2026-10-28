@@ -1,5 +1,6 @@
 import type { ClientMessageInput, ServerMessage, ServerMessageType } from '@agent-hub/shared'
-import { parseServerMessage, WS_PATH, WS_PROTOCOL_VERSION, WS_SUBPROTOCOL, WS_TOKEN_PROTOCOL_PREFIX } from '@agent-hub/shared'
+import { parseServerMessage, WS_KEY_PROTOCOL_PREFIX, WS_PATH, WS_PROTOCOL_VERSION, WS_SUBPROTOCOL, WS_TOKEN_PROTOCOL_PREFIX } from '@agent-hub/shared'
+import { sessionKey } from './access'
 import { connection } from './connection'
 import { getToken, refreshToken } from './token'
 
@@ -23,6 +24,8 @@ export interface WsClientOptions {
   createSocket?: (url: string, protocols: string[]) => WebSocket
   getToken?: () => Promise<string>
   refreshToken?: () => Promise<string>
+  /** Session key offered as `key.<key>`; undefined when the page authenticates otherwise (e2e sends the access key as a header). */
+  getKey?: () => Promise<string | undefined>
   url?: string
   /** Returns a value in [0, 1); injectable for tests. */
   random?: () => number
@@ -58,6 +61,7 @@ export function jitteredDelay (attempt: number, random: () => number = Math.rand
 export function createWsClient (options: WsClientOptions = {}): WsClient {
   const fetchToken = options.getToken ?? getToken
   const renewToken = options.refreshToken ?? refreshToken
+  const fetchKey = options.getKey ?? sessionKey
   const createSocket = options.createSocket ?? ((url, protocols) => new WebSocket(url, protocols))
   const random = options.random ?? Math.random
   const handlers = new Map<ServerMessageType, Set<(message: never) => void>>()
@@ -108,8 +112,10 @@ export function createWsClient (options: WsClientOptions = {}): WsClient {
     const gen = generation
     connection.value = 'connecting'
     let token: string
+    let key: string | undefined
     try {
       token = await (renew ? renewToken() : fetchToken())
+      key = await fetchKey()
     } catch {
       if (gen === generation) {
         connection.value = 'disconnected'
@@ -120,7 +126,11 @@ export function createWsClient (options: WsClientOptions = {}): WsClient {
     if (stopped || gen !== generation) {
       return
     }
-    const ws = createSocket(options.url ?? defaultUrl(), [WS_SUBPROTOCOL, `${WS_TOKEN_PROTOCOL_PREFIX}${token}`])
+    const protocols = [WS_SUBPROTOCOL, `${WS_TOKEN_PROTOCOL_PREFIX}${token}`]
+    if (key !== undefined) {
+      protocols.push(`${WS_KEY_PROTOCOL_PREFIX}${key}`)
+    }
+    const ws = createSocket(options.url ?? defaultUrl(), protocols)
     socket = ws
     ws.addEventListener('open', () => {
       if (gen !== generation || socket !== ws) {

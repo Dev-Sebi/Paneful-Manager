@@ -19,8 +19,10 @@ export const MAX_PAYLOAD_BYTES = 1024 * 1024
 export const HEARTBEAT_MS = 30_000
 export const CLOSE_GOING_AWAY = 1001
 export const CLOSE_PROTOCOL_MISMATCH = 4001
+export const CLOSE_POLICY_VIOLATION = 1008
 
-export type UpgradeAuthorization = { ok: true } | { ok: false, status: 401 | 403 }
+/** `revalidate` is asked on every heartbeat; a socket whose browser was logged out is closed. */
+export type UpgradeAuthorization = { ok: true, revalidate?: () => Promise<boolean> } | { ok: false, status: 401 | 403 }
 
 /** Decides whether an upgrade may proceed (Host, Origin, token); there is no default, so the endpoint fails closed. */
 export type AuthorizeUpgrade = (request: IncomingMessage) => UpgradeAuthorization | Promise<UpgradeAuthorization>
@@ -41,6 +43,8 @@ class Connection implements EngineClient {
   readonly queue: OutputQueue
   readonly attached = new Set<string>()
   alive = true
+  /** Set for browser sessions; see `UpgradeAuthorization`. */
+  revalidate: (() => Promise<boolean>) | undefined
   private disposed = false
   private chain: Promise<void> = Promise.resolve()
 
@@ -189,7 +193,7 @@ export function registerWs(app: FastifyInstance, options: WsPluginOptions): WsHu
   engine.on('session.removed', onRemoved)
   engine.on('state', onState)
 
-  const onConnection = (socket: WebSocket, request: IncomingMessage): void => {
+  const onConnection = (socket: WebSocket, request: IncomingMessage, revalidate?: () => Promise<boolean>): void => {
     const version = new URL(request.url ?? '/', 'http://localhost').searchParams.get('v')
     if (version !== String(WS_PROTOCOL_VERSION)) {
       const mismatch: ServerMessage = { type: 'error', code: 'protocol_mismatch', message: `Server speaks protocol v${WS_PROTOCOL_VERSION}` }
@@ -198,6 +202,7 @@ export function registerWs(app: FastifyInstance, options: WsPluginOptions): WsHu
       return
     }
     const connection = new Connection(socket, engine, app.log, options.output)
+    connection.revalidate = revalidate
     connections.add(connection)
     socket.on('pong', () => {
       connection.alive = true
@@ -228,6 +233,14 @@ export function registerWs(app: FastifyInstance, options: WsPluginOptions): WsHu
       }
       connection.alive = false
       connection.socket.ping()
+      void connection.revalidate?.().then(
+        valid => {
+          if (!valid) {
+            connection.socket.close(CLOSE_POLICY_VIOLATION, 'logged out')
+          }
+        },
+        (error: unknown) => app.log.warn({ err: error }, 'WebSocket revalidation failed'),
+      )
     }
   }, options.heartbeatMs ?? HEARTBEAT_MS)
   heartbeat.unref()
@@ -244,7 +257,7 @@ export function registerWs(app: FastifyInstance, options: WsPluginOptions): WsHu
           rejectUpgrade(socket, decision.status, decision.status === 401 ? 'Unauthorized' : 'Forbidden')
           return
         }
-        wss.handleUpgrade(request, socket, head, ws => wss.emit('connection', ws, request))
+        wss.handleUpgrade(request, socket, head, ws => wss.emit('connection', ws, request, decision.revalidate))
       },
       (error: unknown) => {
         app.log.warn({ err: error }, 'Upgrade authorization failed')

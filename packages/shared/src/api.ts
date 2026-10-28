@@ -63,9 +63,11 @@ export function deviceSignatureMessage(nonce: string): string {
   return `${DEVICE_SIGNATURE_CONTEXT}\n${nonce}`
 }
 
-/** WS subprotocol echoed by the server; the client also offers `token.<token>`. */
+/** WS subprotocol echoed by the server; the client also offers `token.<token>` and `key.<session key>`. */
 export const WS_SUBPROTOCOL = 'agent-hub.v1'
 export const WS_TOKEN_PROTOCOL_PREFIX = 'token.'
+/** Browsers cannot set headers on a WebSocket, so they offer the session key as a subprotocol; scripts may send `X-Agent-Hub-Key`. */
+export const WS_KEY_PROTOCOL_PREFIX = 'key.'
 
 // Errors
 
