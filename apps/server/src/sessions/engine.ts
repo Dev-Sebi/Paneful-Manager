@@ -118,7 +118,7 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
   private pollTimer: NodeJS.Timeout | undefined
   private polling: Promise<void> | undefined
   private closed = false
-  /** Creation counter: a listing only judges sessions that existed when it started. */
+  /** Counts tmux sessions confirmed by new-session; a listing only judges sessions confirmed before it started. */
   private generation = 0
   private readonly born = new Map<string, number>()
 
@@ -182,7 +182,6 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
       cols: input.cols,
       rows: input.rows,
     })
-    this.born.set(id, ++this.generation)
     this.sessions.set(id, starting)
     await this.store.save(starting)
     try {
@@ -206,6 +205,7 @@ export class SessionEngine extends EventEmitter<EngineEvents> {
       this.options.logger.warn({ err: error, sessionId: id }, 'tmux new-session failed')
       throw new AppError('tmux could not start the session', 500, 'session_spawn_failed')
     }
+    this.born.set(id, ++this.generation)
     // A hook may already have changed the state while tmux was starting the command.
     const running: Session = { ...(this.sessions.get(id) ?? starting), lifecycle: 'running' }
     this.sessions.set(id, running)
