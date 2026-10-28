@@ -51,7 +51,7 @@ pnpm install
 pnpm dev
 ```
 
-Open the URL from `pnpm login-url --port 3000` once in your browser (Vite dev server; it carries the access key, see [Login URL](docs/install.md#login-url)), later `http://localhost:3000` is enough. The API server listens on the configured port (default `7337`); the Vite proxy forwards to `AGENT_HUB_PORT` or `7337`, so set `AGENT_HUB_PORT` when `config.yaml` uses another port.
+Open the URL from `pnpm login-url --port 3000` once in your browser (Vite dev server; it carries the access key, see [Login URL](docs/install.md#login-url)), later `http://127.0.0.1:3000` is enough. The API server listens on the configured port (default `7337`); the Vite proxy forwards to `AGENT_HUB_PORT` or `7337`, so set `AGENT_HUB_PORT` when `config.yaml` uses another port.
 
 ## Requirements
 

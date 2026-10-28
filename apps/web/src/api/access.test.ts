@@ -1,11 +1,18 @@
 // @vitest-environment jsdom
+// @vitest-environment-options { "url": "http://127.0.0.1:7337/" }
 import { afterEach, describe, expect, it } from 'vitest'
-import { ACCESS_KEY_STORAGE_KEY, consumeLoginFragment, initAccess, loginRequired, readAccessKey } from './access'
+import { ACCESS_KEY_STORAGE_KEY, consumeLoginFragment, initAccess, isTrustedHost, loginRequired, readAccessKey, untrustedHost } from './access'
+
+/** Location of the same page reached under another host name, e.g. `localhost`, which may resolve to `::1`. */
+function locationAt (hostname: string): Location {
+  return { hostname, hash: location.hash, pathname: location.pathname, search: location.search } as Location
+}
 
 afterEach(() => {
   localStorage.clear()
   history.replaceState(null, '', '/')
   loginRequired.value = false
+  untrustedHost.value = false
 })
 
 describe('access key', () => {
@@ -33,5 +40,24 @@ describe('access key', () => {
     initAccess()
     expect(loginRequired.value).toBe(false)
     expect(readAccessKey()).toBe('fresh')
+  })
+
+  it('trusts only the bound address', () => {
+    expect(isTrustedHost('127.0.0.1')).toBe(true)
+    for (const hostname of ['localhost', '[::1]', '::1', '127.0.0.2', 'LOCALHOST']) {
+      expect(isTrustedHost(hostname)).toBe(false)
+    }
+  })
+
+  it('never stores the key on another host name and drops a key kept there', () => {
+    history.replaceState(null, '', '/workspaces#key=abc-DEF_123')
+    expect(consumeLoginFragment(locationAt('localhost'))).toBe(false)
+    expect(localStorage.getItem(ACCESS_KEY_STORAGE_KEY)).toBeNull()
+    expect(location.hash).toBe('')
+    localStorage.setItem(ACCESS_KEY_STORAGE_KEY, 'kept-under-localhost')
+    initAccess(locationAt('localhost'))
+    expect(untrustedHost.value).toBe(true)
+    expect(loginRequired.value).toBe(true)
+    expect(readAccessKey()).toBeUndefined()
   })
 })

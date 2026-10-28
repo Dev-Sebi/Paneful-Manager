@@ -3,7 +3,7 @@ import { flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
-import { loginRequired } from '@/api/access'
+import { loginRequired, untrustedHost } from '@/api/access'
 import { connection } from '@/api/connection'
 import { wsClient } from '@/api/ws'
 import AppShell from '@/layouts/AppShell.vue'
@@ -41,6 +41,7 @@ async function mountAt (path: string, agentTeams = false) {
 describe('AppShell', () => {
   beforeEach(() => {
     loginRequired.value = false
+    untrustedHost.value = false
     vi.clearAllMocks()
     localStorage.clear()
     connection.value = 'connecting'
@@ -146,6 +147,14 @@ describe('AppShell', () => {
     expect(wrapper.text()).toContain('Open the login URL once in this browser')
     expect(mocks.listSessions).not.toHaveBeenCalled()
     expect(wsClient.connect).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('points to the bound address when the page runs on another host name', async () => {
+    loginRequired.value = true
+    untrustedHost.value = true
+    const { wrapper } = await mountAt('/workspaces')
+    expect(wrapper.text()).toContain('Open Agent Hub at http://127.0.0.1:')
     wrapper.unmount()
   })
 })

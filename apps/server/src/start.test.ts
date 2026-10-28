@@ -122,8 +122,8 @@ describe('access key', () => {
       expect((await fetch(`${server.url}${API_ROUTES.sessionToken}`)).status).toBe(401)
       expect((await fetch(`${server.url}${API_ROUTES.sessionToken}`, { headers: { [ACCESS_KEY_HEADER]: key } })).status).toBe(200)
       expect((await fetch(`${server.url}${API_ROUTES.health}`)).status).toBe(200)
-      expect(await resolveLoginUrl({ ...env, AGENT_HUB_PORT: String(server.port) }, [])).toBe(`http://localhost:${server.port}/#key=${key}`)
-      expect(await resolveLoginUrl(env, ['--port', '3000'])).toBe(`http://localhost:3000/#key=${key}`)
+      expect(await resolveLoginUrl({ ...env, AGENT_HUB_PORT: String(server.port) }, [])).toBe(`http://127.0.0.1:${server.port}/#key=${key}`)
+      expect(await resolveLoginUrl(env, ['--port', '3000'])).toBe(`http://127.0.0.1:3000/#key=${key}`)
     } finally {
       await server.shutdown()
       await rm(stateHome, { recursive: true, force: true })

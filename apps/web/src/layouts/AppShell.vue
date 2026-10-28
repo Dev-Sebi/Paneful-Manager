@@ -55,7 +55,7 @@
       <EmptyState
         v-if="loginRequired"
         icon="mdi-key-outline"
-        message="Open the login URL once in this browser. Print it with install.sh --login-url (or pnpm login-url in a checkout)."
+        :message="loginMessage"
       />
 
       <router-view v-else />
@@ -78,11 +78,11 @@
 <script lang="ts" setup>
   import type { ConnectionState } from '@/api/connection'
   import type { AhStatusBadgeState } from '@/components/ah'
-  import type { Theme } from '@agent-hub/shared'
+  import { BIND_HOST, type Theme } from '@agent-hub/shared'
   import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { useTheme } from 'vuetify'
-  import { loginRequired } from '@/api/access'
+  import { loginRequired, untrustedHost } from '@/api/access'
   import { connection } from '@/api/connection'
   import { wsClient } from '@/api/ws'
   import { AhButton, AhStatusBadge } from '@/components/ah'
@@ -108,6 +108,9 @@
   const visibleSections = computed(() => SECTIONS.filter(section => !section.flagged || config.agentTeams))
   const current = computed(() => ui.snackbars[0])
   const activeTheme = computed(() => ui.theme ?? config.theme)
+  const loginMessage = computed(() => untrustedHost.value
+    ? `Open Agent Hub at http://${BIND_HOST}:${location.port}/ instead: on this host name another local user's server can answer. Then open the login URL once.`
+    : 'Open the login URL once in this browser. Print it with install.sh --login-url (or pnpm login-url in a checkout).')
 
   const CONNECTION_BADGES: Record<ConnectionState, { state: AhStatusBadgeState, label: string }> = {
     connected: { state: 'idle', label: 'Connected' },

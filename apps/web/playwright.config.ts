@@ -6,7 +6,7 @@ const isCI = Boolean(process.env.CI)
 const SERVER_PORT = '7340'
 /** Own Vite instance; a dev server on 3000 proxies to the default port instead. */
 const WEB_PORT = 3001
-const baseURL = `http://localhost:${WEB_PORT}`
+const baseURL = `http://127.0.0.1:${WEB_PORT}`
 
 export default defineConfig({
   testDir: './e2e',

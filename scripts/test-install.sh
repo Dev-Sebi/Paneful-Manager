@@ -178,7 +178,7 @@ install_sh_fails --login-url
 check "--login-url without a key explains why" contains "$OUT" "No access key yet"
 printf 'test-access-key-0123456789abcdefghijkl\n' >"$STATE/access-key"
 install_sh --login-url
-check "--login-url prints the URL with the key and port" contains "$OUT" "^  http://localhost:7337/#key=test-access-key-0123456789abcdefghijkl$"
+check "--login-url prints the URL with the key and port" contains "$OUT" "^  http://127.0.0.1:7337/#key=test-access-key-0123456789abcdefghijkl$"
 rm -f "$STATE/access-key"
 
 # ---------- re-run is a no-op ----------

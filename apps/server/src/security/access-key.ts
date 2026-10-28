@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ACCESS_KEY_FRAGMENT_PARAM, resolveStateDir } from '@agent-hub/shared'
+import { ACCESS_KEY_FRAGMENT_PARAM, BIND_HOST, resolveStateDir } from '@agent-hub/shared'
 import { loadConfig } from '../config/load-config.js'
 import { expandHome } from '../paths.js'
 import { loadSecretFile } from './secret-file.js'
@@ -13,9 +13,12 @@ export function loadAccessKey(stateDir: string): Promise<string> {
   return loadSecretFile(stateDir, ACCESS_KEY_FILE)
 }
 
-/** Login URL that hands the key to the browser in the fragment, which is never sent to the server or logged. */
+/**
+ * Login URL that hands the key to the browser in the fragment, which is never sent to the server or logged.
+ * Uses the bound address: `localhost` may resolve to `::1`, where another local user can listen on the same port.
+ */
 export function loginUrl(port: number, key: string): string {
-  return `http://localhost:${port}/#${ACCESS_KEY_FRAGMENT_PARAM}=${key}`
+  return `http://${BIND_HOST}:${port}/#${ACCESS_KEY_FRAGMENT_PARAM}=${key}`
 }
 
 /** Port given as `--port <n>`, e.g. the Vite dev server; undefined when absent. */

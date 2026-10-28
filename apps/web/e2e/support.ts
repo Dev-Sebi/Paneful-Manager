@@ -7,7 +7,7 @@ import { E2E_ACCESS_KEY } from './access'
 
 /** Direct server origin of the e2e fixture (see playwright.config.ts). */
 const SERVER = 'http://127.0.0.1:7340'
-const WEB_ORIGIN = 'http://localhost:3001'
+const WEB_ORIGIN = 'http://127.0.0.1:3001'
 export const TABS_KEY = 'agent-hub.tabs.v1'
 
 interface E2ePaths {

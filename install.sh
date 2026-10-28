@@ -691,7 +691,7 @@ print_login_url() {
   if [ -r "$STATE_DIR/access-key" ]; then
     key=$(tr -d '[:space:]' <"$STATE_DIR/access-key")
     say "  Open this login URL once per browser (it contains your access key, do not share it):"
-    say "  http://localhost:$1/#key=$key"
+    say "  http://127.0.0.1:$1/#key=$key"
     return 0
   fi
   say "  No access key yet; the server creates $STATE_DIR/access-key on its first start."

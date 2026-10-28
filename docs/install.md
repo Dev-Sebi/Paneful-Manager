@@ -31,7 +31,7 @@ curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/install.sh
 
 The installer prints a plan first and asks before it changes anything. Questions are read from the terminal, so they work with `curl | sh`. Without a terminal every question is answered with no, so nothing privileged happens by accident; pass `--yes` for unattended installs. `--dry-run` prints every step without changing anything.
 
-When the install finishes, the installer prints a login URL. Open it once in your browser (in WSL: a Windows browser; WSL forwards localhost ports to Windows). See [Login URL](#login-url).
+When the install finishes, the installer prints a login URL. Open it once in your browser (in WSL: a Windows browser; WSL forwards loopback ports to Windows). See [Login URL](#login-url).
 
 ### From a local build
 
@@ -95,12 +95,12 @@ The browser gets the key from the login URL:
 
 ```bash
 ~/.local/share/agent-hub/current/install.sh --login-url
-#   http://localhost:7337/#key=<access key>
+#   http://127.0.0.1:7337/#key=<access key>
 ```
 
-Open the URL once per browser profile. The web app stores the key for that origin and removes it from the address bar; later visits to `http://localhost:7337/` need nothing else. The key survives server restarts and upgrades.
+Open the URL once per browser profile. The web app stores the key for that origin and removes it from the address bar; later visits to `http://127.0.0.1:7337/` need nothing else. The key survives server restarts and upgrades.
 
-- `http://localhost:<port>` and `http://127.0.0.1:<port>` are different origins; use the host name from the URL, or open the URL once with the other name.
+- Always use `127.0.0.1`, never `localhost`: `localhost` may resolve to `::1`, where another user on the machine can listen on the same port and read the key. Under any other host name the app does not keep the key and asks you to switch to `127.0.0.1`.
 - Without a stored key, or with an old one, the app shows only the hint to open the login URL.
 - The installer does not open the browser: a browser started with the URL as an argument would show the key in the process list.
 - To rotate the key, delete the file and restart the server (`systemctl --user restart agent-hub.service`); every browser then needs the new login URL.
