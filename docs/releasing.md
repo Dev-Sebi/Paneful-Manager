@@ -4,7 +4,7 @@ Releases are built and published by the GitHub Actions workflow [`.github/workfl
 
 ## Procedure
 
-1. On `main`, set `version` in the root `package.json` to the new version (for example `0.2.0`) and merge that change.
+1. On `main`, set `version` in the root `package.json` to the new version (for example `0.2.0`), add its section to [`CHANGELOG.md`](../CHANGELOG.md) and merge that change.
 2. Optional dry run: in the Actions tab, run the **Release** workflow on `main` with the input `tag` set to `v0.2.0`. It runs every step except publishing and uploads the assets as a workflow artifact (kept 7 days).
 3. Tag the merged commit and push the tag:
 
