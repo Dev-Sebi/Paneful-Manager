@@ -148,6 +148,25 @@ describe('access key', () => {
     }
   })
 
+  it('cannot be skipped with encoded, doubled, trailing or case-changed paths', async () => {
+    const target = build()
+    const variants = [
+      '/%61pi/test-read', '/%61%70%69/test-read', '/api/test-%72ead', '//api/test-read', '/api//test-read', '/API/test-read',
+      '/api/test-read/', '/./api/test-read', '/x/../api/test-read', '/%2fapi/test-read', '/api%2ftest-read', '/%61pi/session-token',
+    ]
+    for (const url of variants) {
+      const response = await send(target, 'GET', url, { [ACCESS_KEY_HEADER]: undefined })
+      expect(response.statusCode, url).not.toBe(200)
+      expect(response.body, url).not.toContain('data')
+      expect(response.body, url).not.toContain(TOKEN)
+    }
+    await expectError(await send(target, 'GET', '/%61pi/test-read', { [ACCESS_KEY_HEADER]: undefined }), 401, 'login_required')
+  })
+
+  it('needs the key on unmatched paths outside /api as well (fail closed)', async () => {
+    await expectError(await send(build(), 'GET', '/unknown', { [ACCESS_KEY_HEADER]: undefined }), 401, 'login_required')
+  })
+
   it('guards unknown API paths too, so they reveal nothing', async () => {
     await expectError(await send(build(), 'GET', '/api/missing', { [ACCESS_KEY_HEADER]: undefined }), 401, 'login_required')
   })

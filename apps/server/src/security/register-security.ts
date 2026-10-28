@@ -21,9 +21,18 @@ function single(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
-/** Health stays open for the installer and monitoring; it reveals nothing beyond the version. */
-function isPublic(method: string, path: string): boolean {
-  return (method === 'GET' || method === 'HEAD') && path === API_ROUTES.health
+const isApiPath = (path: string): boolean => path === API_PREFIX || path.startsWith(`${API_PREFIX}/`)
+
+/**
+ * Whether a request needs the access key. Decided on the matched route, because the router decodes the path
+ * (`/%61pi/...` matches `/api/...`), and on the raw path as a second line. Fails closed: unmatched requests need it.
+ * Only health (installer, monitoring; reveals the version only) and non-API routes (static files, SPA) are exempt.
+ */
+function needsAccessKey(method: string, route: string | undefined, path: string): boolean {
+  if (route === undefined || isApiPath(route) || isApiPath(path)) {
+    return !((method === 'GET' || method === 'HEAD') && route === API_ROUTES.health)
+  }
+  return false
 }
 
 /**
@@ -36,8 +45,8 @@ export function registerSecurity(app: FastifyInstance, { getPort, token, accessK
     reply.header('x-content-type-options', 'nosniff')
     reply.header('referrer-policy', 'no-referrer')
     const path = request.url.split('?', 1)[0] ?? ''
-    const isApi = path === API_PREFIX || path.startsWith(`${API_PREFIX}/`)
-    if (isApi) {
+    const route = request.routeOptions.url
+    if (isApiPath(path) || (route !== undefined && isApiPath(route))) {
       reply.header('cache-control', 'no-store')
     }
     const port = getPort()
@@ -56,7 +65,7 @@ export function registerSecurity(app: FastifyInstance, { getPort, token, accessK
     if (hasOrigin && !isAllowedOrigin(origin, port, dev, devOrigins)) {
       throw new AppError('Origin not allowed', 403, 'forbidden')
     }
-    if (isApi && !isPublic(request.method, path) && !tokenMatches(single(request.headers[ACCESS_KEY_HEADER]), accessKey)) {
+    if (needsAccessKey(request.method, route, path) && !tokenMatches(single(request.headers[ACCESS_KEY_HEADER]), accessKey)) {
       throw new AppError('Missing or invalid access key; open the login URL once', 401, 'login_required')
     }
     if (MUTATING_METHODS.has(request.method) && (!hasOrigin || !tokenMatches(single(request.headers[SESSION_TOKEN_HEADER]), token))) {
