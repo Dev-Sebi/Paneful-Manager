@@ -321,7 +321,7 @@ flowchart LR
 | Exposure to the LAN | yes | Loopback bind only, asserted after listen; user-made port proxies are out of scope |
 | Other local processes of the same user | no | They can already read `~/.claude` and run `claude` |
 | Other OS users on a shared machine | yes | Device login or the access key from an owner-only file on every API request; the per-boot token is only handed out with them ([ADR 0013](adr/0013-access-key-against-local-users.md)) |
-| Another local user serves a page on the owner's origin while Agent Hub is down | partly | No secret in browser storage: a non-extractable device key that only signs nonces of the running server ([ADR 0014](adr/0014-device-login-against-origin-squatting.md)). Residual: a service worker or cached page left by the squatter can act through the owner's browser later |
+| Another local user serves a page on the owner's origin while Agent Hub is down | partly | No secret in browser storage: a non-extractable device key that only signs nonces of the running server ([ADR 0014](adr/0014-device-login-against-origin-squatting.md)). Residual: squatter code still running once Agent Hub is back (open tab, service worker, cached page) can act through the API and take out a session key, valid at most 15 minutes and only until logout |
 | Malicious repository content (CLAUDE.md, skills, MCP servers in a project) | no | Claude Code's own trust model applies |
 | Supply-chain attacks on dependencies | partly | Lockfile with `--frozen-lockfile` in CI, Dependabot update PRs |
 
