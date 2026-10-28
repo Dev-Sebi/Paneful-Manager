@@ -134,10 +134,11 @@ EOF
 cat >"$T/bin/powershell.exe" <<'EOF'
 #!/bin/sh
 echo "powershell.exe $*" >>"$STUB_LOG"
+task="$STUB_DIR/task-$(printf '%s' "$*" | sed -n "s/.*-TaskName '\\([^']*\\)'.*/\\1/p")"
 case "$*" in
-  *Unregister-ScheduledTask*) rm -f "$STUB_DIR/task" ;;
-  *Register-ScheduledTask*) touch "$STUB_DIR/task" ;;
-  *Get-ScheduledTask*) [ -f "$STUB_DIR/task" ] ;;
+  *Unregister-ScheduledTask*) rm -f "$task" ;;
+  *Register-ScheduledTask*) touch "$task" ;;
+  *Get-ScheduledTask*) [ -f "$task" ] ;;
 esac
 EOF
 chmod +x "$T/bin/"*
@@ -214,7 +215,15 @@ rm -rf "$HOME/notours"
 
 # ---------- fresh install ----------
 
+LEGACY="$XDG_DATA_HOME/agent-hub"
+mkdir -p "$LEGACY/releases/v0" "$XDG_CONFIG_HOME/systemd/user"
+: >"$LEGACY/.agent-hub-install"
+: >"$XDG_CONFIG_HOME/systemd/user/agent-hub.service"
 install_sh --yes --from-source "$V1" --no-windows-task
+check "install names the leftover agent-hub install in its plan" contains "$OUT" "remove the pre-rename install in $LEGACY"
+check "install stops the leftover agent-hub units" contains "$STUB_LOG" "systemctl --user disable --now agent-hub.service agent-hub-tmux.service"
+check "install removes the leftover agent-hub prefix" test ! -e "$LEGACY"
+check "install removes the leftover agent-hub unit" test ! -e "$XDG_CONFIG_HOME/systemd/user/agent-hub.service"
 check "release extracted" test -f "$PREFIX/releases/v1.0.0/apps/server/dist/index.js"
 check "web build shipped" test -f "$PREFIX/releases/v1.0.0/apps/web/dist/index.html"
 check "node-pty installed" test -d "$PREFIX/releases/v1.0.0/apps/server/node_modules/node-pty"
@@ -335,14 +344,24 @@ check "uninstall keeps config without --purge" test -f "$CONFIG"
 check "uninstall keeps state without --purge" test -d "$STATE"
 check "uninstall removes the logon task" contains "$STUB_LOG" "Unregister-ScheduledTask -TaskName 'paneful-manager-TestDistro'"
 check "uninstall leaves wsl.conf alone" not_contains "$STUB_LOG" "sudo"
-LEGACY="$XDG_DATA_HOME/agent-hub"
+ELSEWHERE="$HOME/elsewhere"
+mkdir -p "$ELSEWHERE/releases/v0"
+: >"$ELSEWHERE/.agent-hub-install"
+ln -s "$ELSEWHERE" "$LEGACY"
+install_sh --yes --dry-run --uninstall
+check "a symlinked agent-hub prefix is never followed" not_contains "$OUT" "pre-rename install"
+check "the target of a symlinked agent-hub prefix stays" test -d "$ELSEWHERE/releases/v0"
+rm -rf "$LEGACY" "$ELSEWHERE"
 mkdir -p "$LEGACY/releases/v0" "$UNITS"
 : >"$LEGACY/.agent-hub-install"
 ln -sfn "$LEGACY/releases/v0" "$LEGACY/current"
 : >"$UNITS/agent-hub.service"
 : >"$UNITS/agent-hub-tmux.service"
+touch "$STUB_DIR/task-AgentHub-TestDistro"
 install_sh --yes --uninstall --purge
+check "uninstall names the leftover agent-hub install in its plan" contains "$OUT" "remove the pre-rename install in $LEGACY"
 check "uninstall disables leftover agent-hub units" contains "$STUB_LOG" "systemctl --user disable --now agent-hub.service agent-hub-tmux.service"
+check "uninstall removes the leftover logon task" contains "$STUB_LOG" "Unregister-ScheduledTask -TaskName 'AgentHub-TestDistro'"
 check "uninstall removes leftover agent-hub units" test ! -e "$UNITS/agent-hub.service" -a ! -e "$UNITS/agent-hub-tmux.service"
 check "uninstall removes the leftover agent-hub prefix" test ! -e "$LEGACY"
 check "purge removes config" test ! -e "$XDG_CONFIG_HOME/paneful-manager"
