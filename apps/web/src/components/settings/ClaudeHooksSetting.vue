@@ -30,6 +30,7 @@
       <li v-for="problem in problems" :key="`${problem.code}:${problem.source}`">
         {{ problem.message }} <span class="claude-hooks__source">({{ problem.source }})</span>
       </li>
+
       <li v-if="staleCount > 0">
         {{ staleCount === 1
           ? '1 running session was started with an older hook token and reports no status until it is restarted.'
