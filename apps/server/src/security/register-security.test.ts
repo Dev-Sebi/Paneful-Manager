@@ -333,7 +333,9 @@ describe('device login', () => {
     await expectError(await fromBrowser(target, 'POST', API_ROUTES.authRegister, { code, publicKey: device.publicKey }), 401, 'login_required')
     const { nonce } = AuthChallengeResponseSchema.parse((await fromBrowser(target, 'GET', API_ROUTES.authChallenge)).json())
     await expectError(await fromBrowser(target, 'POST', API_ROUTES.authSession, { deviceId, nonce, signature: 'AAAA' }), 401, 'login_required')
-    await expectError(await fromBrowser(target, 'POST', API_ROUTES.authSession, { deviceId, nonce, signature: await device.sign(nonce) }), 401, 'login_required')
+    const signed = { deviceId, nonce, signature: await device.sign(nonce) }
+    expect((await fromBrowser(target, 'POST', API_ROUTES.authSession, signed)).statusCode).toBe(200)
+    await expectError(await fromBrowser(target, 'POST', API_ROUTES.authSession, signed), 401, 'login_required')
     await expectError(await fromBrowser(target, 'POST', API_ROUTES.authRegister, { code: 'short', publicKey: device.publicKey }), 400, 'validation_failed')
   })
 

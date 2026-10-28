@@ -72,6 +72,31 @@ describe('DeviceAuth', () => {
     expect(await auth.createSession('u'.repeat(43), unknown, await device.sign(unknown))).toBeUndefined()
   })
 
+  it('keeps the owner\'s nonce valid however many challenges others request', async () => {
+    const { id, device } = await registered()
+    const nonce = auth.challenge()
+    for (let index = 0; index < 5000; index++) {
+      auth.challenge()
+    }
+    expect(await auth.createSession(id, nonce, await device.sign(nonce))).toBeDefined()
+  })
+
+  it('rejects nonces with a changed expiry or from another server process', async () => {
+    const { id, device } = await registered()
+    const [random, expiry, mac] = auth.challenge().split('.')
+    const extended = `${random}.${(Number.parseInt(expiry ?? '', 36) + NONCE_TTL_MS).toString(36)}.${mac}`
+    expect(await auth.createSession(id, extended, await device.sign(extended))).toBeUndefined()
+    const foreign = new DeviceAuth(dir, () => now).challenge()
+    expect(await auth.createSession(id, foreign, await device.sign(foreign))).toBeUndefined()
+  })
+
+  it('does not burn a nonce on a failed attempt', async () => {
+    const { id, device } = await registered()
+    const nonce = auth.challenge()
+    expect(await auth.createSession(id, nonce, 'AAAA')).toBeUndefined()
+    expect(await auth.createSession(id, nonce, await device.sign(nonce))).toBeDefined()
+  })
+
   it('lets session keys expire', async () => {
     const { id, device } = await registered()
     const nonce = auth.challenge()

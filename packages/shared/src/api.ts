@@ -129,6 +129,8 @@ export type SessionTokenResponse = z.infer<typeof SessionTokenResponseSchema>
 const Base64UrlSchema = z.string().regex(/^[\w-]+$/)
 /** Random secrets and ids: base64url or hex, long enough to be unguessable. */
 const SecretSchema = z.string().regex(/^[\w-]{32,128}$/)
+/** Challenge nonce: base64url parts joined with dots (random, expiry, MAC). */
+const NonceSchema = z.string().regex(/^[\w.-]{32,128}$/)
 
 /** Public half of a browser's ECDSA P-256 device key, as a minimal JWK. */
 export const DevicePublicKeySchema = z.strictObject({
@@ -140,7 +142,7 @@ export const DevicePublicKeySchema = z.strictObject({
 export type DevicePublicKey = z.infer<typeof DevicePublicKeySchema>
 
 /** GET /api/auth/challenge: a one-time nonce from this server process. */
-export const AuthChallengeResponseSchema = z.strictObject({ nonce: SecretSchema })
+export const AuthChallengeResponseSchema = z.strictObject({ nonce: NonceSchema })
 export type AuthChallengeResponse = z.infer<typeof AuthChallengeResponseSchema>
 
 /** POST /api/auth/register: consumes the login code from the login URL and registers the device key. */
@@ -152,7 +154,7 @@ export type RegisterDeviceResponse = z.infer<typeof RegisterDeviceResponseSchema
 /** POST /api/auth/session: the device signs `deviceSignatureMessage(nonce)` (ECDSA P-256, SHA-256, raw r|s, base64url). */
 export const CreateAuthSessionRequestSchema = z.strictObject({
   deviceId: SecretSchema,
-  nonce: SecretSchema,
+  nonce: NonceSchema,
   signature: Base64UrlSchema.max(128),
 })
 export type CreateAuthSessionRequest = z.infer<typeof CreateAuthSessionRequestSchema>

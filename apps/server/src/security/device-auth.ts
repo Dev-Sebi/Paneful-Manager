@@ -1,4 +1,5 @@
-import { createHash, createPublicKey, randomBytes, verify } from 'node:crypto'
+import { createHash, createHmac, createPublicKey, randomBytes, verify } from 'node:crypto'
+import { tokenMatches } from './token.js'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { deviceSignatureMessage, DevicePublicKeySchema, type DevicePublicKey, z } from '@agent-hub/shared'
@@ -12,8 +13,8 @@ export const MAX_DEVICES = 20
 /** Browser session keys expire after this; the page renews them by signing a new challenge. */
 export const SESSION_TTL_MS = 15 * 60 * 1000
 export const NONCE_TTL_MS = 60 * 1000
-/** Bounds the memory other local users can make the server spend on unused nonces and sessions. */
-const MAX_NONCES = 1000
+/** Bounds the memory spent on answered nonces and sessions; only registered devices can add to either. */
+const MAX_USED_NONCES = 1000
 const MAX_SESSIONS = 256
 
 const DeviceSchema = z.strictObject({ id: z.string().min(1), publicKey: DevicePublicKeySchema, createdAt: z.string() })
@@ -46,11 +47,20 @@ function remember(map: Map<string, number>, key: string, expiresAt: number, max:
   map.set(key, expiresAt)
 }
 
-/** Takes `key` out of `map`; true when it was there and unexpired. */
-function take(map: Map<string, number>, key: string, now: number): boolean {
-  const expiry = map.get(key)
-  map.delete(key)
-  return expiry !== undefined && expiry > now
+/** `<random>.<expiry ms>.<mac>`: issuing keeps no state, so a flood of challenges cannot push out the owner's. */
+function signNonce(secret: Buffer, random: string, expiresAt: number): string {
+  const body = `${random}.${expiresAt.toString(36)}`
+  return `${body}.${createHmac('sha256', secret).update(body).digest('base64url')}`
+}
+
+/** Expiry of a nonce this process issued, or undefined for a forged, foreign or malformed one. */
+function nonceExpiry(secret: Buffer, nonce: string): number | undefined {
+  const [random, expiry, mac] = nonce.split('.')
+  if (random === undefined || expiry === undefined || mac === undefined) {
+    return undefined
+  }
+  const expiresAt = Number.parseInt(expiry, 36)
+  return Number.isSafeInteger(expiresAt) && tokenMatches(nonce, signNonce(secret, random, expiresAt)) ? expiresAt : undefined
 }
 
 function verifySignature(publicKey: DevicePublicKey, nonce: string, signature: string): boolean {
@@ -67,7 +77,10 @@ function verifySignature(publicKey: DevicePublicKey, nonce: string, signature: s
  * non-extractable device key, and each session key is issued only for a signature over a nonce from this process.
  */
 export class DeviceAuth {
-  private readonly nonces = new Map<string, number>()
+  /** Per-process MAC key for nonces; a restart invalidates every nonce. */
+  private readonly nonceSecret = randomBytes(32)
+  /** Nonces that already bought a session, until they expire; a signature works once. */
+  private readonly usedNonces = new Map<string, number>()
   /** Keyed by the SHA-256 of the session key, so lookups do not compare the secret itself. */
   private readonly sessions = new Map<string, number>()
   private writes: Promise<unknown> = Promise.resolve()
@@ -75,9 +88,7 @@ export class DeviceAuth {
   constructor(private readonly stateDir: string, private readonly now: () => number = Date.now) {}
 
   challenge(): string {
-    const nonce = randomId()
-    remember(this.nonces, nonce, this.now() + NONCE_TTL_MS, MAX_NONCES, this.now())
-    return nonce
+    return signNonce(this.nonceSecret, randomBytes(16).toString('base64url'), this.now() + NONCE_TTL_MS)
   }
 
   /** Registers the key when `code` is the pending login code; returns the device id, or undefined. */
@@ -96,16 +107,32 @@ export class DeviceAuth {
 
   /** Issues a session key for a valid signature over an unused nonce; the devices file is read each time, so a reset applies at once. */
   async createSession(deviceId: string, nonce: string, signature: string): Promise<AuthSession | undefined> {
-    if (!take(this.nonces, nonce, this.now())) {
+    const expiresAt = nonceExpiry(this.nonceSecret, nonce)
+    if (expiresAt === undefined || expiresAt <= this.now() || this.usedNonces.has(nonce)) {
       return undefined
     }
     const device = (await this.readDevices()).find(entry => entry.id === deviceId)
-    if (device === undefined || !verifySignature(device.publicKey, nonce, signature)) {
+    if (device === undefined || !verifySignature(device.publicKey, nonce, signature) || !this.markUsed(nonce, expiresAt)) {
       return undefined
     }
     const key = randomId()
     remember(this.sessions, digest(key), this.now() + SESSION_TTL_MS, MAX_SESSIONS, this.now())
     return { key, expiresInSec: SESSION_TTL_MS / 1000 }
+  }
+
+  /** Records an answered nonce; refuses instead of forgetting one that could still be replayed. */
+  private markUsed(nonce: string, expiresAt: number): boolean {
+    const now = this.now()
+    for (const [entry, expiry] of this.usedNonces) {
+      if (expiry <= now) {
+        this.usedNonces.delete(entry)
+      }
+    }
+    if (this.usedNonces.has(nonce) || this.usedNonces.size >= MAX_USED_NONCES) {
+      return false
+    }
+    this.usedNonces.set(nonce, expiresAt)
+    return true
   }
 
   hasSession(key: string | undefined): boolean {
