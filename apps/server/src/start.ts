@@ -29,7 +29,8 @@ import { TeamLaunchLedger } from './team-templates/ledger.js'
 import { createTeamTemplateStore } from './team-templates/store.js'
 import type { Tmux } from './tmux/tmux.js'
 
-const { version: SERVER_VERSION } = createRequire(import.meta.url)('../package.json') as { version: string }
+/** The release version lives in the root `package.json` (see docs/releasing.md); the workspace packages stay `0.0.0`. */
+export const RELEASE_VERSION = (createRequire(import.meta.url)('../../../package.json') as { version: string }).version
 
 /** Backups live in `<stateDir>/backups` (see the file-write policy). */
 export const BACKUPS_DIR_NAME = 'backups'
@@ -69,7 +70,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
   const getScopes = () => discoverScopes({ config: store.get(), env, logger })
   assertBackupDirOutsideScopes(backupDir, await getScopes())
   // Renewed when the installed version changes: older builds exposed the token in tmux's argv (SEC-017).
-  const loadedHookToken = await loadHookToken(stateDir, { version: SERVER_VERSION })
+  const loadedHookToken = await loadHookToken(stateDir, { version: RELEASE_VERSION })
   let hookToken = loadedHookToken.token
   const accessKey = await loadAccessKey(stateDir)
   // The URL is only known after listen; sessions are created through the server, so never before that.
@@ -95,7 +96,7 @@ export async function startServer(config: AppConfig, logger: FastifyBaseLogger, 
     staleSessions: () => staleHookSessions.list(),
     // New sessions read the token through `secretEnv`, which rewrites `session-env.tmux` before every start.
     onChange: async () => {
-      hookToken = await rotateHookToken(stateDir, { version: SERVER_VERSION })
+      hookToken = await rotateHookToken(stateDir, { version: RELEASE_VERSION })
       markRunningStale()
     },
   })
