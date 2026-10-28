@@ -31,6 +31,30 @@ curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/install.sh
 
 The installer prints a plan first and asks before it changes anything. Questions are read from the terminal, so they work with `curl | sh`. Without a terminal every question is answered with no, so nothing privileged happens by accident; pass `--yes` for unattended installs. `--dry-run` prints every step without changing anything.
 
+### Private repository
+
+GitHub answers `404` to anonymous requests for a private repository, so `releases/latest/download/...` does not work there and the installer stops with a hint. Two ways to install anyway:
+
+**a) Installer with a token.** Get `install.sh` from the release with the GitHub CLI, then run it with a token:
+
+```bash
+gh release download --repo Dev-Sebi/Paneful-Manager --pattern install.sh
+GITHUB_TOKEN=<token> sh install.sh
+```
+
+When `GITHUB_TOKEN` (or `GH_TOKEN`) is set, or `gh auth token` works because `gh` is installed and logged in, the installer looks the release up through the GitHub API (`/repos/<repo>/releases/latest`, or `/releases/tags/<tag>` with `--version`) and downloads the tarball and its `.sha256` as API assets. Without a token it uses the anonymous URLs as before. Use a fine-grained personal access token limited to this repository with read-only **Contents** access; nothing more is needed.
+
+The token never leaves the installer process: it is read once from the environment and unset, so no child process (`pnpm`, `node`, `systemctl`) inherits it; `curl` gets the `Authorization` header on stdin (`-H @-`), so it does not appear in the process list; it is never written to disk or printed (unless you trace the installer with `sh -x`). `curl` does not forward the header to the storage host GitHub redirects asset downloads to; the token path needs curl 7.58 or later for that and refuses older versions.
+
+**b) Without a token in the installer.** Download the release with `gh` and install the tarball:
+
+```bash
+gh release download --repo Dev-Sebi/Paneful-Manager --pattern 'agent-hub-*.tar.gz*' --pattern install.sh
+sh install.sh --from-source agent-hub-<tag>.tar.gz
+```
+
+The installer verifies the tarball against the `.sha256` next to it. For a specific release, pass its tag: `gh release download <tag> --repo Dev-Sebi/Paneful-Manager ...`.
+
 When the install finishes, the installer prints a login URL. Open it once in your browser (in WSL: a Windows browser; WSL forwards loopback ports to Windows). See [Login URL](#login-url).
 
 ### From a local build
@@ -65,7 +89,7 @@ A source checkout must contain `apps/server/dist/index.js` and `apps/web/dist/in
 | `-y`, `--yes` | answer yes to every question |
 | `-h`, `--help` | print the help text |
 
-Environment: `AGENT_HUB_REPO` (`<owner>/<repo>` to download releases from).
+Environment: `AGENT_HUB_REPO` (`<owner>/<repo>` to download releases from), `GITHUB_TOKEN` or `GH_TOKEN` (token for a private repository, see [Private repository](#private-repository)).
 
 ## What the installer changes
 

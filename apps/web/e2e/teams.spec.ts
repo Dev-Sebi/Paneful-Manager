@@ -27,6 +27,7 @@ const board = {
 
 async function mockApi (page: Page, agentTeams: boolean, teams: unknown) {
   await page.route('**/api/config', route => route.fulfill({ json: config(agentTeams) }))
+  await page.route('**/api/team-templates', route => route.fulfill({ json: { templates: [], launches: [] } }))
   await page.route('**/api/teams', route => route.fulfill({ json: teams }))
 }
 
