@@ -1,11 +1,12 @@
 #!/bin/sh
-# Builds Agent Hub and packs the release tarball agent-hub-<tag>.tar.gz plus its .sha256 file.
-# Usage: scripts/release-pack.sh [--skip-build] [--out <dir>] [--tag <tag>]
+# Builds Agent Hub and packs agent-hub-<tag>.tar.gz (with prebuilt production node_modules) plus its .sha256 file.
+# Usage: scripts/release-pack.sh [--skip-build] [--no-deps] [--out <dir>] [--tag <tag>]
 set -eu
 
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 OUT_DIR="$ROOT/dist/release"
 SKIP_BUILD=0
+NO_DEPS=0
 TAG=""
 
 usage() {
@@ -15,6 +16,7 @@ usage() {
 while [ $# -gt 0 ]; do
   case "$1" in
     --skip-build) SKIP_BUILD=1 ;;
+    --no-deps) NO_DEPS=1 ;;
     --out) [ $# -ge 2 ] || { echo "--out needs a value" >&2; exit 2; }; OUT_DIR=$2; shift ;;
     --tag) [ $# -ge 2 ] || { echo "--tag needs a value" >&2; exit 2; }; TAG=$2; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -56,6 +58,22 @@ for f in $FILES; do
 done
 find "$STAGE/$NAME" \( -name '*.tsbuildinfo' -o -name '*.test.js' -o -name '*.test.d.ts' \) -exec rm -f {} +
 printf '%s\n' "$TAG" > "$STAGE/$NAME/VERSION"
+
+# Ships the server's production dependencies with node-pty compiled on this machine, so installing on the
+# same platform needs no compiler. install.sh falls back to compiling when the shipped node-pty does not load.
+if [ "$NO_DEPS" -eq 0 ]; then
+  (cd "$STAGE/$NAME" && CI=true pnpm install --prod --frozen-lockfile --filter '@agent-hub/server...' >/dev/null)
+  PTY_DIR=$(cd "$STAGE/$NAME/apps/server" && node -p "require('path').dirname(require.resolve('node-pty/package.json'))")
+  (cd "$STAGE/$NAME/apps/server" && node -e "require('node-pty')") || { echo "The bundled node-pty does not load" >&2; exit 1; }
+  # Keeps only the compiled addon: sources, other platforms' prebuilds, the build tree and pnpm's state files
+  # are not needed at runtime and the latter two carry absolute paths of this machine.
+  rm -rf "$PTY_DIR/deps" "$PTY_DIR/src" "$PTY_DIR/third_party" "$PTY_DIR/prebuilds"
+  find "$PTY_DIR/build" -mindepth 1 -maxdepth 1 ! -name Release -exec rm -rf {} +
+  find "$PTY_DIR/build/Release" -mindepth 1 -maxdepth 1 ! -name '*.node' ! -name spawn-helper -exec rm -rf {} +
+  rm -f "$STAGE/$NAME/node_modules/.modules.yaml" "$STAGE/$NAME/node_modules/.pnpm-workspace-state"*.json
+  # The .bin shims are not used at runtime and embed the staging directory in NODE_PATH.
+  find "$STAGE/$NAME" -type d -name .bin -path '*/node_modules/.bin' -prune -exec rm -rf {} +
+fi
 
 mkdir -p "$OUT_DIR"
 OUT_DIR=$(CDPATH='' cd -- "$OUT_DIR" && pwd)

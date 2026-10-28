@@ -36,6 +36,10 @@ pnpm test
 pnpm build
 ```
 
+## Releases
+
+Releases are published by the release workflow when a `v<version>` tag is pushed. The procedure is in [docs/releasing.md](docs/releasing.md).
+
 ## Scope Rule
 
 A PR touches only the files needed for its task. Unrelated refactors or formatting changes belong in a separate PR.

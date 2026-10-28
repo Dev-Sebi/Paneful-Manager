@@ -392,7 +392,10 @@ check_requirements() {
   for tool in tar gzip; do
     command -v "$tool" >/dev/null 2>&1 || die "$tool is required"
   done
+}
 
+# Only needed when the release's prebuilt node-pty does not load on this machine.
+ensure_build_tools() {
   missing=""
   for tool in make g++ python3; do
     command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
@@ -538,10 +541,16 @@ install_release() {
   mkdir "$work/release"
   tar -xzf "$work/agent-hub-$TAG.tar.gz" -C "$work/release" --strip-components=1 --no-same-owner
   [ -f "$work/release/apps/server/dist/index.js" ] || die "Release $TAG is missing apps/server/dist/index.js"
-  ensure_pnpm "$work/release"
-  info "Installing production dependencies (compiles node-pty)"
-  (cd "$work/release" && CI=true pnpm install --prod --frozen-lockfile --filter '@agent-hub/server...') ||
-    die "pnpm install failed. If node-pty failed to build, see 'node-pty build failure' in docs/install.md"
+  if [ -d "$work/release/node_modules" ] && (cd "$work/release/apps/server" && node -e "require('node-pty')") >/dev/null 2>&1; then
+    info "Using the prebuilt production dependencies"
+  else
+    rm -rf "$work/release/node_modules" "$work/release/apps/server/node_modules" "$work/release/packages/shared/node_modules"
+    ensure_build_tools
+    ensure_pnpm "$work/release"
+    info "Installing production dependencies (compiles node-pty)"
+    (cd "$work/release" && CI=true pnpm install --prod --frozen-lockfile --filter '@agent-hub/server...') ||
+      die "pnpm install failed. If node-pty failed to build, see 'node-pty build failure' in docs/install.md"
+  fi
   if [ -e "$RELEASES_DIR/$TAG" ]; then
     mv "$RELEASES_DIR/$TAG" "$work/replaced"
   fi

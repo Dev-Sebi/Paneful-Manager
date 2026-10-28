@@ -10,9 +10,9 @@ Related: [Configuration](configuration.md), [Troubleshooting](troubleshooting.md
 | --- | --- | --- |
 | WSL2 with systemd | the services are systemd user units | `systemctl --user status` |
 | Node.js 22 or later | server runtime (`engines.node` is `>=22`) | `node -v` |
-| pnpm 11 or later | installs the production dependencies; installed with corepack if missing, version from `packageManager` | `pnpm -v` |
+| pnpm 11 or later | only when node-pty has to be compiled (see below); installed with corepack if missing, version from `packageManager` | `pnpm -v` |
 | tmux 3.2 or later | session backbone (`new-session -e`) | `tmux -V` |
-| `make`, `g++`, `python3` | node-pty is compiled on install | `sudo apt-get install -y build-essential python3` |
+| `make`, `g++`, `python3` | only when the release's prebuilt node-pty does not load (not x64, or an older glibc than Ubuntu 24.04); node-pty is then compiled on install | `sudo apt-get install -y build-essential python3` |
 | git | worktree scopes | `git --version` |
 | Claude Code CLI (`claude`) | the default session command; the installer only warns if it is missing | `claude --version` |
 | `curl`, `tar`, `gzip`, `sha256sum`, `realpath` | download, unpack, verify and resolve paths | |
@@ -23,7 +23,7 @@ Related: [Configuration](configuration.md), [Troubleshooting](troubleshooting.md
 curl -fsSL https://github.com/Dev-Sebi/Paneful-Manager/releases/latest/download/install.sh | sh
 ```
 
-The installer downloads from the GitHub repository `Dev-Sebi/Paneful-Manager` (the default). The repository can be overridden with `AGENT_HUB_REPO`, for example for a fork:
+The installer downloads the latest published release from the GitHub repository `Dev-Sebi/Paneful-Manager` (the default); the command works once a release has been published ([releasing](releasing.md)). Release tarballs ship the production dependencies with node-pty prebuilt for linux x64, so on WSL2 or Linux x64 with Node 22 no compiler and no pnpm are needed. The repository can be overridden with `AGENT_HUB_REPO`, for example for a fork:
 
 ```bash
 curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/install.sh | AGENT_HUB_REPO=<owner>/<repo> sh
@@ -42,7 +42,7 @@ pnpm release:pack                                     # or pack a tarball first
 ./install.sh --from-source dist/release/agent-hub-<tag>.tar.gz
 ```
 
-A source checkout must contain `apps/server/dist/index.js` and `apps/web/dist/index.html`. `pnpm release:pack` (`scripts/release-pack.sh`) builds and writes `dist/release/agent-hub-<tag>.tar.gz` plus `agent-hub-<tag>.tar.gz.sha256`; the tag defaults to `v<package version>`. The installer downloads both files and `install.sh` from the GitHub release, so a release must publish all three as assets.
+A source checkout must contain `apps/server/dist/index.js` and `apps/web/dist/index.html`. `pnpm release:pack` (`scripts/release-pack.sh`) builds and writes `dist/release/agent-hub-<tag>.tar.gz` plus `agent-hub-<tag>.tar.gz.sha256`; the tag defaults to `v<package version>`. It also bundles the production `node_modules` with node-pty compiled on your machine; `--no-deps` leaves them out. The installer downloads both files and `install.sh` from the GitHub release; the [release workflow](releasing.md) publishes all three as assets.
 
 ## Options
 
@@ -70,7 +70,7 @@ Environment: `AGENT_HUB_REPO` (`<owner>/<repo>` to download releases from).
 
 | Path or setting | Change | When |
 | --- | --- | --- |
-| `~/.local/share/agent-hub/releases/<tag>/` | unpacked release with production `node_modules` (`pnpm install --prod --frozen-lockfile`) | install, upgrade |
+| `~/.local/share/agent-hub/releases/<tag>/` | unpacked release with its bundled production `node_modules`; if the bundled node-pty does not load, they are replaced by `pnpm install --prod --frozen-lockfile` | install, upgrade |
 | `~/.local/share/agent-hub/current`, `previous` | symlinks to the active and the previous release, swapped with `mv -T` | install, upgrade, rollback |
 | `~/.local/share/agent-hub/.agent-hub-install` | install marker with the active version; uninstall only deletes a prefix that has it | install, rollback |
 | `~/.config/agent-hub/config.yaml` | created with `port: <port>` if missing; `port` updated when `--port` is given | install |
@@ -80,9 +80,9 @@ Environment: `AGENT_HUB_REPO` (`<owner>/<repo>` to download releases from).
 | `systemctl --user` | `daemon-reload`, `enable`, `start` the tmux unit, `restart` the server unit | when something changed |
 | `loginctl enable-linger $USER` | user services start at boot and keep running without a login session | if lingering is off |
 | `/etc/wsl.conf` | `[boot]` `systemd=true`, merged into the existing file; if the file existed, a backup is written to `/etc/wsl.conf.agent-hub.bak` (sudo) | only if systemd is off and you agree |
-| `build-essential`, `python3` (apt, sudo) | build tools for node-pty | only if missing and `--yes` is given |
+| `build-essential`, `python3` (apt, sudo) | build tools for node-pty | only if node-pty has to be compiled, the tools are missing and `--yes` is given |
 | Windows Task Scheduler: `AgentHub-<distro>` | runs `wsl.exe -d <distro> --exec true` at your Windows logon | only if you agree |
-| `~/.local/bin/pnpm` | corepack shim | only if pnpm is missing or older than the major version in `packageManager`, and you agree |
+| `~/.local/bin/pnpm` | corepack shim | only if node-pty has to be compiled, pnpm is missing or older than the major version in `packageManager`, and you agree |
 
 All paths follow `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and `XDG_DATA_HOME` when they are set to absolute paths. The units pin the config and state values, so the server uses the same directories as the installer.
 
@@ -177,7 +177,7 @@ The prefix is normalized (`realpath -m`) before use. The installer refuses `/`, 
 
 ## node-pty build failure
 
-`pnpm install failed. If node-pty failed to build` means node-pty could not be compiled. Install the build tools (`sudo apt-get install -y build-essential python3`), then re-run the installer with `--force`. After switching Node versions (for example with nvm), re-run with `--force` as well, so node-pty is rebuilt and the unit points at the new `node`.
+The installer first tries the node-pty prebuilt in the release. Only when that does not load on your system (not x64, or an older glibc) does it compile node-pty with pnpm. `pnpm install failed. If node-pty failed to build` means that compile failed. Install the build tools (`sudo apt-get install -y build-essential python3`), then re-run the installer with `--force`. After switching Node versions (for example with nvm), re-run with `--force` as well, so node-pty is rebuilt and the unit points at the new `node`.
 
 ## Service hardening
 
