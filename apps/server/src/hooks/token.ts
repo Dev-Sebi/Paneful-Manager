@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { chmod, link, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, link, mkdir, readFile, rename, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { removeStaleTempFiles } from '../files/temp-cleanup.js'
 
@@ -8,7 +8,7 @@ export const HOOK_TOKEN_FILE = 'hook-token'
 export const HOOK_TOKEN_VERSION_FILE = 'hook-token.version'
 /** Held while the token file is created or replaced, so concurrent server starts agree on one token. */
 export const HOOK_TOKEN_LOCK_FILE = 'hook-token.lock'
-/** A lock older than this, or held by a process that no longer exists, is left over from a crash. */
+/** A lock its holder has not refreshed for this long, or one held by a process that no longer exists, is left over from a crash. */
 export const LOCK_STALE_MS = 10_000
 /** How long a server start waits for another process holding the lock. */
 export const LOCK_TIMEOUT_MS = 15_000
@@ -16,7 +16,7 @@ const LOCK_RETRY_MS = 20
 
 const TOKEN_PATTERN = /^[\w-]{32,}$/
 /** Temp files of interrupted token writes and broken locks. */
-const TEMP_PATTERN = /^(\.hook-token(\.version)?\.[0-9a-f]+\.tmp|hook-token\.lock\.[0-9a-f]+\.stale)$/
+const TEMP_PATTERN = /^(\.hook-token(\.version)?\.[0-9a-f]+\.tmp|hook-token\.lock(\.break)?\.[0-9a-f]+\.stale)$/
 
 export interface HookTokenOptions {
   /** Installed server version; when given, a token written by another version (or none recorded) is renewed. */
@@ -65,6 +65,7 @@ function processAlive(pid: number): boolean {
   }
 }
 
+/** Holder `pid:nonce` whose process is gone, or a lock its holder stopped refreshing for `staleMs`. */
 async function lockIsStale(file: string, content: string | undefined, staleMs: number): Promise<boolean> {
   try {
     if (Date.now() - (await stat(file)).mtimeMs > staleMs) {
@@ -77,8 +78,11 @@ async function lockIsStale(file: string, content: string | undefined, staleMs: n
   return Number.isSafeInteger(pid) && pid > 0 && !processAlive(pid)
 }
 
-/** Moves a stale lock aside; if a fresh lock was taken meanwhile and moved by mistake, it is linked back. */
-async function breakLock(file: string, judged: string | undefined): Promise<void> {
+/**
+ * Removes `file` only while it still holds `expected`: it is renamed to a unique name first, and put back when the
+ * renamed file turns out to belong to someone else.
+ */
+async function removeIfHeldBy(file: string, expected: string | undefined): Promise<void> {
   const grave = `${file}.${randomBytes(6).toString('hex')}.stale`
   try {
     await rename(file, grave)
@@ -89,12 +93,59 @@ async function breakLock(file: string, judged: string | undefined): Promise<void
     throw error
   }
   try {
-    if ((await readText(grave)) !== judged) {
+    if ((await readText(grave)) !== expected) {
       await link(grave, file).catch(() => undefined)
     }
   } finally {
     await rm(grave, { force: true })
   }
+}
+
+/**
+ * Breaks a stale lock under `<lock>.break`, so only one starter judges and removes it at a time; a break lock older
+ * than `staleMs` is left over from a crash and removed.
+ */
+async function breakLock(file: string, judged: string | undefined, staleMs: number): Promise<boolean> {
+  const breaker = `${file}.break`
+  const ticket = `${process.pid}:${randomBytes(6).toString('hex')}`
+  try {
+    await writeFile(breaker, `${ticket}\n`, { flag: 'wx', mode: 0o600 })
+  } catch (error) {
+    if (errnoCode(error) !== 'EEXIST') {
+      throw error
+    }
+    const other = await readText(breaker)
+    const age = await stat(breaker).then(info => Date.now() - info.mtimeMs, () => 0)
+    if (age > staleMs) {
+      await removeIfHeldBy(breaker, other)
+    }
+    return false
+  }
+  try {
+    const content = await readText(file)
+    if (content === judged && await lockIsStale(file, content, staleMs)) {
+      await removeIfHeldBy(file, judged)
+    }
+    return true
+  } finally {
+    await removeIfHeldBy(breaker, ticket)
+  }
+}
+
+/** Touches the lock while its holder runs, so a live holder never looks stale to other starters. */
+function keepLockFresh(file: string, holder: string, staleMs: number): () => void {
+  const timer = setInterval(() => {
+    void readText(file)
+      .then(async content => {
+        if (content === holder) {
+          const now = new Date()
+          await utimes(file, now, now)
+        }
+      })
+      .catch(() => undefined)
+  }, Math.max(1, Math.floor(staleMs / 3)))
+  timer.unref()
+  return () => clearInterval(timer)
 }
 
 /** Runs `task` while holding `<stateDir>/hook-token.lock` (exclusive create, holder `pid:nonce`). */
@@ -113,7 +164,9 @@ export async function withHookTokenLock<T>(stateDir: string, task: () => Promise
     }
     const content = await readText(file)
     if (await lockIsStale(file, content, lockStaleMs)) {
-      await breakLock(file, content)
+      if (!(await breakLock(file, content, lockStaleMs))) {
+        await sleep(LOCK_RETRY_MS)
+      }
       continue
     }
     if (Date.now() > deadline) {
@@ -121,11 +174,13 @@ export async function withHookTokenLock<T>(stateDir: string, task: () => Promise
     }
     await sleep(LOCK_RETRY_MS)
   }
+  const stopRefresh = keepLockFresh(file, holder, lockStaleMs)
   try {
     return await task()
   } finally {
+    stopRefresh()
     if ((await readText(file).catch(() => undefined)) === holder) {
-      await rm(file, { force: true })
+      await removeIfHeldBy(file, holder)
     }
   }
 }
