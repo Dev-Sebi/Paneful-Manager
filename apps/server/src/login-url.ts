@@ -6,7 +6,7 @@ const argv = process.argv.slice(2)
 async function run(): Promise<void> {
   if (argv.includes('--reset')) {
     await logOutAllDevices(process.env)
-    process.stdout.write('Logged out every browser. Restart Agent Hub to end open sessions at once; otherwise they expire within 15 minutes.\n')
+    process.stdout.write('Logged out every browser; their open sessions end with their next request.\n')
     return
   }
   process.stdout.write(`${await resolveLoginUrl(process.env, argv)}\n`)

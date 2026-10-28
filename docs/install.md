@@ -128,7 +128,7 @@ The code works once and expires after 10 minutes; it sits in `~/.local/state/age
 - Always use `127.0.0.1`, never `localhost`: `localhost` may resolve to `::1`, where another user on the machine can listen on the same port. Under any other host name the app does not log in and asks you to switch to `127.0.0.1`.
 - Without a login, or after a logout, the app shows only the hint to open a login URL. A used or expired URL shows "already used or has expired".
 - The installer does not open the browser: a browser started with the URL as an argument would show the code in the process list.
-- Log every browser out: `rm ~/.local/state/agent-hub/devices.json` (in a checkout `pnpm login-url --reset`), then `systemctl --user restart agent-hub.service` to end open sessions at once (otherwise they expire within 15 minutes).
+- Log every browser out: `rm ~/.local/state/agent-hub/devices.json` (in a checkout `pnpm login-url --reset`). The server refuses the session keys of removed devices from the next request on; no restart needed.
 - Older builds kept the access key itself in the browser (`#key=` login URLs); the app deletes it on the first start, so each browser needs one new login URL after the upgrade.
 - In a source checkout, `pnpm login-url` prints a URL for the server port; `pnpm login-url --port 3000` prints it for the Vite dev server.
 

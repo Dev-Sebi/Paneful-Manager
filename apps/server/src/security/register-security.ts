@@ -97,7 +97,7 @@ export function registerSecurity(app: FastifyInstance, { getPort, token, accessK
       return
     }
     const presented = single(request.headers[ACCESS_KEY_HEADER])
-    if (needsAccessKey(request.method, route, path) && !tokenMatches(presented, accessKey) && deviceAuth?.hasSession(presented) !== true) {
+    if (needsAccessKey(request.method, route, path) && !tokenMatches(presented, accessKey) && !(await deviceAuth?.hasSession(presented))) {
       throw loginFailed('Not logged in; open a login URL from install.sh --login-url in this browser')
     }
     if (MUTATING_METHODS.has(request.method) && (!hasOrigin || !tokenMatches(single(request.headers[SESSION_TOKEN_HEADER]), token))) {

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -52,7 +52,7 @@ describe('DeviceAuth', () => {
     const signature = await device.sign(nonce)
     const session = await auth.createSession(id, nonce, signature)
     expect(session?.expiresInSec).toBe(SESSION_TTL_MS / 1000)
-    expect(auth.hasSession(session?.key)).toBe(true)
+    expect(await auth.hasSession(session?.key)).toBe(true)
     expect(await auth.createSession(id, nonce, signature)).toBeUndefined()
   })
 
@@ -102,15 +102,27 @@ describe('DeviceAuth', () => {
     const nonce = auth.challenge()
     const session = await auth.createSession(id, nonce, await device.sign(nonce))
     now += SESSION_TTL_MS
-    expect(auth.hasSession(session?.key)).toBe(false)
-    expect(auth.hasSession(undefined)).toBe(false)
-    expect(auth.hasSession('made-up')).toBe(false)
+    expect(await auth.hasSession(session?.key)).toBe(false)
+    expect(await auth.hasSession(undefined)).toBe(false)
+    expect(await auth.hasSession('made-up')).toBe(false)
   })
 
-  it('logs every device out on reset', async () => {
+  it('logs every device out on reset, including the sessions it already holds', async () => {
     const { id, device } = await registered()
+    const other = await registered()
+    const issued = auth.challenge()
+    const session = await auth.createSession(id, issued, await device.sign(issued))
+    const kept = auth.challenge()
+    const otherSession = await auth.createSession(other.id, kept, await other.device.sign(kept))
+    expect(await auth.hasSession(session?.key)).toBe(true)
+    const stored = JSON.parse(await readFile(join(dir, DEVICES_FILE), 'utf8')) as { devices: Array<{ id: string }> }
+    await writeFile(join(dir, `${DEVICES_FILE}.tmp`), JSON.stringify({ devices: stored.devices.filter(entry => entry.id !== id) }))
+    await rename(join(dir, `${DEVICES_FILE}.tmp`), join(dir, DEVICES_FILE))
+    expect(await auth.hasSession(session?.key)).toBe(false)
+    expect(await auth.sessionDevice(otherSession?.key)).toBe(other.id)
     await createLoginCode(dir, now)
     await resetDevices(dir)
+    expect(await auth.hasSession(otherSession?.key)).toBe(false)
     await expect(stat(join(dir, LOGIN_CODE_FILE))).rejects.toThrow()
     const nonce = auth.challenge()
     expect(await auth.createSession(id, nonce, await device.sign(nonce))).toBeUndefined()

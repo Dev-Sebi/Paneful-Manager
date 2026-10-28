@@ -15,7 +15,7 @@ import { join } from 'node:path'
 import { pino } from 'pino'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../app.js'
-import { DeviceAuth } from './device-auth.js'
+import { DeviceAuth, resetDevices } from './device-auth.js'
 import { createLoginCode } from './login-code.js'
 import { createTestDevice } from './test-helpers.js'
 
@@ -316,6 +316,13 @@ describe('device login', () => {
     expect(read.json()).toEqual({ secret: 'data' })
     const token = await fromBrowser(target, 'GET', API_ROUTES.sessionToken, undefined, { [ACCESS_KEY_HEADER]: key })
     expect(SessionTokenResponseSchema.parse(token.json()).token).toBe(TOKEN)
+  })
+
+  it('refuses a session key from the next request on once every device was logged out', async () => {
+    const { target, dir } = await buildWithDevices()
+    const key = await logIn(target, dir)
+    await resetDevices(dir)
+    await expectError(await fromBrowser(target, 'GET', '/api/test-read', undefined, { [ACCESS_KEY_HEADER]: key }), 401, 'login_required')
   })
 
   it('still accepts the access key file for scripts and nothing made up', async () => {

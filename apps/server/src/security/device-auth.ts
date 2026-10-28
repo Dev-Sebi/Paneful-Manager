@@ -1,9 +1,9 @@
 import { createHash, createHmac, createPublicKey, randomBytes, verify } from 'node:crypto'
-import { tokenMatches } from './token.js'
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { deviceSignatureMessage, DevicePublicKeySchema, type DevicePublicKey, z } from '@agent-hub/shared'
 import { consumeLoginCode, LOGIN_CODE_FILE } from './login-code.js'
+import { tokenMatches } from './token.js'
 
 /** Registered browser devices (public keys only), mode 0600; deleting it logs every browser out. */
 export const DEVICES_FILE = 'devices.json'
@@ -30,10 +30,15 @@ const errnoCode = (error: unknown): string | undefined => (error as NodeJS.Errno
 const digest = (value: string): string => createHash('sha256').update(value).digest('base64url')
 const randomId = (): string => randomBytes(32).toString('base64url')
 
-/** Adds `key` with an expiry, dropping expired entries and then the oldest ones beyond `max`. */
-function remember(map: Map<string, number>, key: string, expiresAt: number, max: number, now: number): void {
-  for (const [entry, expiry] of map) {
-    if (expiry <= now) {
+interface IssuedSession {
+  deviceId: string
+  expiresAt: number
+}
+
+/** Adds `key`, dropping expired entries and then the oldest ones beyond `max`. */
+function remember(map: Map<string, IssuedSession>, key: string, session: IssuedSession, max: number, now: number): void {
+  for (const [entry, { expiresAt }] of map) {
+    if (expiresAt <= now) {
       map.delete(entry)
     }
   }
@@ -44,7 +49,7 @@ function remember(map: Map<string, number>, key: string, expiresAt: number, max:
     }
     map.delete(oldest)
   }
-  map.set(key, expiresAt)
+  map.set(key, session)
 }
 
 /** `<random>.<expiry ms>.<mac>`: issuing keeps no state, so a flood of challenges cannot push out the owner's. */
@@ -82,7 +87,9 @@ export class DeviceAuth {
   /** Nonces that already bought a session, until they expire; a signature works once. */
   private readonly usedNonces = new Map<string, number>()
   /** Keyed by the SHA-256 of the session key, so lookups do not compare the secret itself. */
-  private readonly sessions = new Map<string, number>()
+  private readonly sessions = new Map<string, IssuedSession>()
+  /** Registered device ids, reloaded whenever the devices file changes, so a reset ends every session at once. */
+  private known: { stamp: string, ids: Set<string> } | undefined
   private writes: Promise<unknown> = Promise.resolve()
 
   constructor(private readonly stateDir: string, private readonly now: () => number = Date.now) {}
@@ -116,7 +123,7 @@ export class DeviceAuth {
       return undefined
     }
     const key = randomId()
-    remember(this.sessions, digest(key), this.now() + SESSION_TTL_MS, MAX_SESSIONS, this.now())
+    remember(this.sessions, digest(key), { deviceId: device.id, expiresAt: this.now() + SESSION_TTL_MS }, MAX_SESSIONS, this.now())
     return { key, expiresInSec: SESSION_TTL_MS / 1000 }
   }
 
@@ -135,12 +142,37 @@ export class DeviceAuth {
     return true
   }
 
-  hasSession(key: string | undefined): boolean {
-    if (key === undefined) {
-      return false
+  /** True for an unexpired session key whose device is still registered. */
+  async hasSession(key: string | undefined): Promise<boolean> {
+    return (await this.sessionDevice(key)) !== undefined
+  }
+
+  /** Device behind an unexpired session key while it is still registered; undefined otherwise. */
+  async sessionDevice(key: string | undefined): Promise<string | undefined> {
+    const session = key === undefined ? undefined : this.sessions.get(digest(key))
+    if (session === undefined || session.expiresAt <= this.now()) {
+      return undefined
     }
-    const expiry = this.sessions.get(digest(key))
-    return expiry !== undefined && expiry > this.now()
+    return (await this.isRegistered(session.deviceId)) ? session.deviceId : undefined
+  }
+
+  /** Whether `deviceId` is still in the devices file; a stat per call, the file is parsed only when it changed. */
+  async isRegistered(deviceId: string): Promise<boolean> {
+    let stamp: string
+    try {
+      const info = await stat(join(this.stateDir, DEVICES_FILE))
+      stamp = `${info.ino}:${info.size}:${info.mtimeMs}`
+    } catch (error) {
+      if (errnoCode(error) === 'ENOENT') {
+        this.known = undefined
+        return false
+      }
+      throw error
+    }
+    if (this.known?.stamp !== stamp) {
+      this.known = { stamp, ids: new Set((await this.readDevices()).map(device => device.id)) }
+    }
+    return this.known.ids.has(deviceId)
   }
 
   private async readDevices(): Promise<Device[]> {
@@ -174,7 +206,7 @@ export class DeviceAuth {
   }
 }
 
-/** Logs every browser out: removes the registered devices and any pending login code. Sessions already issued run out within `SESSION_TTL_MS`. */
+/** Logs every browser out: removes the registered devices and any pending login code; the server refuses their sessions from the next request on. */
 export async function resetDevices(stateDir: string): Promise<void> {
   await rm(join(stateDir, DEVICES_FILE), { force: true })
   await rm(join(stateDir, LOGIN_CODE_FILE), { force: true })
