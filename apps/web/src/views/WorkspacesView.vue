@@ -164,11 +164,11 @@
   import { useRoute, useRouter } from 'vue-router'
   import { api } from '@/api/client'
   import { wsClient } from '@/api/ws'
+  import EmptyState from '@/components/EmptyState.vue'
+  import PanePlaceholder from '@/components/PanePlaceholder.vue'
   import { PmButton, PmDialog, PmSplitLayout, PmTab, PmTabPanel, PmTabs } from '@/components/pm'
   // Imported directly, not through the barrel, so xterm stays in the lazy Workspaces chunk.
   import PmTerminalPane from '@/components/pm/PmTerminalPane.vue'
-  import EmptyState from '@/components/EmptyState.vue'
-  import PanePlaceholder from '@/components/PanePlaceholder.vue'
   import PresetsPanel from '@/components/presets/PresetsPanel.vue'
   import { useCloseTab } from '@/composables/useCloseTab'
   import { useConfigStore } from '@/stores/config'

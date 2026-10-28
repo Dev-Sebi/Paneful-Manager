@@ -12,8 +12,8 @@
   import type { PmSplitLayoutExpose, PmSplitLayoutProps, PmSplitLayoutSlots } from './types'
   import { computed, onBeforeUnmount } from 'vue'
   import { useLayoutSizesStore } from '@/stores/layoutSizes'
-  import PmSplitNode from './PmSplitNode.vue'
   import { layoutToTree } from './layoutTree'
+  import PmSplitNode from './PmSplitNode.vue'
   import 'splitpanes/dist/splitpanes.css'
 
   /** Quiet period after the last splitter move before `resized` fires. */

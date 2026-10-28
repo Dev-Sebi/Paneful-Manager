@@ -78,10 +78,10 @@
 <script lang="ts" setup>
   import type { EditorLanguage } from '@/components/editor/PmCodeEditor.vue'
   import { computed, useId } from 'vue'
-  import { PmButton, PmStatusBadge } from '@/components/pm'
-  import PmCodeEditor from '@/components/editor/PmCodeEditor.vue'
   import { parseFrontmatter } from '@/components/editor/frontmatter'
+  import PmCodeEditor from '@/components/editor/PmCodeEditor.vue'
   import EmptyState from '@/components/EmptyState.vue'
+  import { PmButton, PmStatusBadge } from '@/components/pm'
   import { useFilesStore } from '@/stores/files'
   import { useUiStore } from '@/stores/ui'
   import ConflictBanner from './ConflictBanner.vue'

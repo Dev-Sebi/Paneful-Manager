@@ -108,8 +108,8 @@
 <script lang="ts" setup>
   import type { PmButtonSize, PmButtonVariant, PmStatusBadgeState, PmStatusBadgeVariant, PmTabsReorderPayload } from '@/components/pm'
   import { ref } from 'vue'
-  import { PmButton, PmDialog, PmStatusBadge, PmTab, PmTabPanel, PmTabs } from '@/components/pm'
   import EditorShowcase from '@/components/editor/EditorShowcase.vue'
+  import { PmButton, PmDialog, PmStatusBadge, PmTab, PmTabPanel, PmTabs } from '@/components/pm'
 
   interface DemoTab {
     value: string

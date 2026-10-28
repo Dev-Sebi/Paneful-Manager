@@ -63,12 +63,12 @@
 <script lang="ts" setup>
   import type { McpScope, McpServerEntryMasked } from '@paneful-manager/shared'
   import { computed, nextTick, onMounted, ref } from 'vue'
-  import { PmButton } from '@/components/pm'
   import EmptyState from '@/components/EmptyState.vue'
   import McpRemoveDialog from '@/components/mcp/McpRemoveDialog.vue'
   import McpScopeTree from '@/components/mcp/McpScopeTree.vue'
   import McpServerDetail from '@/components/mcp/McpServerDetail.vue'
   import McpServerDialog from '@/components/mcp/McpServerDialog.vue'
+  import { PmButton } from '@/components/pm'
   import { entryKey, useMcpStore } from '@/stores/mcp'
   import { useScopesStore } from '@/stores/scopes'
 
