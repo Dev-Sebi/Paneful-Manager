@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Session } from '@agent-hub/shared'
@@ -403,6 +403,24 @@ describe('SessionEngine', () => {
     expect((await stat(file)).mode & 0o777).toBe(0o600)
     expect(args.indexOf('--')).toBeGreaterThan(args.indexOf('AGENT_HUB_URL=http://127.0.0.1:7337'))
     await env.close()
+  })
+
+  it('removes secret env temp files left by an interrupted write on start', async () => {
+    const state = join(dir, 'state')
+    await mkdir(state, { recursive: true })
+    const old = new Date(Date.now() - 120_000)
+    for (const name of [`${SECRET_ENV_FILE}.0a1b2c.tmp`, `${SECRET_ENV_FILE}.3d4e5f.tmp`]) {
+      await writeFile(join(state, name), "set-environment -g AGENT_HUB_HOOK_TOKEN 'old'\n")
+      if (name.includes('0a1b2c')) {
+        await utimes(join(state, name), old, old)
+      }
+    }
+    const fresh = newEngine()
+    await fresh.start()
+    const names = await readdir(state)
+    expect(names).not.toContain(`${SECRET_ENV_FILE}.0a1b2c.tmp`)
+    expect(names).toContain(`${SECRET_ENV_FILE}.3d4e5f.tmp`)
+    await fresh.close()
   })
 
   it('applies hook states, tracks stateSince and broadcasts only changes', async () => {

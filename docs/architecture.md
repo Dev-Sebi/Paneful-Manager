@@ -121,7 +121,7 @@ Re-adopted sessions keep the environment they were created with, which is why th
 | `$STATE/sessions/<id>.json` | one `Session` record, rewritten on every lifecycle or state change | server |
 | `$STATE/preset-launches.json` | preset name to the ids of the sessions it launched (autostart guard, see [Workspace presets](#workspace-presets)) | server |
 | `$STATE/team-launches.json` | team template launches: template, lead session id, expected team name (see [Agent teams](#agent-teams-experimental)) | server |
-| `$STATE/hook-token` | hook token, mode `0600`, created once | server |
+| `$STATE/hook-token` | hook token, mode `0600`; created or replaced (corrupt file) only while holding `$STATE/hook-token.lock`, so concurrent starts agree on one token; temp files of interrupted writes older than 60 s are removed on start | server |
 | `$STATE/tmux.conf` | tmux config, read by `agent-hub-tmux.service` at tmux start | installer |
 | `$STATE/backups/<encoded-path>/<timestamp>` | backups before overwriting or deleting files (see below) | server |
 | journald (`journalctl --user -u agent-hub`) | logs (pino to stdout) | server |

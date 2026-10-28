@@ -1,10 +1,10 @@
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { HOOK_TOKEN_FILE, loadHookToken } from './token.js'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { HOOK_TOKEN_FILE, HOOK_TOKEN_LOCK_FILE, loadHookToken, withHookTokenLock } from './token.js'
 
 let dir: string
 
@@ -80,27 +80,63 @@ describe('loadHookToken', () => {
     expect((await readFile(file, 'utf8')).trim()).toBe(replaced)
   })
 
-  it.each(['EPERM', 'ENOTSUP'])('falls back to an exclusive create when link fails with %s', async code => {
-    const link = vi.fn(() => Promise.reject(Object.assign(new Error(code), { code })))
-    const token = await loadHookToken(dir, { link })
-    expect(link).toHaveBeenCalledTimes(1)
-    expect((await readFile(join(dir, HOOK_TOKEN_FILE), 'utf8')).trim()).toBe(token)
-    expect((await stat(join(dir, HOOK_TOKEN_FILE))).mode & 0o777).toBe(0o600)
-    expect(await readdir(dir)).toEqual([HOOK_TOKEN_FILE])
-    expect(await loadHookToken(dir, { link })).toBe(token)
+  it('removes temp files left by interrupted writes but keeps fresh ones', async () => {
+    const old = new Date(Date.now() - 120_000)
+    for (const name of ['.hook-token.abc123.tmp', 'hook-token.lock.def456.stale']) {
+      await writeFile(join(dir, name), 'leftover')
+      await utimes(join(dir, name), old, old)
+    }
+    await writeFile(join(dir, '.hook-token.fff000.tmp'), 'in progress')
+    await writeFile(join(dir, 'unrelated.tmp'), 'keep')
+    await utimes(join(dir, 'unrelated.tmp'), old, old)
+    await loadHookToken(dir)
+    expect((await readdir(dir)).toSorted()).toEqual(['.hook-token.fff000.tmp', HOOK_TOKEN_FILE, 'unrelated.tmp'])
   })
 
-  it('removes the temp file and rethrows other link errors', async () => {
-    const link = vi.fn(() => Promise.reject(Object.assign(new Error('EIO'), { code: 'EIO' })))
-    await expect(loadHookToken(dir, { link })).rejects.toThrow('EIO')
+  it('breaks a lock left by a process that no longer exists', async () => {
+    await writeFile(join(dir, HOOK_TOKEN_LOCK_FILE), '2147483646:dead\n')
+    const token = await loadHookToken(dir)
+    expect(token).toMatch(/^[\w-]{43}$/)
+    expect(await readdir(dir)).toEqual([HOOK_TOKEN_FILE])
+  })
+
+  it('breaks a lock older than the stale age', async () => {
+    await writeFile(join(dir, HOOK_TOKEN_LOCK_FILE), `${process.pid}:old\n`)
+    const old = new Date(Date.now() - 60_000)
+    await utimes(join(dir, HOOK_TOKEN_LOCK_FILE), old, old)
+    await loadHookToken(dir)
+    expect(await readdir(dir)).toEqual([HOOK_TOKEN_FILE])
+  })
+
+  it('waits for a live lock and gives up after the timeout', async () => {
+    await writeFile(join(dir, HOOK_TOKEN_LOCK_FILE), `${process.pid}:other\n`)
+    await expect(loadHookToken(dir, { lockTimeoutMs: 100 })).rejects.toThrow('Timed out waiting')
+    expect(await readdir(dir)).toEqual([HOOK_TOKEN_LOCK_FILE])
+  })
+
+  it('runs locked tasks one at a time and releases the lock after a failure', async () => {
+    const order: string[] = []
+    const task = (name: string) => async () => {
+      order.push(`${name}:start`)
+      await new Promise(resolve => setTimeout(resolve, 30))
+      order.push(`${name}:end`)
+    }
+    await Promise.all([withHookTokenLock(dir, task('a')), withHookTokenLock(dir, task('b'))])
+    expect(order.map(entry => entry.split(':')[1])).toEqual(['start', 'end', 'start', 'end'])
+    await expect(withHookTokenLock(dir, () => Promise.reject(new Error('boom')))).rejects.toThrow('boom')
     expect(await readdir(dir)).toEqual([])
   })
 
-  it('agrees on one token across separate processes starting on a fresh state dir', async () => {
+  it('agrees on one token across separate processes starting on a fresh or corrupt state dir', async () => {
     for (let round = 0; round < ROUNDS; round++) {
       const state = join(dir, `state-${round}`)
       const barrier = join(dir, `barrier-${round}`)
       await mkdir(barrier)
+      if (round % 2 === 1) {
+        // Odd rounds start from a corrupt file, which every process wants to replace.
+        await mkdir(state)
+        await writeFile(join(state, HOOK_TOKEN_FILE), 'corrupt')
+      }
       const running = Promise.all(Array.from({ length: PROCESSES }, (_, index) => loadInChild(state, barrier, index)))
       await waitForReady(barrier)
       await writeFile(join(barrier, 'go'), '')
