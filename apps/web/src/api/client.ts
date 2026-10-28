@@ -22,6 +22,8 @@ import {
   DeleteTeamTemplateResponseSchema,
   GetConfigResponseSchema,
   HealthResponseSchema,
+  HookChangeResponseSchema,
+  HookStatusSchema,
   KillSessionResponseSchema,
   LaunchPresetResponseSchema,
   LaunchTeamTemplateResponseSchema,
@@ -168,6 +170,11 @@ export const api = {
     fetchJson(API_ROUTES.files, { schema: CreateFileResponseSchema, method: 'POST', body: request }),
   deleteFile: (path: string) =>
     fetchJson(`${API_ROUTES.fileContent}?${new URLSearchParams({ path })}`, { schema: DeleteFileResponseSchema, method: 'DELETE' }),
+  hooks: {
+    status: () => fetchJson(API_ROUTES.hooksStatus, { schema: HookStatusSchema }),
+    install: () => fetchJson(API_ROUTES.hooksInstall, { schema: HookChangeResponseSchema, method: 'POST', body: {} }),
+    uninstall: () => fetchJson(API_ROUTES.hooksUninstall, { schema: HookChangeResponseSchema, method: 'POST', body: {} }),
+  },
   mcp: {
     list: (projectPath?: string) => {
       const query = projectPath ? `?${new URLSearchParams({ projectPath })}` : ''

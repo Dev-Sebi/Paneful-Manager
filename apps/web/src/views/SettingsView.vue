@@ -20,6 +20,8 @@
         @update:model-value="setConfirmCloseTab"
       />
 
+      <ClaudeHooksSetting />
+
       <pre class="settings__config" tabindex="0">{{ JSON.stringify(config.config, null, 2) }}</pre>
     </template>
   </div>
@@ -28,6 +30,7 @@
 <script lang="ts" setup>
   import { onMounted } from 'vue'
   import EmptyState from '@/components/EmptyState.vue'
+  import ClaudeHooksSetting from '@/components/settings/ClaudeHooksSetting.vue'
   import { useConfigStore } from '@/stores/config'
   import { useUiStore } from '@/stores/ui'
 
