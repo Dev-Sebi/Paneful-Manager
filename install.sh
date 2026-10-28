@@ -1,6 +1,6 @@
 #!/bin/sh
-# Paneful Manager installer for WSL2 (Linux works too, without the WSL steps).
-#   curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/install.sh | sh
+# Paneful Manager installer for WSL2, Linux (systemd) and macOS (launchd). Windows: install.ps1 runs it inside WSL.
+#   curl -fsSL https://github.com/Dev-Sebi/Paneful-Manager/releases/latest/download/install.sh | sh
 # Private repository: GITHUB_TOKEN=<token> sh install.sh (or log in with gh), see docs/install.md
 # Run with -h for all options. Docs: docs/install.md
 set -eu
@@ -13,17 +13,21 @@ MIN_TMUX_VERSION=3.2
 MIN_CURL_TOKEN_VERSION=7.58
 TMUX_UNIT=paneful-manager-tmux.service
 SERVER_UNIT=paneful-manager.service
+SOCKET_UNIT=paneful-manager.socket
+SERVER_AGENT=dev.paneful-manager
+TMUX_AGENT=dev.paneful-manager.tmux
 HEALTH_TIMEOUT_SEC=20
 # Overridable for scripts/test-install.sh only.
 WSL_CONF=${PANEFUL_MANAGER_WSL_CONF:-/etc/wsl.conf}
 PROC_VERSION=${PANEFUL_MANAGER_PROC_VERSION:-/proc/version}
+IF_INET6=${PANEFUL_MANAGER_IF_INET6:-/proc/net/if_inet6}
 
 VERSION=latest
 PREFIX=""
 PORT=""
 FROM_SOURCE=""
 ACTION=install
-NO_SYSTEMD=0
+NO_SERVICE=0
 NO_WSL_CONF=0
 NO_WINDOWS_TASK=0
 DRY_RUN=0
@@ -36,21 +40,22 @@ usage() {
   cat <<'EOF'
 Usage: install.sh [options]
 
-Installs Paneful Manager as systemd user services (paneful-manager-tmux.service, paneful-manager.service).
+Installs Paneful Manager as systemd user services (Linux, WSL2) or launchd user agents (macOS).
 
 Options:
   --version <tag|latest>  Release to install (default: latest)
   --from-source <path>    Install from a local release tarball or a built source checkout
   --prefix <dir>          Install directory (default: ~/.local/share/paneful-manager)
   --port <port>           Server port (default: 7337, or the port already installed); saved in config.yaml
-  --no-systemd            Do not install or start the systemd user units
+  --no-service            Do not install or start the systemd units or launchd agents (alias: --no-systemd)
   --no-wsl-conf           Never offer to enable systemd in /etc/wsl.conf
   --no-windows-task       Never offer the Windows logon task that boots the distro
   --force                 Reinstall the same version; allow a prefix outside HOME or without install marker
   --no-verify             Install a downloaded release without a published .sha256 file
   --login-url             Print a one-time login URL for a browser, then exit
+  --enable-wsl-systemd    Only enable systemd in /etc/wsl.conf (WSL; used by install.ps1), then exit
   --rollback              Switch back to the previously installed release
-  --uninstall             Remove services, units and the install directory
+  --uninstall             Remove services (units or agents) and the install directory
   --purge                 With --uninstall: also remove config and state without asking
   --dry-run               Print every step without changing anything
   -y, --yes               Answer yes to all questions (needed without a terminal)
@@ -123,6 +128,34 @@ xdg_dir() {
   esac
 }
 
+# normalize_path <path>: absolute path with symlinks of the existing part resolved, like GNU 'realpath -m' (missing on macOS).
+normalize_path() {
+  if realpath -m / >/dev/null 2>&1; then
+    realpath -m -- "$1"
+  elif command -v node >/dev/null 2>&1; then
+    node -e '
+      const fs = require("fs"), path = require("path")
+      let rest = "", dir = path.resolve(process.argv[1])
+      while (!fs.existsSync(dir) && path.dirname(dir) !== dir) { rest = path.join(path.basename(dir), rest); dir = path.dirname(dir) }
+      console.log(path.join(fs.realpathSync(dir), rest).replace(/(.)\/$/, "$1"))
+    ' "$1"
+  else
+    die "realpath -m (GNU coreutils) or Node.js is required"
+  fi
+}
+
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi | awk '{ print $1 }'
+}
+
+# replace_link <target> <link>: points <link> at <target> atomically (rename over the old link; 'mv -T' is GNU only).
+replace_link() {
+  ln -sfn "$1" "$2.tmp"
+  node -e 'require("fs").renameSync(process.argv[1], process.argv[2])' "$2.tmp" "$2"
+}
+
+is_macos() { [ "$OS_NAME" = Darwin ]; }
+
 # Paths go into unit files unquoted, so they must not need escaping.
 require_plain_path() {
   case "$1" in
@@ -130,7 +163,7 @@ require_plain_path() {
   esac
 }
 
-is_wsl() { grep -qi microsoft "$PROC_VERSION" 2>/dev/null; }
+is_wsl() { [ "$OS_NAME" = Linux ] && grep -qi microsoft "$PROC_VERSION" 2>/dev/null; }
 
 systemd_user_available() {
   command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1
@@ -155,7 +188,8 @@ while [ $# -gt 0 ]; do
     --port=*) PORT=${1#*=} ;;
     --from-source) need_value "$1" $#; FROM_SOURCE=$2; shift ;;
     --from-source=*) FROM_SOURCE=${1#*=} ;;
-    --no-systemd) NO_SYSTEMD=1 ;;
+    --no-service|--no-systemd) NO_SERVICE=1 ;;
+    --enable-wsl-systemd) ACTION=enable_wsl_systemd ;;
     --no-wsl-conf) NO_WSL_CONF=1 ;;
     --no-windows-task) NO_WINDOWS_TASK=1 ;;
     --force) FORCE=1 ;;
@@ -179,6 +213,12 @@ API_TOKEN=${GITHUB_TOKEN:-${GH_TOKEN:-}}
 if [ -n "${GITHUB_TOKEN:-}" ]; then TOKEN_SOURCE=GITHUB_TOKEN; else TOKEN_SOURCE=GH_TOKEN; fi
 unset GITHUB_TOKEN GH_TOKEN
 
+OS_NAME=$(uname -s)
+case "$OS_NAME" in
+  Linux|Darwin) ;;
+  *) die "Unsupported system '$OS_NAME': Paneful Manager runs on Linux, WSL2 and macOS (on Windows use install.ps1)" ;;
+esac
+
 [ -n "${HOME:-}" ] || die "HOME is not set"
 case "$HOME" in /*) ;; *) die "HOME must be an absolute path" ;; esac
 USER_NAME=${USER:-$(id -un)}
@@ -188,20 +228,21 @@ STATE_HOME=$(xdg_dir "${XDG_STATE_HOME:-}" "$HOME/.local/state")
 DATA_HOME=$(xdg_dir "${XDG_DATA_HOME:-}" "$HOME/.local/share")
 PREFIX=${PREFIX:-$DATA_HOME/paneful-manager}
 case "$PREFIX" in /*) ;; *) PREFIX=$(pwd)/$PREFIX ;; esac
-command -v realpath >/dev/null 2>&1 || die "realpath (coreutils) is required"
-PREFIX=$(realpath -m -- "$PREFIX")
-HOME_REAL=$(realpath -m -- "$HOME")
+PREFIX=$(normalize_path "$PREFIX")
+HOME_REAL=$(normalize_path "$HOME")
 CONFIG_DIR=$CONFIG_HOME/paneful-manager
 CONFIG_FILE=$CONFIG_DIR/config.yaml
 STATE_DIR=$STATE_HOME/paneful-manager
 UNIT_DIR=$CONFIG_HOME/systemd/user
+AGENT_DIR=$HOME/Library/LaunchAgents
+LOG_DIR=$STATE_DIR/logs
 RELEASES_DIR=$PREFIX/releases
 CURRENT_LINK=$PREFIX/current
 PREVIOUS_LINK=$PREFIX/previous
 MARKER=$PREFIX/.paneful-manager-install
 
 case "$PREFIX" in
-  /|"$HOME_REAL"|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var|/boot) die "Refusing to use $PREFIX as install prefix" ;;
+  /|"$HOME_REAL"|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var|/boot|/System|/System/*|/Library|/Library/*|/Applications|/private|/private/etc|/private/etc/*|/private/var) die "Refusing to use $PREFIX as install prefix" ;;
   "$HOME_REAL"/*) ;;
   *) [ "$FORCE" -eq 1 ] || die "Refusing to use $PREFIX as install prefix: it is outside $HOME_REAL (pass --force to allow)" ;;
 esac
@@ -286,7 +327,7 @@ install_windows_task() {
 
 # remove_windows_task [name-prefix]: the current task, or the one named <name-prefix><distro>.
 remove_windows_task() {
-  is_wsl || return 0
+  if [ "$NO_WINDOWS_TASK" -eq 1 ] || ! is_wsl; then return 0; fi
   distro=$(distro_name) || return 0
   command -v powershell.exe >/dev/null 2>&1 || return 0
   task=${1:+$1$distro}
@@ -332,6 +373,42 @@ merged_wsl_conf() {
   fi
 }
 
+# Merges [boot] systemd=true into wsl.conf (sudo unless root, a backup is written); asks first.
+enable_wsl_systemd() {
+  if wsl_conf_has_systemd; then
+    say "  $WSL_CONF already enables systemd."
+    return 0
+  fi
+  say "  Paneful Manager runs as systemd user services. WSL enables systemd with"
+  say "  '[boot]' + 'systemd=true' in $WSL_CONF (needs root; other settings are kept, a backup is written)."
+  if ! confirm "Enable systemd in $WSL_CONF now?" y; then
+    say "  Skipped."
+    return 1
+  fi
+  if [ "$(id -u)" -eq 0 ]; then as_root=""; else as_root=sudo; fi
+  tmp=$(mktemp)
+  merged_wsl_conf >"$tmp"
+  if [ -f "$WSL_CONF" ] && command -v diff >/dev/null 2>&1; then
+    say "  Changes to $WSL_CONF:"
+    diff -u "$WSL_CONF" "$tmp" | sed 's/^/    /' || true
+  else
+    say "  New $WSL_CONF:"
+    sed 's/^/    | /' "$tmp"
+  fi
+  if [ -f "$WSL_CONF" ]; then
+    run ${as_root:+"$as_root"} cp -p "$WSL_CONF" "$WSL_CONF.paneful-manager.bak"
+  fi
+  run ${as_root:+"$as_root"} install -m 0644 "$tmp" "$WSL_CONF"
+  rm -f "$tmp"
+}
+
+do_enable_wsl_systemd() {
+  is_wsl || die "--enable-wsl-systemd only applies to WSL"
+  info "systemd in WSL"
+  enable_wsl_systemd || exit 1
+  say "  systemd starts after the distro restarts: run 'wsl.exe --shutdown' in Windows."
+}
+
 handle_missing_systemd() {
   if ! is_wsl; then
     warn "The systemd user manager is not reachable (systemctl --user failed)."
@@ -345,26 +422,7 @@ handle_missing_systemd() {
   elif [ "$NO_WSL_CONF" -eq 1 ]; then
     say "  Enable it yourself: add '[boot]' and 'systemd=true' to $WSL_CONF."
   else
-    say "  Paneful Manager runs as systemd user services. WSL enables systemd with"
-    say "  '[boot]' + 'systemd=true' in $WSL_CONF (needs sudo; other settings are kept, a backup is written)."
-    if confirm "Enable systemd in $WSL_CONF now?" y; then
-      tmp=$(mktemp)
-      merged_wsl_conf >"$tmp"
-      if [ -f "$WSL_CONF" ] && command -v diff >/dev/null 2>&1; then
-        say "  Changes to $WSL_CONF:"
-        diff -u "$WSL_CONF" "$tmp" | sed 's/^/    /' || true
-      else
-        say "  New $WSL_CONF:"
-        sed 's/^/    | /' "$tmp"
-      fi
-      if [ -f "$WSL_CONF" ]; then
-        run sudo cp -p "$WSL_CONF" "$WSL_CONF.paneful-manager.bak"
-      fi
-      run sudo install -m 0644 "$tmp" "$WSL_CONF"
-      rm -f "$tmp"
-    else
-      say "  Skipped."
-    fi
+    enable_wsl_systemd || true
   fi
   say ""
   say "Next steps:"
@@ -377,18 +435,27 @@ handle_missing_systemd() {
 
 check_requirements() {
   info "Checking requirements"
-  if is_wsl; then
-    say "  WSL detected"
+  if is_macos; then
+    say "  macOS detected"
+    hint_node="brew install node@$MIN_NODE_MAJOR (then follow brew's PATH hint), or https://nodejs.org"
+    hint_tmux="brew install tmux"
   else
-    warn "This does not look like WSL. Paneful Manager targets WSL2; continuing on plain Linux."
+    if is_wsl; then
+      say "  WSL detected"
+    else
+      say "  Linux detected (not WSL)"
+    fi
+    hint_node="https://nodejs.org (or your distribution's nodejs $MIN_NODE_MAJOR package)"
+    hint_tmux="sudo apt-get install -y tmux"
   fi
-  command -v node >/dev/null 2>&1 || die "Node.js $MIN_NODE_MAJOR or later is required (https://nodejs.org)"
+  command -v node >/dev/null 2>&1 || die "Node.js $MIN_NODE_MAJOR or later is required: $hint_node"
   NODE_BIN=$(command -v node)
+  TARGET=$(release_target)
   node_version=$(node -p 'process.versions.node')
-  version_ge "$node_version" "$MIN_NODE_MAJOR" || die "Node.js $MIN_NODE_MAJOR or later is required, found $node_version"
-  say "  node $node_version ($NODE_BIN)"
+  version_ge "$node_version" "$MIN_NODE_MAJOR" || die "Node.js $MIN_NODE_MAJOR or later is required, found $node_version: $hint_node"
+  say "  node $node_version ($NODE_BIN), release target ${TARGET:-none (node-pty is compiled on install)}"
 
-  command -v tmux >/dev/null 2>&1 || die "tmux $MIN_TMUX_VERSION or later is required: sudo apt-get install -y tmux"
+  command -v tmux >/dev/null 2>&1 || die "tmux $MIN_TMUX_VERSION or later is required: $hint_tmux"
   TMUX_BIN=$(command -v tmux)
   tmux_raw=$(tmux -V 2>/dev/null || true)
   tmux_version=$(printf '%s' "$tmux_raw" | sed 's/^[^0-9]*\([0-9][0-9.]*\).*/\1/')
@@ -396,22 +463,52 @@ check_requirements() {
     ''|*[!0-9.]*) die "Cannot read the tmux version from 'tmux -V' (got '$tmux_raw'); tmux $MIN_TMUX_VERSION or later is required" ;;
   esac
   version_ge "$tmux_version" "$MIN_TMUX_VERSION" ||
-    die "tmux $MIN_TMUX_VERSION or later is required, found $tmux_version (Ubuntu 22.04+ ships a recent enough tmux)"
+    die "tmux $MIN_TMUX_VERSION or later is required, found $tmux_version: $hint_tmux (Ubuntu 22.04+ ships a recent enough tmux)"
   say "  tmux $tmux_version"
 
-  if command -v git >/dev/null 2>&1; then say "  git found"; else warn "git not found: worktree scopes will not be discovered"; fi
+  if command -v git >/dev/null 2>&1; then
+    say "  git found"
+  elif is_macos; then
+    warn "git not found: worktree scopes will not be discovered (xcode-select --install, or brew install git)"
+  else
+    warn "git not found: worktree scopes will not be discovered"
+  fi
   if command -v claude >/dev/null 2>&1; then
     say "  claude found"
   else
-    warn "Claude Code CLI (claude) not found: sessions will fail to start until it is installed"
+    warn "Claude Code CLI (claude) not found: sessions will fail to start until it is installed (https://docs.claude.com/en/docs/claude-code)"
   fi
   for tool in tar gzip; do
     command -v "$tool" >/dev/null 2>&1 || die "$tool is required"
   done
 }
 
+# Prints the release target (linux-x64, linux-arm64, darwin-x64, darwin-arm64): uname -s for the system, the arch of the
+# installed node for the CPU (the bundled node-pty must match node, which differs from uname -m under Rosetta).
+# Prints nothing when no release asset is built for it; the generic tarball is then compiled on install.
+release_target() {
+  case "$OS_NAME" in
+    Linux) os=linux ;;
+    Darwin) os=darwin ;;
+  esac
+  arch=$(node -p 'process.arch' 2>/dev/null || uname -m)
+  case "$arch" in
+    x64|x86_64|amd64) printf '%s-x64' "$os" ;;
+    arm64|aarch64) printf '%s-arm64' "$os" ;;
+  esac
+}
+
 # Only needed when the release's prebuilt node-pty does not load on this machine.
 ensure_build_tools() {
+  if is_macos; then
+    missing=""
+    for tool in make c++ python3; do
+      command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
+    done
+    [ -z "$missing" ] || die "Missing build tools for node-pty:$missing. Install the Xcode Command Line Tools first: xcode-select --install"
+    say "  build tools found (make, c++, python3)"
+    return 0
+  fi
   missing=""
   for tool in make g++ python3; do
     command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
@@ -486,7 +583,8 @@ die_private_hint() {
   exit 1
 }
 
-# Looks the release up through the GitHub API; sets TAG, TARBALL_URL and SHA_URL (asset API URLs).
+# Looks the release up through the GitHub API; sets TAG, ASSET (the target's tarball, else the generic one),
+# TARBALL_URL and SHA_URL (asset API URLs).
 resolve_release_api() {
   if [ "$VERSION" = latest ]; then
     path=releases/latest
@@ -513,14 +611,21 @@ resolve_release_api() {
     const release = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))
     const tag = String(release.tag_name || "")
     const url = name => String(((release.assets || []).find(a => a.name === name) || {}).url || "")
-    console.log([tag, url(`paneful-manager-${tag}.tar.gz`), url(`paneful-manager-${tag}.tar.gz.sha256`)].join("\n"))
-  ' "$json") || { rm -f "$json"; die "Cannot read the GitHub API answer for $PANEFUL_MANAGER_REPO"; }
+    const names = (process.argv[2] ? [`paneful-manager-${tag}-${process.argv[2]}.tar.gz`] : []).concat(`paneful-manager-${tag}.tar.gz`)
+    const name = names.find(n => url(n)) || names[names.length - 1]
+    console.log([tag, name, url(name), url(`${name}.sha256`)].join("\n"))
+  ' "$json" "$TARGET") || { rm -f "$json"; die "Cannot read the GitHub API answer for $PANEFUL_MANAGER_REPO"; }
   rm -f "$json"
   TAG=$(printf '%s\n' "$parsed" | sed -n 1p)
-  TARBALL_URL=$(printf '%s\n' "$parsed" | sed -n 2p)
-  SHA_URL=$(printf '%s\n' "$parsed" | sed -n 3p)
+  ASSET=$(printf '%s\n' "$parsed" | sed -n 2p)
+  TARBALL_URL=$(printf '%s\n' "$parsed" | sed -n 3p)
+  SHA_URL=$(printf '%s\n' "$parsed" | sed -n 4p)
   case "$TAG" in
     ''|*[!A-Za-z0-9._-]*) die "Invalid release tag in the GitHub API answer: '$TAG'" ;;
+  esac
+  case "$ASSET" in
+    "paneful-manager-$TAG.tar.gz"|"paneful-manager-$TAG-$TARGET.tar.gz") ;;
+    *) die "Unexpected asset name in the GitHub API answer: $ASSET" ;;
   esac
   [ -n "$TARBALL_URL" ] || die "Release '$TAG' of $PANEFUL_MANAGER_REPO has no asset paneful-manager-$TAG.tar.gz"
   for asset_url in "$TARBALL_URL" "$SHA_URL"; do
@@ -541,7 +646,10 @@ resolve_tag() {
       base=$(basename "$FROM_SOURCE")
       TAG=${base#paneful-manager-}
       TAG=${TAG%.tar.gz}
-      [ "$TAG" != "$base" ] || die "Tarball name must be paneful-manager-<tag>.tar.gz"
+      [ "$TAG" != "$base" ] || die "Tarball name must be paneful-manager-<tag>[-<target>].tar.gz"
+      for target in linux-x64 linux-arm64 darwin-x64 darwin-arm64; do
+        TAG=${TAG%-"$target"}
+      done
     else
       die "--from-source path not found: $FROM_SOURCE"
     fi
@@ -565,55 +673,85 @@ resolve_tag() {
   esac
 }
 
-# fetch_tarball <dir>: leaves paneful-manager-<tag>.tar.gz in <dir>; downloads need a .sha256 unless --no-verify.
+# anonymous_download <url> <file>: prints the HTTP status.
+anonymous_download() {
+  curl -SL --proto '=https' --tlsv1.2 -o "$2" -w '%{http_code}' "$1" || die "Download failed: $1"
+}
+
+# fetch_tarball <dir>: leaves the release tarball in <dir> and names it in ASSET; downloads need a .sha256 unless --no-verify.
+# Downloads take the target's tarball (prebuilt node-pty) and fall back to the generic one, which compiles node-pty.
 fetch_tarball() {
-  name="paneful-manager-$TAG.tar.gz"
   if [ -d "$FROM_SOURCE" ]; then
     [ -f "$FROM_SOURCE/scripts/release-pack.sh" ] || die "$FROM_SOURCE is not a Paneful Manager source checkout"
     if [ ! -f "$FROM_SOURCE/apps/server/dist/index.js" ] || [ ! -f "$FROM_SOURCE/apps/web/dist/index.html" ]; then
       die "$FROM_SOURCE is not built: run 'pnpm install && pnpm build' there first"
     fi
     sh "$FROM_SOURCE/scripts/release-pack.sh" --skip-build --tag "$TAG" --out "$1" >/dev/null
+    for packed in "$1"/paneful-manager-*.tar.gz; do ASSET=$(basename "$packed"); done
   elif [ -n "$FROM_SOURCE" ]; then
-    cp "$FROM_SOURCE" "$1/$name"
-    [ ! -f "$FROM_SOURCE.sha256" ] || cp "$FROM_SOURCE.sha256" "$1/$name.sha256"
+    ASSET=$(basename "$FROM_SOURCE")
+    cp "$FROM_SOURCE" "$1/$ASSET"
+    [ ! -f "$FROM_SOURCE.sha256" ] || cp "$FROM_SOURCE.sha256" "$1/$ASSET.sha256"
   elif [ -n "$API_TOKEN" ]; then
-    say "  Downloading $name through the GitHub API"
-    gh_curl -fSL -H 'Accept: application/octet-stream' -o "$1/$name" "$TARBALL_URL" || die "Download failed: $name"
+    say "  Downloading $ASSET through the GitHub API"
+    gh_curl -fSL -H 'Accept: application/octet-stream' -o "$1/$ASSET" "$TARBALL_URL" || die "Download failed: $ASSET"
     if [ -n "$SHA_URL" ]; then
-      gh_curl -fsSL -H 'Accept: application/octet-stream' -o "$1/$name.sha256" "$SHA_URL" 2>/dev/null || rm -f "$1/$name.sha256"
+      gh_curl -fsSL -H 'Accept: application/octet-stream' -o "$1/$ASSET.sha256" "$SHA_URL" 2>/dev/null || rm -f "$1/$ASSET.sha256"
     fi
   else
     base="https://github.com/$PANEFUL_MANAGER_REPO/releases/download/$TAG"
-    say "  Downloading $base/$name"
-    code=$(curl -SL --proto '=https' --tlsv1.2 -o "$1/$name" -w '%{http_code}' "$base/$name") || die "Download failed: $base/$name"
-    [ "$code" != 404 ] || die_private_hint "Download failed: $base/$name"
-    [ "$code" = 200 ] || die "Download failed: $base/$name (HTTP $code)"
-    curl -fsSL --proto '=https' --tlsv1.2 -o "$1/$name.sha256" "$base/$name.sha256" 2>/dev/null || rm -f "$1/$name.sha256"
+    code=404
+    if [ -n "$TARGET" ]; then
+      ASSET="paneful-manager-$TAG-$TARGET.tar.gz"
+      say "  Downloading $base/$ASSET"
+      code=$(anonymous_download "$base/$ASSET" "$1/$ASSET")
+      [ "$code" != 404 ] || say "  No $TARGET build in $TAG; using the generic tarball (node-pty is compiled)"
+    fi
+    if [ "$code" = 404 ]; then
+      ASSET="paneful-manager-$TAG.tar.gz"
+      say "  Downloading $base/$ASSET"
+      code=$(anonymous_download "$base/$ASSET" "$1/$ASSET")
+    fi
+    [ "$code" != 404 ] || die_private_hint "Download failed: $base/$ASSET"
+    [ "$code" = 200 ] || die "Download failed: $base/$ASSET (HTTP $code)"
+    curl -fsSL --proto '=https' --tlsv1.2 -o "$1/$ASSET.sha256" "$base/$ASSET.sha256" 2>/dev/null || rm -f "$1/$ASSET.sha256"
   fi
-  if [ -f "$1/$name.sha256" ]; then
-    expected=$(awk '{ print $1; exit }' "$1/$name.sha256")
-    actual=$(sha256sum "$1/$name" | awk '{ print $1 }')
-    [ "$expected" = "$actual" ] || die "Checksum mismatch for $name (expected $expected, got $actual)"
+  if [ -f "$1/$ASSET.sha256" ]; then
+    expected=$(awk '{ print $1; exit }' "$1/$ASSET.sha256")
+    actual=$(sha256_of "$1/$ASSET")
+    [ "$expected" = "$actual" ] || die "Checksum mismatch for $ASSET (expected $expected, got $actual)"
     say "  sha256 verified"
   elif [ -z "$FROM_SOURCE" ] && [ "$NO_VERIFY" -eq 0 ]; then
-    die "The release publishes no $name.sha256; refusing to install unverified (pass --no-verify to override)"
+    die "The release publishes no $ASSET.sha256; refusing to install unverified (pass --no-verify to override)"
   else
-    warn "No .sha256 file for $name; skipping checksum verification"
+    warn "No .sha256 file for $ASSET; skipping checksum verification"
   fi
 }
 
 # ---------- rendering ----------
 
-# render <template> <out>: replaces @KEY@ placeholders; PATH and LANG are escaped for quoted Environment= lines.
+# True when the kernel has the IPv6 loopback address; without it nobody can bind [::1] and the socket unit skips it.
+ipv6_loopback_available() {
+  grep -q '^00000000000000000000000000000001 ' "$IF_INET6" 2>/dev/null
+}
+
+# render_unit <template> <out> [plist]: replaces @KEY@ placeholders. In units PATH and LANG are escaped for quoted
+# Environment= lines; in a launchd plist every value is XML-escaped.
 render_unit() {
+  if ipv6_loopback_available; then
+    listen_ipv6="ListenStream=[::1]:$EFFECTIVE_PORT"
+  else
+    listen_ipv6="# [::1] is not available on this machine, so nobody can listen there"
+  fi
   R_REPO=$PANEFUL_MANAGER_REPO R_PORT=$EFFECTIVE_PORT R_PREFIX=$PREFIX R_NODE=$NODE_BIN R_TMUX=$TMUX_BIN \
-    R_STATE_DIR=$STATE_DIR R_CONFIG_HOME=$CONFIG_HOME R_STATE_HOME=$STATE_HOME \
-    R_PATH=$PATH R_LANG=${LANG:-C.UTF-8} \
+    R_STATE_DIR=$STATE_DIR R_CONFIG_HOME=$CONFIG_HOME R_STATE_HOME=$STATE_HOME R_LOG_DIR=$LOG_DIR \
+    R_PATH=$PATH R_LANG=${LANG:-C.UTF-8} R_LISTEN_IPV6=$listen_ipv6 \
     node -e '
       const fs = require("fs")
+      const plist = process.argv[3] === "plist"
       const quoted = v => v.replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/%/g, "%%")
-      const keys = ["REPO", "PORT", "PREFIX", "NODE", "TMUX", "STATE_DIR", "CONFIG_HOME", "STATE_HOME", "PATH", "LANG"]
+      const xml = v => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+      const keys = ["REPO", "PORT", "PREFIX", "NODE", "TMUX", "STATE_DIR", "CONFIG_HOME", "STATE_HOME", "LOG_DIR", "PATH", "LANG", "LISTEN_IPV6"]
       let text = fs.readFileSync(process.argv[1], "utf8")
       for (const key of keys) {
         const value = process.env["R_" + key]
@@ -621,15 +759,21 @@ render_unit() {
           console.error("Error: " + key + " contains a line break and cannot be written to a unit file")
           process.exit(1)
         }
-        text = text.split("@" + key + "@").join(key === "PATH" || key === "LANG" ? quoted(value) : value)
+        const escaped = plist ? xml(value) : key === "PATH" || key === "LANG" ? quoted(value) : value
+        text = text.split("@" + key + "@").join(escaped)
       }
       fs.writeFileSync(process.argv[2], text)
-    ' "$1" "$2"
+    ' "$1" "$2" "${3:-unit}"
 }
 
 # ---------- install steps ----------
 
 unit_port() {
+  if is_macos; then
+    [ -f "$AGENT_DIR/$SERVER_AGENT.plist" ] || return 1
+    awk '/<key>PANEFUL_MANAGER_PORT<\/key>/ { getline; gsub(/[^0-9]/, ""); print; exit }' "$AGENT_DIR/$SERVER_AGENT.plist"
+    return 0
+  fi
   [ -f "$UNIT_DIR/$SERVER_UNIT" ] || return 1
   sed -n 's/^Environment=PANEFUL_MANAGER_PORT=\([0-9][0-9]*\)$/\1/p' "$UNIT_DIR/$SERVER_UNIT" | head -n 1
 }
@@ -648,7 +792,7 @@ install_release() {
   trap 'exit 130' INT TERM
   fetch_tarball "$work"
   mkdir "$work/release"
-  tar -xzf "$work/paneful-manager-$TAG.tar.gz" -C "$work/release" --strip-components=1 --no-same-owner
+  tar -xzf "$work/$ASSET" -C "$work/release" --strip-components=1 --no-same-owner
   [ -f "$work/release/apps/server/dist/index.js" ] || die "Release $TAG is missing apps/server/dist/index.js"
   if [ -d "$work/release/node_modules" ] && (cd "$work/release/apps/server" && node -e "require('node-pty')") >/dev/null 2>&1; then
     info "Using the prebuilt production dependencies"
@@ -671,11 +815,9 @@ install_release() {
 flip_current() {
   old=$(release_tag_of "$CURRENT_LINK" || true)
   if [ -n "$old" ] && [ "$old" != "$TAG" ]; then
-    run ln -sfn "releases/$old" "$PREFIX/previous.tmp"
-    run mv -T "$PREFIX/previous.tmp" "$PREVIOUS_LINK"
+    run replace_link "releases/$old" "$PREVIOUS_LINK"
   fi
-  run ln -sfn "releases/$TAG" "$PREFIX/current.tmp"
-  run mv -T "$PREFIX/current.tmp" "$CURRENT_LINK"
+  run replace_link "releases/$TAG" "$CURRENT_LINK"
 }
 
 prune_releases() {
@@ -727,6 +869,7 @@ write_state() {
     CHANGED=1
   fi
   run chmod 0700 "$STATE_DIR"
+  if is_macos && [ "$NO_SERVICE" -eq 0 ] && [ ! -d "$LOG_DIR" ]; then run mkdir -p "$LOG_DIR"; fi
   src=$CURRENT_LINK/packaging/tmux.conf
   [ "$DRY_RUN" -eq 0 ] || { say "  (dry run) would write $STATE_DIR/tmux.conf"; return 0; }
   if [ -f "$STATE_DIR/tmux.conf" ] && cmp -s "$src" "$STATE_DIR/tmux.conf"; then
@@ -737,25 +880,38 @@ write_state() {
   CHANGED=1
 }
 
-# Writes both units; sets UNITS_CHANGED when a file differs from what is installed.
+# install_rendered <template> <dest> [plist]: renders and replaces <dest> when it differs; true when it was written.
+install_rendered() {
+  rendered=$(mktemp)
+  render_unit "$1" "$rendered" "${3:-unit}"
+  if [ -f "$2" ] && cmp -s "$rendered" "$2"; then
+    rm -f "$rendered"
+    return 1
+  fi
+  say "  writing $2"
+  tmp=$(mktemp "$(dirname "$2")/.paneful-manager-unit.XXXXXX")
+  cat "$rendered" >"$tmp"
+  rm -f "$rendered"
+  mv "$tmp" "$2"
+  chmod 0644 "$2"
+}
+
+# Writes the units; sets UNITS_CHANGED when a file differs from what is installed, SOCKET_CHANGED for the socket unit.
 write_units() {
-  [ "$DRY_RUN" -eq 0 ] || { say "  (dry run) would write $UNIT_DIR/$TMUX_UNIT and $UNIT_DIR/$SERVER_UNIT"; UNITS_CHANGED=1; return 0; }
+  if [ "$DRY_RUN" -eq 1 ]; then
+    say "  (dry run) would write $UNIT_DIR/$TMUX_UNIT, $UNIT_DIR/$SOCKET_UNIT and $UNIT_DIR/$SERVER_UNIT"
+    UNITS_CHANGED=1
+    SOCKET_CHANGED=1
+    return 0
+  fi
   mkdir -p "$UNIT_DIR"
   for unit in "$TMUX_UNIT" "$SERVER_UNIT"; do
-    rendered=$(mktemp)
-    render_unit "$CURRENT_LINK/packaging/systemd/$unit" "$rendered"
-    if [ -f "$UNIT_DIR/$unit" ] && cmp -s "$rendered" "$UNIT_DIR/$unit"; then
-      rm -f "$rendered"
-    else
-      say "  writing $UNIT_DIR/$unit"
-      tmp=$(mktemp "$UNIT_DIR/.paneful-manager-unit.XXXXXX")
-      cat "$rendered" >"$tmp"
-      rm -f "$rendered"
-      mv "$tmp" "$UNIT_DIR/$unit"
-      chmod 0644 "$UNIT_DIR/$unit"
-      UNITS_CHANGED=1
-    fi
+    if install_rendered "$CURRENT_LINK/packaging/systemd/$unit" "$UNIT_DIR/$unit"; then UNITS_CHANGED=1; fi
   done
+  if install_rendered "$CURRENT_LINK/packaging/systemd/$SOCKET_UNIT" "$UNIT_DIR/$SOCKET_UNIT"; then
+    UNITS_CHANGED=1
+    SOCKET_CHANGED=1
+  fi
 }
 
 enable_linger() {
@@ -767,20 +923,97 @@ enable_linger() {
   fi
 }
 
-start_services() {
+start_systemd_services() {
   info "systemd user units"
   SERVICES=1
+  SOCKET_CHANGED=0
   write_units
   if [ "$UNITS_CHANGED" -eq 1 ] || [ "$CHANGED" -eq 1 ]; then
     run systemctl --user daemon-reload
-    run systemctl --user enable "$TMUX_UNIT" "$SERVER_UNIT"
+    run systemctl --user enable "$TMUX_UNIT" "$SOCKET_UNIT" "$SERVER_UNIT"
     run systemctl --user start "$TMUX_UNIT"
-    run systemctl --user restart "$SERVER_UNIT"
+    if [ "$SOCKET_CHANGED" -eq 1 ]; then
+      # A new port, or an install from before socket activation: the server lets go of the port before the socket binds it.
+      run systemctl --user stop "$SERVER_UNIT"
+      run systemctl --user restart "$SOCKET_UNIT"
+      run systemctl --user start "$SERVER_UNIT"
+    else
+      # The socket unit keeps the port bound while the server restarts.
+      run systemctl --user restart "$SERVER_UNIT"
+    fi
     CHANGED=1
   fi
   enable_linger
   if [ "$TMUX_CONF_CHANGED" -eq 1 ]; then
     say "  tmux.conf changed. It applies after 'systemctl --user restart $TMUX_UNIT' (this ends all running sessions)."
+  fi
+}
+
+# ---------- launchd (macOS) ----------
+
+launchd_domain() { printf 'gui/%s' "$(id -u)"; }
+
+launchd_loaded() { launchctl print "$(launchd_domain)/$1" >/dev/null 2>&1; }
+
+# launchd_load <label>: (re)loads an agent; bootstrap right after bootout can fail while launchd still tears the job down.
+launchd_load() {
+  domain=$(launchd_domain)
+  if [ "$DRY_RUN" -eq 1 ] || launchd_loaded "$1"; then
+    run launchctl bootout "$domain/$1" || true
+  fi
+  run launchctl enable "$domain/$1" || true
+  tries=0
+  until run launchctl bootstrap "$domain" "$AGENT_DIR/$1.plist"; do
+    tries=$((tries + 1))
+    [ "$tries" -lt 5 ] || { warn "launchctl bootstrap $AGENT_DIR/$1.plist failed"; return 1; }
+    sleep 1
+  done
+}
+
+start_launchd_agents() {
+  info "launchd user agents"
+  SERVICES=1
+  if [ "$DRY_RUN" -eq 1 ]; then
+    say "  (dry run) would write $AGENT_DIR/$TMUX_AGENT.plist and $AGENT_DIR/$SERVER_AGENT.plist"
+    tmux_changed=1
+    server_changed=1
+  else
+    mkdir -p "$AGENT_DIR"
+    tmux_changed=0
+    server_changed=0
+    if install_rendered "$CURRENT_LINK/packaging/launchd/$TMUX_AGENT.plist" "$AGENT_DIR/$TMUX_AGENT.plist" plist; then tmux_changed=1; fi
+    if install_rendered "$CURRENT_LINK/packaging/launchd/$SERVER_AGENT.plist" "$AGENT_DIR/$SERVER_AGENT.plist" plist; then server_changed=1; fi
+    if ! launchctl print "$(launchd_domain)" >/dev/null 2>&1; then
+      warn "No launchd GUI session for this user (an SSH login without a desktop login?): the agents load at your next login."
+      SERVICES=0
+      return 0
+    fi
+  fi
+  # The tmux agent only starts the daemonized tmux server, so reloading it never ends sessions.
+  if [ "$tmux_changed" -eq 1 ] || ! launchd_loaded "$TMUX_AGENT"; then
+    launchd_load "$TMUX_AGENT" || true
+  fi
+  if [ "$server_changed" -eq 1 ] || ! launchd_loaded "$SERVER_AGENT"; then
+    launchd_load "$SERVER_AGENT" || true
+    CHANGED=1
+  elif [ "$CHANGED" -eq 1 ]; then
+    run launchctl kickstart -k "$(launchd_domain)/$SERVER_AGENT"
+  fi
+  if [ "$TMUX_CONF_CHANGED" -eq 1 ]; then
+    say "  tmux.conf changed. It applies after 'tmux -L paneful-manager kill-server' and"
+    say "  'launchctl kickstart $(launchd_domain)/$TMUX_AGENT' (this ends all running sessions)."
+  fi
+}
+
+start_services() {
+  if is_macos; then start_launchd_agents; else start_systemd_services; fi
+}
+
+restart_server() {
+  if is_macos; then
+    run launchctl kickstart -k "$(launchd_domain)/$SERVER_AGENT"
+  else
+    run systemctl --user restart "$SERVER_UNIT"
   fi
 }
 
@@ -798,7 +1031,11 @@ health_check() {
     waited=$((waited + 1))
   done
   warn "No answer on http://127.0.0.1:$EFFECTIVE_PORT/api/health after ${HEALTH_TIMEOUT_SEC}s"
-  say "  Check: systemctl --user status $SERVER_UNIT; journalctl --user -u $SERVER_UNIT -n 50"
+  if is_macos; then
+    say "  Check: launchctl print $(launchd_domain)/$SERVER_AGENT; tail -n 50 $LOG_DIR/server.log"
+  else
+    say "  Check: systemctl --user status $SERVER_UNIT; journalctl --user -u $SERVER_UNIT -n 50"
+  fi
   return 1
 }
 
@@ -849,8 +1086,11 @@ do_install() {
     say "  - $TAG is already installed in $PREFIX (use --force to reinstall)"
   fi
   say "  - config $CONFIG_FILE (created if missing; port set when --port is given), state dir $STATE_DIR (0700) with tmux.conf"
-  if [ "$NO_SYSTEMD" -eq 0 ]; then
-    say "  - user units $TMUX_UNIT + $SERVER_UNIT in $UNIT_DIR, enabled and started; lingering enabled"
+  if [ "$NO_SERVICE" -eq 1 ]; then :
+  elif is_macos; then
+    say "  - launchd agents $TMUX_AGENT + $SERVER_AGENT in $AGENT_DIR, loaded (start at login); logs in $LOG_DIR"
+  else
+    say "  - user units $TMUX_UNIT + $SOCKET_UNIT + $SERVER_UNIT in $UNIT_DIR, enabled and started; lingering enabled"
   fi
   say "  - port $EFFECTIVE_PORT"
   if legacy=$(legacy_install_dir); then say "  - stop and remove the pre-rename install in $legacy (it may hold the port)"; fi
@@ -862,6 +1102,7 @@ do_install() {
   CHANGED=0
   SERVICES=0
   UNITS_CHANGED=0
+  SOCKET_CHANGED=0
   TMUX_CONF_CHANGED=0
   if [ "$NEED_RELEASE" -eq 1 ]; then
     info "Installing $TAG"
@@ -878,8 +1119,8 @@ do_install() {
     remove_legacy_install
   fi
 
-  if [ "$NO_SYSTEMD" -eq 0 ]; then
-    if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then
+  if [ "$NO_SERVICE" -eq 0 ]; then
+    if [ "$DRY_RUN" -eq 1 ] || is_macos || systemd_user_available; then
       start_services
     else
       handle_missing_systemd
@@ -912,16 +1153,15 @@ do_rollback() {
   previous=$(release_tag_of "$PREVIOUS_LINK" || true)
   if [ -z "$previous" ] || [ ! -d "$RELEASES_DIR/$previous" ]; then die "No previous release to roll back to"; fi
   info "Rolling back $current -> $previous"
-  confirm "Switch to $previous and restart $SERVER_UNIT?" y || die "Aborted"
-  run ln -sfn "releases/$previous" "$PREFIX/current.tmp"
-  run mv -T "$PREFIX/current.tmp" "$CURRENT_LINK"
+  confirm "Switch to $previous and restart the server?" y || die "Aborted"
+  command -v node >/dev/null 2>&1 || die "Node.js is required"
+  run replace_link "releases/$previous" "$CURRENT_LINK"
   if [ -n "$current" ]; then
-    run ln -sfn "releases/$current" "$PREFIX/previous.tmp"
-    run mv -T "$PREFIX/previous.tmp" "$PREVIOUS_LINK"
+    run replace_link "releases/$current" "$PREVIOUS_LINK"
   fi
   write_marker "$previous"
-  if [ "$NO_SYSTEMD" -eq 0 ] && { [ "$DRY_RUN" -eq 1 ] || systemd_user_available; }; then
-    run systemctl --user restart "$SERVER_UNIT"
+  if [ "$NO_SERVICE" -eq 0 ] && { [ "$DRY_RUN" -eq 1 ] || is_macos || systemd_user_available; }; then
+    restart_server
   fi
   say "Now running $previous."
 }
@@ -953,27 +1193,56 @@ remove_legacy_install() {
   [ "$DRY_RUN" -eq 1 ] || rmdir "$legacy_prefix" 2>/dev/null || say "  kept $legacy_prefix (it contains other files)"
 }
 
+remove_systemd_units() {
+  if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then
+    run systemctl --user disable --now "$SERVER_UNIT" "$SOCKET_UNIT" "$TMUX_UNIT" || warn "Disabling the units failed"
+  fi
+  for unit in "$SERVER_UNIT" "$SOCKET_UNIT" "$TMUX_UNIT"; do
+    if [ -f "$UNIT_DIR/$unit" ] || [ "$DRY_RUN" -eq 1 ]; then run rm -f "$UNIT_DIR/$unit"; fi
+  done
+  if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then
+    run systemctl --user daemon-reload || true
+  fi
+}
+
+# The tmux agent abandons its daemonized server, so unloading it does not stop tmux; kill-server does.
+remove_launchd_agents() {
+  domain=$(launchd_domain)
+  for label in "$SERVER_AGENT" "$TMUX_AGENT"; do
+    if [ "$DRY_RUN" -eq 1 ] || launchd_loaded "$label"; then
+      run launchctl bootout "$domain/$label" || warn "Unloading $label failed"
+    fi
+  done
+  if command -v tmux >/dev/null 2>&1; then
+    run tmux -L paneful-manager kill-server 2>/dev/null || true
+  fi
+  for label in "$SERVER_AGENT" "$TMUX_AGENT"; do
+    if [ -f "$AGENT_DIR/$label.plist" ] || [ "$DRY_RUN" -eq 1 ]; then run rm -f "$AGENT_DIR/$label.plist"; fi
+  done
+}
+
 do_uninstall() {
   if [ -d "$PREFIX" ] && [ ! -f "$MARKER" ] && [ -n "$(ls -A "$PREFIX")" ]; then
     die "$PREFIX has no Paneful Manager install marker ($MARKER); refusing to delete anything"
   fi
   info "Plan"
-  say "  - stop and disable $SERVER_UNIT and $TMUX_UNIT (ends all running Paneful Manager sessions)"
-  say "  - remove $UNIT_DIR/$SERVER_UNIT and $UNIT_DIR/$TMUX_UNIT"
+  if is_macos; then
+    say "  - unload the launchd agents $SERVER_AGENT and $TMUX_AGENT, stop the tmux server (ends all running sessions)"
+    say "  - remove $AGENT_DIR/$SERVER_AGENT.plist and $AGENT_DIR/$TMUX_AGENT.plist"
+  else
+    say "  - stop and disable $SERVER_UNIT, $SOCKET_UNIT and $TMUX_UNIT (ends all running Paneful Manager sessions)"
+    say "  - remove $UNIT_DIR/$SERVER_UNIT, $UNIT_DIR/$SOCKET_UNIT and $UNIT_DIR/$TMUX_UNIT"
+  fi
   say "  - remove releases/, current, previous and the install marker from $PREFIX (and $PREFIX if then empty)"
   say "  - ask whether to remove config ($CONFIG_DIR) and state ($STATE_DIR)"
-  is_wsl && say "  - remove the Windows logon task if present"
+  if is_wsl && [ "$NO_WINDOWS_TASK" -eq 0 ]; then say "  - remove the Windows logon task if present"; fi
   if legacy=$(legacy_install_dir); then say "  - remove the pre-rename install in $legacy (its units, logon task and releases)"; fi
   confirm "Uninstall Paneful Manager?" n || die "Aborted"
 
-  if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then
-    run systemctl --user disable --now "$SERVER_UNIT" "$TMUX_UNIT" || warn "Disabling the units failed"
-  fi
-  for unit in "$SERVER_UNIT" "$TMUX_UNIT"; do
-    if [ -f "$UNIT_DIR/$unit" ] || [ "$DRY_RUN" -eq 1 ]; then run rm -f "$UNIT_DIR/$unit"; fi
-  done
-  if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then
-    run systemctl --user daemon-reload || true
+  if is_macos; then
+    remove_launchd_agents
+  else
+    remove_systemd_units
   fi
   if [ -d "$PREFIX" ] && [ ! -f "$MARKER" ]; then
     run rmdir "$PREFIX"
@@ -1001,7 +1270,7 @@ do_uninstall() {
   remove_legacy_install
 
   say "Paneful Manager uninstalled."
-  say "  Lingering stays enabled (other user services may need it): loginctl disable-linger $USER_NAME"
+  is_macos || say "  Lingering stays enabled (other user services may need it): loginctl disable-linger $USER_NAME"
   if is_wsl && wsl_conf_has_systemd; then
     say "  $WSL_CONF still enables systemd. To revert, remove 'systemd=true' from [boot]"
     say "  (a backup may exist at $WSL_CONF.paneful-manager.bak), then run 'wsl.exe --shutdown' in Windows."
@@ -1013,4 +1282,5 @@ case "$ACTION" in
   login_url) do_login_url ;;
   rollback) do_rollback ;;
   uninstall) do_uninstall ;;
+  enable_wsl_systemd) do_enable_wsl_systemd ;;
 esac

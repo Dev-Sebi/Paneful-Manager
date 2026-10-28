@@ -1,0 +1,14 @@
+# Installed by install.sh; @...@ placeholders are replaced at install time.
+# Holds the server port while paneful-manager.service is down (upgrade, restart, crash), so no other local user can
+# bind it in between; [::1] is held too, so localhost cannot be squatted either. See docs/adr/0016-systemd-socket-activation.md.
+[Unit]
+Description=Paneful Manager listening sockets
+Documentation=https://github.com/@REPO@
+
+[Socket]
+ListenStream=127.0.0.1:@PORT@
+@LISTEN_IPV6@
+NoDelay=true
+
+[Install]
+WantedBy=sockets.target

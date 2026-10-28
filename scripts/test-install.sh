@@ -1,6 +1,7 @@
 #!/bin/sh
 # Smoke test for install.sh: installs from a locally packed tarball into a temp HOME.
-# systemctl, loginctl, sudo, powershell.exe, gh and curl are stubs that only log, so the real system is never touched.
+# systemctl, loginctl, launchctl, sudo, powershell.exe, gh and curl are stubs that only log, so the real system is never touched.
+# The macOS part stubs uname (Darwin) and tmux (except -V), so no real tmux server is ever stopped.
 set -eu
 
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
@@ -30,6 +31,7 @@ export USER=tester
 export WSL_DISTRO_NAME=TestDistro
 export PANEFUL_MANAGER_WSL_CONF="$T/wsl.conf"
 export PANEFUL_MANAGER_PROC_VERSION="$T/proc-version"
+export PANEFUL_MANAGER_IF_INET6="$T/if_inet6"
 export STUB_LOG="$T/calls.log"
 export STUB_DIR="$T/stub-state"
 export TMPDIR="$T/tmp"
@@ -37,6 +39,7 @@ unset GITHUB_TOKEN GH_TOKEN
 mkdir -p "$HOME" "$T/bin" "$STUB_DIR" "$TMPDIR"
 : >"$STUB_LOG"
 echo "Linux version 6.0 (generic)" >"$PANEFUL_MANAGER_PROC_VERSION"
+echo "00000000000000000000000000000001 01 80 10 80       lo" >"$PANEFUL_MANAGER_IF_INET6"
 
 cat >"$T/bin/systemctl" <<'EOF'
 #!/bin/sh
@@ -183,10 +186,12 @@ pack() {
   env -u XDG_CONFIG_HOME -u XDG_STATE_HOME -u XDG_DATA_HOME HOME="$REAL_HOME" \
     sh "$ROOT/scripts/release-pack.sh" --skip-build --out "$T/pkg" "$@" >/dev/null
 }
+HOST_TARGET=$(node -p 'process.platform + "-" + process.arch')
 pack --tag v1.0.0
 pack --tag v1.1.0
-V1="$T/pkg/paneful-manager-v1.0.0.tar.gz"
-V2="$T/pkg/paneful-manager-v1.1.0.tar.gz"
+V1="$T/pkg/paneful-manager-v1.0.0-$HOST_TARGET.tar.gz"
+V2="$T/pkg/paneful-manager-v1.1.0-$HOST_TARGET.tar.gz"
+check "release-pack names the tarball after the target" test -f "$V1" -a -f "$V1.sha256"
 
 # ---------- dry run ----------
 
@@ -235,16 +240,25 @@ check "state dir is 0700" test "$(stat -c %a "$STATE")" = 700
 check "tmux.conf installed" cmp -s "$STATE/tmux.conf" "$ROOT/packaging/tmux.conf"
 check "server unit written" test -f "$UNITS/paneful-manager.service"
 check "tmux unit written" test -f "$UNITS/paneful-manager-tmux.service"
+check "socket unit written" test -f "$UNITS/paneful-manager.socket"
+check "socket holds 127.0.0.1" contains "$UNITS/paneful-manager.socket" "^ListenStream=127.0.0.1:7337$"
+check "socket holds [::1]" contains "$UNITS/paneful-manager.socket" "^ListenStream=\[::1\]:7337$"
+check "socket unit has no placeholders" not_contains "$UNITS/paneful-manager.socket" "@[A-Z_]*@"
+check "server requires the socket" contains "$UNITS/paneful-manager.service" "^Requires=paneful-manager.socket$"
+check "server starts after the socket" contains "$UNITS/paneful-manager.service" "^After=.*paneful-manager.socket"
 check "no placeholders left" not_contains "$UNITS/paneful-manager.service" "@[A-Z_]*@"
 check "unit quotes PATH" contains "$UNITS/paneful-manager.service" '^Environment="PATH=/'
 check "unit pins the port" contains "$UNITS/paneful-manager.service" "PANEFUL_MANAGER_PORT=7337"
 check "unit runs the current release" contains "$UNITS/paneful-manager.service" "$PREFIX/current/apps/server/dist/index.js"
 check "tmux unit uses the state dir" contains "$UNITS/paneful-manager-tmux.service" "-f $STATE/tmux.conf start-server"
 check "daemon-reload called" contains "$STUB_LOG" "systemctl --user daemon-reload"
-check "units enabled" contains "$STUB_LOG" "systemctl --user enable paneful-manager-tmux.service paneful-manager.service"
+check "units enabled" contains "$STUB_LOG" "systemctl --user enable paneful-manager-tmux.service paneful-manager.socket paneful-manager.service"
+check "server stopped before the socket binds" test "$(grep -n 'stop paneful-manager.service\|restart paneful-manager.socket\|start paneful-manager.service' "$STUB_LOG" | cut -d: -f2 | tr '\n' ' ')" = \
+  "systemctl --user stop paneful-manager.service systemctl --user restart paneful-manager.socket systemctl --user start paneful-manager.service "
 check "linger enabled" contains "$STUB_LOG" "loginctl enable-linger tester"
 check "health check called" contains "$STUB_LOG" "curl -fsS --max-time 5 http://127.0.0.1:7337/api/health"
-check "non-WSL warning shown" contains "$OUT" "does not look like WSL"
+check "plain Linux is named" contains "$OUT" "Linux detected (not WSL)"
+check "release target named" contains "$OUT" "release target $HOST_TARGET"
 check "install explains where the login URL comes from" contains "$OUT" "install.sh --login-url"
 check "install wrote a one-time login code" test -f "$STATE/login-code"
 install_sh --login-url
@@ -275,7 +289,8 @@ check "re-run keeps the installed unit port" contains "$UNITS/paneful-manager.se
 check "stale staging dirs pruned" test ! -e "$PREFIX/releases/.staging-stale"
 install_sh --yes --port 7500 --from-source "$V1" --no-windows-task
 check "--port updates the unit without --force" contains "$UNITS/paneful-manager.service" "PANEFUL_MANAGER_PORT=7500"
-check "--port restarts the server" contains "$STUB_LOG" "systemctl --user restart paneful-manager.service"
+check "--port rebinds the socket" contains "$STUB_LOG" "systemctl --user restart paneful-manager.socket"
+check "--port moves the socket" contains "$UNITS/paneful-manager.socket" "^ListenStream=127.0.0.1:7500$"
 check "--port is saved in config.yaml" contains "$CONFIG" "^port: 7500$"
 check "--port keeps other config keys" contains "$CONFIG" "^theme: light$"
 install_sh --yes --from-source "$V1" --no-windows-task
@@ -288,6 +303,7 @@ install_sh --yes --from-source "$V2" --no-windows-task
 check "upgrade flips current" test "$(readlink "$PREFIX/current")" = releases/v1.1.0
 check "upgrade keeps previous" test "$(readlink "$PREFIX/previous")" = releases/v1.0.0
 check "upgrade restarts the server" contains "$STUB_LOG" "systemctl --user restart paneful-manager.service"
+check "upgrade keeps the socket bound" not_contains "$STUB_LOG" "stop paneful-manager.socket\|restart paneful-manager.socket"
 check "upgrade keeps the tmux server" not_contains "$STUB_LOG" "restart paneful-manager-tmux.service"
 install_sh_fails --rollback
 check "rollback without a terminal is refused" test "$(readlink "$PREFIX/current")" = releases/v1.1.0
@@ -326,14 +342,34 @@ check "logon task registered" contains "$STUB_LOG" "Register-ScheduledTask -Task
 check "logon task boots the distro" contains "$STUB_LOG" "-d TestDistro --exec true"
 check "logon task prompt names instanceIdleTimeout" contains "$OUT" "instanceIdleTimeout=-1"
 
+: >"$PANEFUL_MANAGER_IF_INET6"
+install_sh --yes --from-source "$V2" --no-windows-task
+check "socket skips [::1] without IPv6" not_contains "$UNITS/paneful-manager.socket" "^ListenStream=\[::1\]"
+check "a changed socket unit is rebound" contains "$STUB_LOG" "systemctl --user restart paneful-manager.socket"
+echo "00000000000000000000000000000001 01 80 10 80       lo" >"$PANEFUL_MANAGER_IF_INET6"
+
+# ---------- WSL: --enable-wsl-systemd (install.ps1) ----------
+
+printf '[network]\nhostname=x\n' >"$PANEFUL_MANAGER_WSL_CONF"
+install_sh --yes --enable-wsl-systemd
+check "--enable-wsl-systemd enables systemd" contains "$PANEFUL_MANAGER_WSL_CONF" "^systemd=true$"
+check "--enable-wsl-systemd keeps other settings" contains "$PANEFUL_MANAGER_WSL_CONF" "^hostname=x$"
+check "--enable-wsl-systemd uses sudo when not root" contains "$STUB_LOG" "sudo install -m 0644"
+check "--enable-wsl-systemd installs nothing else" not_contains "$STUB_LOG" "systemctl"
+install_sh --yes --enable-wsl-systemd
+check "--enable-wsl-systemd on an enabled distro changes nothing" contains "$OUT" "already enables systemd"
+install_sh --yes --dry-run --uninstall --no-windows-task
+check "--no-windows-task leaves the logon task to install.ps1" not_contains "$STUB_LOG" "ScheduledTask"
+
 # ---------- uninstall ----------
 
 echo mine >"$PREFIX/notes.txt"
 install_sh_fails --uninstall
 check "uninstall without a terminal deletes nothing" test -L "$PREFIX/current"
 install_sh --yes --uninstall
-check "uninstall disables units" contains "$STUB_LOG" "systemctl --user disable --now paneful-manager.service paneful-manager-tmux.service"
+check "uninstall disables units" contains "$STUB_LOG" "systemctl --user disable --now paneful-manager.service paneful-manager.socket paneful-manager-tmux.service"
 check "uninstall removes the server unit" test ! -e "$UNITS/paneful-manager.service"
+check "uninstall removes the socket unit" test ! -e "$UNITS/paneful-manager.socket"
 check "uninstall removes the tmux unit" test ! -e "$UNITS/paneful-manager-tmux.service"
 check "uninstall removes releases" test ! -e "$PREFIX/releases"
 check "uninstall removes the current link" test ! -L "$PREFIX/current"
@@ -377,7 +413,7 @@ install_sh_fails --yes --no-systemd --no-windows-task --prefix "$DL"
 check "latest without a release is rejected" contains "$OUT" "Invalid release tag"
 install_sh_fails --yes --no-systemd --no-windows-task --prefix "$DL" --version v1.0.0
 check "download without .sha256 is refused" contains "$OUT" "refusing to install unverified"
-echo "0000  paneful-manager-v1.0.0.tar.gz" >"$STUB_DIR/release/paneful-manager-v1.0.0.tar.gz.sha256"
+echo "0000  $(basename "$V1")" >"$STUB_DIR/release/$(basename "$V1").sha256"
 install_sh_fails --yes --no-systemd --no-windows-task --prefix "$DL" --version v1.0.0
 check "checksum mismatch is refused" contains "$OUT" "Checksum mismatch"
 check "refused downloads leave no release" test ! -e "$DL/current"
@@ -387,22 +423,34 @@ install_sh --yes --no-systemd --no-windows-task --prefix "$DL"
 check "latest resolves and verifies the download" contains "$OUT" "sha256 verified"
 check "downloaded release installed" test "$(readlink "$DL/current")" = releases/v1.0.0
 check "latest lookup is https only" contains "$STUB_LOG" "--proto =https"
+check "the target's tarball is downloaded" contains "$STUB_LOG" "releases/download/v1.0.0/$(basename "$V1")"
+mkdir -p "$STUB_DIR/generic"
+mv "$STUB_DIR/release/"* "$STUB_DIR/generic/"
+cp "$V1" "$STUB_DIR/release/paneful-manager-v1.0.0.tar.gz"
+(cd "$STUB_DIR/release" && sha256sum paneful-manager-v1.0.0.tar.gz >paneful-manager-v1.0.0.tar.gz.sha256)
+install_sh --yes --no-systemd --no-windows-task --prefix "$HOME/generic"
+check "without a target build the generic tarball is used" contains "$OUT" "No $HOST_TARGET build in v1.0.0"
+check "generic tarball verified and installed" test "$(readlink "$HOME/generic/current")" = releases/v1.0.0
+rm -f "$STUB_DIR/release/"*
+mv "$STUB_DIR/generic/"* "$STUB_DIR/release/"
 
 # ---------- private repository ----------
 
 TOKEN=github_pat_TestOnly0123456789abcdef
 API="https://api.github.com/repos/Dev-Sebi/Paneful-Manager/releases/assets"
 mkdir -p "$STUB_DIR/api"
-# api_release <tag> <tarball id> <sha id> <tarball>: the API answer for one release with its two assets.
+# api_release <tag> <tarball id> <sha id> <tarball> [asset name]: the API answer for one release with its two assets,
+# plus a generic tarball asset (id 999) that must not be picked while the target's one exists.
 api_release() {
+  name=${5:-$(basename "$4")}
   cp "$4" "$STUB_DIR/api/asset-$2"
   cp "$4.sha256" "$STUB_DIR/api/asset-$3"
-  printf '{"tag_name":"%s","assets":[{"name":"paneful-manager-%s.tar.gz","url":"%s/%s"},{"name":"paneful-manager-%s.tar.gz.sha256","url":"%s/%s"}]}\n' \
-    "$1" "$1" "$API" "$2" "$1" "$API" "$3"
+  printf '{"tag_name":"%s","assets":[{"name":"paneful-manager-%s.tar.gz","url":"%s/999"},{"name":"%s","url":"%s/%s"},{"name":"%s.sha256","url":"%s/%s"}]}\n' \
+    "$1" "$1" "$API" "$name" "$API" "$2" "$name" "$API" "$3"
 }
 api_release v1.0.0 101 102 "$V1" >"$STUB_DIR/api/latest.json"
-# Asset URLs carry the canonical name of a renamed repository.
-api_release v1.1.0 201 202 "$V2" | sed 's|/Paneful-Manager/|/Panefull-Manager/|g' >"$STUB_DIR/api/tag-v1.1.0.json"
+# Asset URLs carry the canonical name of a renamed repository; this release only has the generic tarball.
+api_release v1.1.0 201 202 "$V2" paneful-manager-v1.1.0.tar.gz | sed 's|/Paneful-Manager/|/Panefull-Manager/|g; s|"url":"[^"]*/999"|"url":"https://api.github.com/repos/Dev-Sebi/Panefull-Manager/releases/assets/201"|' >"$STUB_DIR/api/tag-v1.1.0.json"
 touch "$STUB_DIR/private"
 token_never_leaked() {
   not_contains "$STUB_LOG" "$TOKEN" && not_contains "$OUT" "$TOKEN" && not_contains "$STUB_LOG" "saw a token" &&
@@ -481,6 +529,89 @@ pack --no-deps --tag v1.2.0
 install_sh --yes --no-systemd --no-windows-task --prefix "$HOME/nodeps" --from-source "$T/pkg/paneful-manager-v1.2.0.tar.gz"
 check "tarball without node_modules falls back to pnpm install" contains "$OUT" "compiles node-pty"
 check "fallback installs node-pty" test -d "$HOME/nodeps/releases/v1.2.0/apps/server/node_modules/node-pty"
+
+# ---------- macOS (launchd) ----------
+
+REAL_TMUX=$(command -v tmux)
+REAL_UNAME=$(command -v uname)
+mkdir -p "$T/darwin-bin" "$T/a&b"
+printf '#!/bin/sh\nif [ "${1:-}" = -s ] || [ $# -eq 0 ]; then echo Darwin; else exec %s "$@"; fi\n' "$REAL_UNAME" >"$T/darwin-bin/uname"
+# Loaded agents are files in $STUB_DIR/launchd; 'launchctl print gui/<uid>' (the GUI domain) always exists.
+cat >"$T/darwin-bin/launchctl" <<'EOF'
+#!/bin/sh
+echo "launchctl $*" >>"$STUB_LOG"
+mkdir -p "$STUB_DIR/launchd"
+case "$1" in
+  print) case "$2" in */*/*) [ -f "$STUB_DIR/launchd/${2##*/}" ] ;; *) exit 0 ;; esac ;;
+  bootstrap) touch "$STUB_DIR/launchd/$(basename "$3" .plist)" ;;
+  bootout) rm -f "$STUB_DIR/launchd/${2##*/}" ;;
+esac
+EOF
+printf '#!/bin/sh\nif [ "$1" = -V ]; then exec %s -V; fi\necho "tmux $*" >>"$STUB_LOG"\n' "$REAL_TMUX" >"$T/darwin-bin/tmux"
+chmod +x "$T/darwin-bin/"*
+LINUX_PATH=$PATH
+export HOME="$T/mac-home"
+export XDG_CONFIG_HOME="$HOME/.config" XDG_STATE_HOME="$HOME/.local/state" XDG_DATA_HOME="$HOME/.local/share"
+export PATH="$T/darwin-bin:$T/a&b:$PATH"
+mkdir -p "$HOME"
+AGENTS="$HOME/Library/LaunchAgents"
+MPREFIX="$XDG_DATA_HOME/paneful-manager"
+MSTATE="$XDG_STATE_HOME/paneful-manager"
+UID_NOW=$(id -u)
+# A WSL /proc/version must not matter on macOS.
+echo "Linux version 5.15 (microsoft-standard-WSL2)" >"$PANEFUL_MANAGER_PROC_VERSION"
+
+install_sh --yes --dry-run --from-source "$V1"
+check "macOS: dry run changes nothing" test -z "$(find "$HOME" -mindepth 1 -print -quit)"
+check "macOS: dry run plans launchd agents" contains "$OUT" "launchd agents dev.paneful-manager.tmux + dev.paneful-manager"
+
+install_sh --yes --from-source "$V1"
+check "macOS: detected" contains "$OUT" "macOS detected"
+check "macOS: release installed" test "$(readlink "$MPREFIX/current")" = releases/v1.0.0
+check "macOS: server agent written" test -f "$AGENTS/dev.paneful-manager.plist"
+check "macOS: tmux agent written" test -f "$AGENTS/dev.paneful-manager.tmux.plist"
+check "macOS: no placeholders left" not_contains "$AGENTS/dev.paneful-manager.plist" "@[A-Z_]*@"
+check "macOS: agent pins the port" contains "$AGENTS/dev.paneful-manager.plist" "<string>7337</string>"
+check "macOS: agent runs the current release" contains "$AGENTS/dev.paneful-manager.plist" "<string>$MPREFIX/current/apps/server/dist/index.js</string>"
+check "macOS: agent logs to the state dir" contains "$AGENTS/dev.paneful-manager.plist" "<string>$MSTATE/logs/server.log</string>"
+check "macOS: agent restarts the server" contains "$AGENTS/dev.paneful-manager.plist" "<key>KeepAlive</key>"
+check "macOS: PATH is XML-escaped" contains "$AGENTS/dev.paneful-manager.plist" "a&amp;b"
+check "macOS: tmux agent abandons its daemon" contains "$AGENTS/dev.paneful-manager.tmux.plist" "<key>AbandonProcessGroup</key>"
+check "macOS: tmux agent uses the state dir" contains "$AGENTS/dev.paneful-manager.tmux.plist" "<string>$MSTATE/tmux.conf</string>"
+if command -v python3 >/dev/null 2>&1; then
+  check "macOS: plists parse" python3 -c 'import plistlib, sys; [plistlib.load(open(f, "rb")) for f in sys.argv[1:]]' \
+    "$AGENTS/dev.paneful-manager.plist" "$AGENTS/dev.paneful-manager.tmux.plist"
+fi
+check "macOS: log dir created" test -d "$MSTATE/logs"
+check "macOS: server agent bootstrapped" contains "$STUB_LOG" "launchctl bootstrap gui/$UID_NOW $AGENTS/dev.paneful-manager.plist"
+check "macOS: tmux agent bootstrapped" contains "$STUB_LOG" "launchctl bootstrap gui/$UID_NOW $AGENTS/dev.paneful-manager.tmux.plist"
+check "macOS: no systemd" not_contains "$STUB_LOG" "systemctl"
+check "macOS: no lingering" not_contains "$STUB_LOG" "loginctl"
+check "macOS: no WSL or Windows steps" not_contains "$STUB_LOG" "powershell.exe\|sudo"
+check "macOS: no WSL note" not_contains "$OUT" "WSL"
+check "macOS: login URL printed, not opened" contains "$OUT" "^  http://127.0.0.1:7337/#login="
+check "macOS: no unit files" test ! -e "$XDG_CONFIG_HOME/systemd"
+
+install_sh --yes --from-source "$V1"
+check "macOS: re-run is a no-op" not_contains "$STUB_LOG" "launchctl bootstrap\|kickstart"
+install_sh --yes --from-source "$V1" --port 7600
+check "macOS: --port rewrites the agent" contains "$AGENTS/dev.paneful-manager.plist" "<string>7600</string>"
+check "macOS: --port reloads the server agent" contains "$STUB_LOG" "launchctl bootout gui/$UID_NOW/dev.paneful-manager$"
+install_sh --yes --from-source "$V2"
+check "macOS: upgrade keeps the port of the agent" contains "$AGENTS/dev.paneful-manager.plist" "<string>7600</string>"
+check "macOS: upgrade restarts the server" contains "$STUB_LOG" "launchctl kickstart -k gui/$UID_NOW/dev.paneful-manager$"
+check "macOS: upgrade leaves the tmux agent alone" not_contains "$STUB_LOG" "boot[a-z]* .*dev.paneful-manager.tmux"
+install_sh --yes --rollback
+check "macOS: rollback flips current" test "$(readlink "$MPREFIX/current")" = releases/v1.0.0
+check "macOS: rollback restarts the server" contains "$STUB_LOG" "launchctl kickstart -k gui/$UID_NOW/dev.paneful-manager$"
+install_sh --yes --uninstall --purge
+check "macOS: uninstall unloads the server agent" contains "$STUB_LOG" "launchctl bootout gui/$UID_NOW/dev.paneful-manager$"
+check "macOS: uninstall unloads the tmux agent" contains "$STUB_LOG" "launchctl bootout gui/$UID_NOW/dev.paneful-manager.tmux$"
+check "macOS: uninstall stops the tmux server" contains "$STUB_LOG" "tmux -L paneful-manager kill-server"
+check "macOS: uninstall removes the agents" test ! -e "$AGENTS/dev.paneful-manager.plist" -a ! -e "$AGENTS/dev.paneful-manager.tmux.plist"
+check "macOS: uninstall removes the release" test ! -L "$MPREFIX/current"
+check "macOS: uninstall never mentions lingering" not_contains "$OUT" "loginctl"
+export PATH="$LINUX_PATH"
 
 printf '\n%s tests, %s failed\n' "$TESTS" "$FAILS"
 [ "$FAILS" -eq 0 ]

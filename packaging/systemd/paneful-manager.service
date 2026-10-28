@@ -1,10 +1,12 @@
 # Installed by install.sh; @...@ placeholders are replaced at install time.
 # Restarting this unit never touches the tmux sessions (they belong to paneful-manager-tmux.service).
+# It listens on the sockets of paneful-manager.socket, which keeps the port bound while this unit is down.
 [Unit]
 Description=Paneful Manager server
 Documentation=https://github.com/@REPO@
+Requires=paneful-manager.socket
 Wants=paneful-manager-tmux.service
-After=paneful-manager-tmux.service
+After=paneful-manager-tmux.service paneful-manager.socket
 
 [Service]
 Type=simple
