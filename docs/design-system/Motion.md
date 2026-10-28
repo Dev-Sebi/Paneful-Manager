@@ -1,6 +1,6 @@
 # Motion
 
-Agent Hub is a dense tool people keep open all day. Motion exists to explain a change (something appeared, moved, needs attention), never to decorate.
+Paneful Manager is a dense tool people keep open all day. Motion exists to explain a change (something appeared, moved, needs attention), never to decorate.
 
 ## Principles
 
@@ -9,7 +9,7 @@ Agent Hub is a dense tool people keep open all day. Motion exists to explain a c
 3. **Never blocks input.** Keyboard and pointer input work during and after any animation. Terminal output is never animated.
 4. **Attention is spent once.** Attention animations (pulse, headShake) run a single iteration and then stay static. No infinite loops, except the indeterminate spinner (`motion.duration.spinner` per rotation).
 5. **Respects `prefers-reduced-motion: reduce`.** All transitions and animate.css animations are disabled (duration 0); state changes become instant. Attention cues fall back to a static visual (color, icon or text), never to nothing.
-6. **Spinner exemption.** The indeterminate spinner (`.ah-spinner`) keeps rotating under reduced motion: it is essential progress feedback, small and non-translating (WCAG 2.3.3 allows essential motion).
+6. **Spinner exemption.** The indeterminate spinner (`.pm-spinner`) keeps rotating under reduced motion: it is essential progress feedback, small and non-translating (WCAG 2.3.3 allows essential motion).
 
 ## Tokens
 
@@ -24,7 +24,7 @@ Agent Hub is a dense tool people keep open all day. Motion exists to explain a c
 | `motion.easing.decelerate` | `cubic-bezier(0, 0, 0, 1)` | Elements entering the screen |
 | `motion.easing.accelerate` | `cubic-bezier(0.3, 0, 1, 1)` | Elements leaving the screen |
 
-animate.css durations are overridden per element with `--animate-duration: var(--ah-motion-duration-*)` and `animation-timing-function: var(--ah-motion-easing-*)`. The default animate.css duration (1s) is never used.
+animate.css durations are overridden per element with `--animate-duration: var(--pm-motion-duration-*)` and `animation-timing-function: var(--pm-motion-easing-*)`. The default animate.css duration (1s) is never used.
 
 ## Allowed animate.css set
 
@@ -69,7 +69,7 @@ Keyframe overrides in the generated motion CSS (the stock keyframes are not used
 
 ```css
 @media (prefers-reduced-motion: reduce) {
-  *:not(.ah-spinner), *::before, *::after {
+  *:not(.pm-spinner), *::before, *::after {
     animation-duration: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0ms !important;
@@ -77,6 +77,6 @@ Keyframe overrides in the generated motion CSS (the stock keyframes are not used
 }
 ```
 
-`.ah-spinner` is the only exemption (see principle 6). Any other looping element must not exist in the first place.
+`.pm-spinner` is the only exemption (see principle 6). Any other looping element must not exist in the first place.
 
 The app also exposes a user setting "Reduce motion" that applies the same rule via a root class, independent of the OS setting.

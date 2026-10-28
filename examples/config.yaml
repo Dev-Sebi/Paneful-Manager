@@ -1,4 +1,4 @@
-# Example app config. Copy to ~/.config/agent-hub/config.yaml and adapt.
+# Example app config. Copy to ~/.config/paneful-manager/config.yaml and adapt.
 port: 7337
 theme: dark
 confirmCloseTab: true

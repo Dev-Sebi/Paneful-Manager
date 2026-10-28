@@ -31,8 +31,8 @@ The smoke test extracts the tarball, installs it with its own `install.sh --from
 
 | Asset | Used by `install.sh` |
 | --- | --- |
-| `agent-hub-<tag>.tar.gz` | downloaded from `releases/download/<tag>/`; `<tag>` comes from the redirect of `releases/latest` or from `--version`. With a token (private repository) both come from the GitHub API instead, see [Private repository](install.md#private-repository) |
-| `agent-hub-<tag>.tar.gz.sha256` | checksum of the tarball; without it a download is refused unless `--no-verify` is given |
+| `paneful-manager-<tag>.tar.gz` | downloaded from `releases/download/<tag>/`; `<tag>` comes from the redirect of `releases/latest` or from `--version`. With a token (private repository) both come from the GitHub API instead, see [Private repository](install.md#private-repository) |
+| `paneful-manager-<tag>.tar.gz.sha256` | checksum of the tarball; without it a download is refused unless `--no-verify` is given |
 | `install.sh` | the `curl ... releases/latest/download/install.sh \| sh` entry point |
 
 The tarball contains the built server, web app and shared package, `install.sh`, `packaging/` and the server's production `node_modules` with node-pty compiled on the release runner (linux x64, glibc of Ubuntu 24.04, Node-API, so any Node 22 or later works). Installing it on such a system needs no compiler and no pnpm. On another architecture or an older glibc the bundled node-pty does not load; `install.sh` then removes the bundled `node_modules` and compiles node-pty with pnpm and the build tools.
@@ -40,8 +40,8 @@ The tarball contains the built server, web app and shared package, `install.sh`,
 ## Local checks
 
 ```bash
-pnpm release:pack                                      # dist/release/agent-hub-v<version>.tar.gz + .sha256
-sh scripts/release-smoke.sh dist/release/agent-hub-v<version>.tar.gz 17399
+pnpm release:pack                                      # dist/release/paneful-manager-v<version>.tar.gz + .sha256
+sh scripts/release-smoke.sh dist/release/paneful-manager-v<version>.tar.gz 17399
 ```
 
 `release-pack.sh --no-deps` packs a tarball without `node_modules`, which `install.sh` installs by compiling node-pty.

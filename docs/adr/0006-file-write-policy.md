@@ -6,7 +6,7 @@
 
 ## Context
 
-Agent Hub edits files that belong to the user and to Claude Code (settings, CLAUDE.md, skills, MCP config). Losing a user's edit or corrupting a settings file is worse than any missing feature.
+Paneful Manager edits files that belong to the user and to Claude Code (settings, CLAUDE.md, skills, MCP config). Losing a user's edit or corrupting a settings file is worse than any missing feature.
 
 ## Decision
 
@@ -18,7 +18,7 @@ Agent Hub edits files that belong to the user and to Claude Code (settings, CLAU
 
 ## Consequences
 
-- Concurrent edits in an editor and in Agent Hub are detected instead of lost.
+- Concurrent edits in an editor and in Paneful Manager are detected instead of lost.
 - Claude Code file formats stay owned by Claude Code where a CLI exists.
 - Backups cost at most 50 MB in the state directory.
 - MCP edits are not atomic (remove + add), and removing a remote server drops its OAuth tokens; the UI warns and offers a retry.

@@ -1,4 +1,4 @@
-# Contributing to Agent Hub
+# Contributing to Paneful Manager
 
 Thanks for your interest in contributing.
 

@@ -1,6 +1,6 @@
-# AhButton
+# PmButton
 
-Triggers an action. Wraps `v-btn` with Agent Hub variants and sizes. Contract: `index.d.ts`.
+Triggers an action. Wraps `v-btn` with Paneful Manager variants and sizes. Contract: `index.d.ts`.
 
 ## Anatomy
 
@@ -38,7 +38,7 @@ Triggers an action. Wraps `v-btn` with Agent Hub variants and sizes. Contract: `
 | Focus-visible | 2px outline `color.border.focus`, offset 2px |
 | Pressed (`pressed: true`) | secondary/ghost fill `color.bg.selected` |
 | Disabled | whole button at `opacity.disabled`, colors unchanged (no extra `color.fg.disabled`, to avoid double dimming), cursor not-allowed |
-| Loading | `.ah-spinner` (one rotation per `motion.duration.spinner`), `aria-busy="true"`, clicks ignored |
+| Loading | `.pm-spinner` (one rotation per `motion.duration.spinner`), `aria-busy="true"`, clicks ignored |
 
 ## Tokens
 

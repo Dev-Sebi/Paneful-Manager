@@ -3,52 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AhStatusBadge preview</title>
+<title>PmStatusBadge preview</title>
 <style>
 /* Fallback values generated from tokens.json (dark theme). */
 :root {
-  --ah-color-bg-canvas: #12151a;
-  --ah-color-bg-surface: #1a1e24;
-  --ah-color-bg-elevated: #22272e;
-  --ah-color-fg-primary: #eef1f4;
-  --ah-color-fg-muted: #9aa4b0;
-  --ah-color-status-working: #6496f7;
-  --ah-color-status-waiting: #e3b341;
-  --ah-color-status-error: #f47067;
-  --ah-color-status-idle: #9aa4b0;
-  --ah-space-1: 4px;
-  --ah-space-2: 8px;
-  --ah-space-4: 16px;
-  --ah-space-6: 24px;
-  --ah-radius-full: 9999px;
-  --ah-font-family-ui: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --ah-font-size-xs: 11px;
-  --ah-font-size-sm: 12px;
-  --ah-font-size-md: 13px;
-  --ah-font-weight-medium: 500;
-  --ah-font-line-height-tight: 1.2;
-  --ah-motion-duration-slow: 240ms;
-  --ah-motion-easing-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --pm-color-bg-canvas: #12151a;
+  --pm-color-bg-surface: #1a1e24;
+  --pm-color-bg-elevated: #22272e;
+  --pm-color-fg-primary: #eef1f4;
+  --pm-color-fg-muted: #9aa4b0;
+  --pm-color-status-working: #6496f7;
+  --pm-color-status-waiting: #e3b341;
+  --pm-color-status-error: #f47067;
+  --pm-color-status-idle: #9aa4b0;
+  --pm-space-1: 4px;
+  --pm-space-2: 8px;
+  --pm-space-4: 16px;
+  --pm-space-6: 24px;
+  --pm-radius-full: 9999px;
+  --pm-font-family-ui: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --pm-font-size-xs: 11px;
+  --pm-font-size-sm: 12px;
+  --pm-font-size-md: 13px;
+  --pm-font-weight-medium: 500;
+  --pm-font-line-height-tight: 1.2;
+  --pm-motion-duration-slow: 240ms;
+  --pm-motion-easing-emphasized: cubic-bezier(0.3, 0, 0, 1);
 }
-body { margin: 0; padding: var(--ah-space-6); background: var(--ah-color-bg-canvas); color: var(--ah-color-fg-primary); font-family: var(--ah-font-family-ui); font-size: var(--ah-font-size-md); }
-h2 { font-size: var(--ah-font-size-sm); color: var(--ah-color-fg-muted); font-weight: var(--ah-font-weight-medium); margin: var(--ah-space-6) 0 var(--ah-space-2); }
-.row { display: flex; flex-wrap: wrap; gap: var(--ah-space-4); align-items: center; background: var(--ah-color-bg-surface); padding: var(--ah-space-4); }
-.badge { display: inline-flex; align-items: center; gap: var(--ah-space-1); height: 20px; padding: 0 var(--ah-space-2); border-radius: var(--ah-radius-full); background: var(--ah-color-bg-elevated); font-size: var(--ah-font-size-sm); font-weight: var(--ah-font-weight-medium); line-height: var(--ah-font-line-height-tight); }
-.badge.sm { height: 16px; font-size: var(--ah-font-size-xs); }
-.m { --c: var(--ah-color-status-idle); width: 8px; height: 8px; border-radius: var(--ah-radius-full); background: var(--c); flex: none; box-sizing: border-box; }
+body { margin: 0; padding: var(--pm-space-6); background: var(--pm-color-bg-canvas); color: var(--pm-color-fg-primary); font-family: var(--pm-font-family-ui); font-size: var(--pm-font-size-md); }
+h2 { font-size: var(--pm-font-size-sm); color: var(--pm-color-fg-muted); font-weight: var(--pm-font-weight-medium); margin: var(--pm-space-6) 0 var(--pm-space-2); }
+.row { display: flex; flex-wrap: wrap; gap: var(--pm-space-4); align-items: center; background: var(--pm-color-bg-surface); padding: var(--pm-space-4); }
+.badge { display: inline-flex; align-items: center; gap: var(--pm-space-1); height: 20px; padding: 0 var(--pm-space-2); border-radius: var(--pm-radius-full); background: var(--pm-color-bg-elevated); font-size: var(--pm-font-size-sm); font-weight: var(--pm-font-weight-medium); line-height: var(--pm-font-line-height-tight); }
+.badge.sm { height: 16px; font-size: var(--pm-font-size-xs); }
+.m { --c: var(--pm-color-status-idle); width: 8px; height: 8px; border-radius: var(--pm-radius-full); background: var(--c); flex: none; box-sizing: border-box; }
 .sm .m { width: 6px; height: 6px; }
-.working { --c: var(--ah-color-status-working); }
-.waiting { --c: var(--ah-color-status-waiting); box-shadow: 0 0 0 2px var(--ah-color-bg-elevated), 0 0 0 3px var(--c); }
-.error { --c: var(--ah-color-status-error); border-radius: 1px; }
+.working { --c: var(--pm-color-status-working); }
+.waiting { --c: var(--pm-color-status-waiting); box-shadow: 0 0 0 2px var(--pm-color-bg-elevated), 0 0 0 3px var(--c); }
+.error { --c: var(--pm-color-status-error); border-radius: 1px; }
 .idle { background: transparent; border: 1.5px solid var(--c); }
-.row > .m.waiting { box-shadow: 0 0 0 2px var(--ah-color-bg-surface), 0 0 0 3px var(--c); }
-.pulse-once { animation: pulse var(--ah-motion-duration-slow) var(--ah-motion-easing-emphasized) 1; }
+.row > .m.waiting { box-shadow: 0 0 0 2px var(--pm-color-bg-surface), 0 0 0 3px var(--c); }
+.pulse-once { animation: pulse var(--pm-motion-duration-slow) var(--pm-motion-easing-emphasized) 1; }
 @keyframes pulse { 50% { transform: scale(1.05); } }
 @media (prefers-reduced-motion: reduce) { .pulse-once { animation: none; } }
 </style>
 </head>
 <body>
-<h1 style="font-size: var(--ah-font-size-md)">AhStatusBadge</h1>
+<h1 style="font-size: var(--pm-font-size-md)">PmStatusBadge</h1>
 
 <h2>variant="label", size="md"</h2>
 <div class="row">
@@ -74,6 +74,6 @@ h2 { font-size: var(--ah-font-size-sm); color: var(--ah-color-fg-muted); font-we
   <span class="m idle" role="img" aria-label="Idle"></span>
 </div>
 
-<p style="color: var(--ah-color-fg-muted); font-size: var(--ah-font-size-sm)">The "Waiting for input" pill pulses once on load to show the one-shot attention cue.</p>
+<p style="color: var(--pm-color-fg-muted); font-size: var(--pm-font-size-sm)">The "Waiting for input" pill pulses once on load to show the one-shot attention cue.</p>
 </body>
 </html>

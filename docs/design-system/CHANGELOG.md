@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Agent Hub design system. Format: newest first, one section per version.
+All notable changes to the Paneful Manager design system. Format: newest first, one section per version.
 
 ## Unreleased
 
@@ -13,8 +13,8 @@ All notable changes to the Agent Hub design system. Format: newest first, one se
 ### Added
 
 - Tokens `color.border.strong` (3:1 boundaries), `color.secondary.hover`, `color.shadow`, `opacity.disabled`, `opacity.scrim`, `motion.duration.spinner`.
-- `AhTabPanel` contract and the `ah-tab-<value>` / `ah-tabpanel-<value>` id convention.
-- `AhDialog` `blockedMessage` helper line for blocked closes.
+- `PmTabPanel` contract and the `pm-tab-<value>` / `pm-tabpanel-<value>` id convention.
+- `PmDialog` `blockedMessage` helper line for blocked closes.
 
 ### Changed
 
@@ -23,10 +23,10 @@ All notable changes to the Agent Hub design system. Format: newest first, one se
 - `color.border.default` is decorative only; 3:1 applies to `border.strong` and `border.focus`.
 - `color.bg.selected` aliases palette steps directly.
 - Motion: `headShake` keyframes overridden to translateX only; spinner exempt from reduced motion.
-- `AhTabs`: close button is a sibling of the `role="tab"` element, last in the `li`; `Delete` or `Backspace` closes.
-- `AhDialog`: close (x) last in DOM; scrim uses `opacity.scrim`.
-- `AhTerminalPane`: browser-safe, configurable shortcuts; split direction defined; maximized pane on `z.overlay`; `fontSize` is a px number.
-- `AhButton`: disabled uses `opacity.disabled` only; spinner duration from `motion.duration.spinner`.
+- `PmTabs`: close button is a sibling of the `role="tab"` element, last in the `li`; `Delete` or `Backspace` closes.
+- `PmDialog`: close (x) last in DOM; scrim uses `opacity.scrim`.
+- `PmTerminalPane`: browser-safe, configurable shortcuts; split direction defined; maximized pane on `z.overlay`; `fontSize` is a px number.
+- `PmButton`: disabled uses `opacity.disabled` only; spinner duration from `motion.duration.spinner`.
 - Previews: per-state status marker shapes.
 
 ## 0.1.0 - 2026-10-27
@@ -34,7 +34,7 @@ All notable changes to the Agent Hub design system. Format: newest first, one se
 ### Added
 
 - `tokens.json` in W3C DTCG format: neutral (0..1000), accent and hue palettes; themed semantic colors (`bg`, `fg`, `accent`, `secondary`, `danger`, `border`, `status`, `terminal`) with `dark` / `light` values; `space`, `radius`, `font`, `shadow`, `motion`, `z`.
-- Vuetify theme mapping in `$extensions["dev.agenthub.vuetify"]`.
+- Vuetify theme mapping in `$extensions["dev.paneful-manager.vuetify"]`.
 - WCAG AA contrast table for both themes in `README.md`.
 - `Motion.md` with principles, the allowed animate.css set and per-use-case timing.
-- Component specs with `index.d.ts`, `README.md` and `preview.html`: `AhButton`, `AhTabs` / `AhTab`, `AhStatusBadge`, `AhDialog`, `AhTerminalPane` (spec only).
+- Component specs with `index.d.ts`, `README.md` and `preview.html`: `PmButton`, `PmTabs` / `PmTab`, `PmStatusBadge`, `PmDialog`, `PmTerminalPane` (spec only).

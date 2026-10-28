@@ -1,4 +1,4 @@
-# Agent Hub task board
+# Paneful Manager task board
 
 Status: `todo` | `doing` | `review` | `done` | `blocked`. A task starts only when its deps are `done`.
 
@@ -10,7 +10,7 @@ Status: `todo` | `doing` | `review` | `done` | `blocked`. A task starts only whe
 | T02 | `packages/shared`: zod schemas + types (config, preset, session, session state, API + WS messages), defaults incl. port 7337 | Opus | T01 | done | merged |
 | T03 | Architecture doc + ADRs: process model, tmux naming, WS protocol, file-write policy, security model | Opus | T02 | done | |
 | T04 | Docs skeleton: README, CONTRIBUTING, LICENSE (MIT), issue/PR templates, example preset YAML | Haiku | T01 | done | merged |
-| T05 | Design system `docs/design-system/`: tokens.json, Motion.md, components (`AhButton`, `AhTabs`/`AhTab`, `AhStatusBadge`, `AhDialog`) with index.d.ts, README (a11y) and preview | Opus | — | done | merged |
+| T05 | Design system `docs/design-system/`: tokens.json, Motion.md, components (`PmButton`, `PmTabs`/`PmTab`, `PmStatusBadge`, `PmDialog`) with index.d.ts, README (a11y) and preview | Opus | — | done | merged |
 
 ## Wave 1 — core engine
 
@@ -26,8 +26,8 @@ Status: `todo` | `doing` | `review` | `done` | `blocked`. A task starts only whe
 
 | ID | Task | Model | Deps | Status | Branch |
 |---|---|---|---|---|---|
-| T20 | Components `AhButton`, `AhTabs`/`AhTab`, `AhStatusBadge`, `AhDialog` | Sonnet | T13 | done | |
-| T21 | `AhTerminalPane`: xterm.js + fit, WS attach, focus, resize, read-only prop | Opus | T12, T20 | done | |
+| T20 | Components `PmButton`, `PmTabs`/`PmTab`, `PmStatusBadge`, `PmDialog` | Sonnet | T13 | done | |
+| T21 | `PmTerminalPane`: xterm.js + fit, WS attach, focus, resize, read-only prop | Opus | T12, T20 | done | |
 | T22 | App shell: sidebar, tab bar, routes, Pinia stores, empty states | Sonnet | T20 | done | |
 | T23 | Split layouts (splitpanes), sizes persisted per tab | Sonnet | T21, T22 | done | merged 77c5cac |
 | T24 | Workspace presets: CRUD API (atomic YAML) + UI + autostart | Sonnet | T23, T11 | done | merged 6edbe9b |

@@ -1,6 +1,6 @@
-# AhTerminalPane
+# PmTerminalPane
 
-> Implemented in `apps/web/src/components/ah/AhTerminalPane.vue` on top of xterm.js.
+> Implemented in `apps/web/src/components/pm/PmTerminalPane.vue` on top of xterm.js.
 
 One terminal session inside the split layout: header with title, status and actions, plus the terminal viewport. Contract: `index.d.ts`.
 
@@ -17,10 +17,10 @@ One terminal session inside the split layout: header with title, status and acti
 
 - **Pane**: background `color.terminal.bg`, border 1px `color.border.default`, `radius.sm`. Panes are separated by `space.1` gutters on `color.bg.canvas`.
 - **Header**: height 28px, background `color.bg.surface`, padding x `space.2`, gap `space.2`. Title `font.size.sm`, `font.weight.medium`; cwd `font.size.xs` in `font.family.mono`, `color.fg.muted`, truncated from the start.
-- **Header actions**: `AhButton variant="ghost" size="sm"` icon buttons in this DOM order: split vertical, split horizontal, maximize, close.
+- **Header actions**: `PmButton variant="ghost" size="sm"` icon buttons in this DOM order: split vertical, split horizontal, maximize, close.
 - **Split direction**: `vertical` = vertical divider, panes side by side (new pane to the right); `horizontal` = horizontal divider, panes stacked (new pane below).
 - **Viewport**: padding `space.2`, `font.family.mono`, `font.size.md` (or `fontSize` prop, a px number because xterm takes numbers; the generator exposes the numeric value of `font.size.md` as its default), `font.line-height.normal`.
-- **Overlay**: centered card `color.bg.elevated`, `radius.md`, `shadow.2`, text `color.fg.primary`, action `AhButton`.
+- **Overlay**: centered card `color.bg.elevated`, `radius.md`, `shadow.2`, text `color.fg.primary`, action `PmButton`.
 
 ## Terminal colors
 
@@ -35,7 +35,7 @@ Used tokens: `color.terminal.fg`, `color.terminal.bg`, `color.terminal.cursor`, 
 | Unfocused | border `color.border.default`, header title `color.fg.muted`, cursor outline only |
 | Connecting | overlay "Connecting…" with indeterminate spinner |
 | Connected | no overlay |
-| Exited | overlay "Process exited (code N)" + "Restart" (`AhButton secondary`, emits `restart`); viewport kept for reading |
+| Exited | overlay "Process exited (code N)" + "Restart" (`PmButton secondary`, emits `restart`); viewport kept for reading |
 | Failed | non-blocking overlay "Session unavailable" in `color.status.error` text + "Retry" (re-attaches with scrollback; no `restart` emit) |
 | Hidden | inactive tab: detached from the session (xterm kept mounted); re-attached with scrollback when shown |
 | Maximized | pane covers the workspace at `z.overlay`; other panes stay mounted |
@@ -50,7 +50,7 @@ Used tokens: `color.terminal.fg`, `color.terminal.bg`, `color.terminal.cursor`, 
 
 ## Accessibility
 
-- Pane container: `role="group"`, `aria-label` = "Terminal: {title}". Status announced through `AhStatusBadge` with `announce` (one badge per session).
+- Pane container: `role="group"`, `aria-label` = "Terminal: {title}". Status announced through `PmStatusBadge` with `announce` (one badge per session).
 - Viewport uses xterm.js with `screenReaderMode` controlled by a user setting; when on, xterm's accessibility tree and live region are active.
 - Header actions are buttons with `aria-label` and shortcut hints (`aria-keyshortcuts`).
 - Focus: clicking anywhere in the pane focuses the viewport. The header is a separate tab stop group before the viewport.
@@ -83,4 +83,4 @@ Cursor blink is off; focus border change is instant.
 | Generate the xterm theme from tokens | Hard-code ANSI colors in the component |
 | Keep the scrollback visible after exit | Clear the viewport when the process exits |
 | Provide `Ctrl+Shift+F6` as a keyboard escape from the terminal | Trap keyboard users inside the viewport |
-| Confirm closing a working/waiting session with `AhDialog tone="danger"` | Kill the session on a single click |
+| Confirm closing a working/waiting session with `PmDialog tone="danger"` | Kill the session on a single click |

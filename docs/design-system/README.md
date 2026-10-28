@@ -1,6 +1,6 @@
-# Agent Hub Design System
+# Paneful Manager Design System
 
-Single source of truth for the visual language of Agent Hub: design tokens, motion rules and component specs.
+Single source of truth for the visual language of Paneful Manager: design tokens, motion rules and component specs.
 Everything under `apps/web/src/` that renders UI consumes these files; nothing here is hand-copied into components.
 
 ## File map
@@ -14,7 +14,7 @@ Everything under `apps/web/src/` that renders UI consumes these files; nothing h
 | `components/<Name>/preview.html` | Static dark-theme preview of every variant and state |
 | `CHANGELOG.md` | Changes to tokens and specs |
 
-Components: `AhButton`, `AhTabs` (+ `AhTab`), `AhStatusBadge`, `AhDialog`, `AhTerminalPane`.
+Components: `PmButton`, `PmTabs` (+ `PmTab`), `PmStatusBadge`, `PmDialog`, `PmTerminalPane`.
 
 ## Token flow
 
@@ -22,16 +22,16 @@ Components: `AhButton`, `AhTabs` (+ `AhTab`), `AhStatusBadge`, `AhDialog`, `AhTe
 flowchart LR
   T[tokens.json] --> B[build script]
   B --> V[generated theme.ts<br/>Vuetify themes dark + light]
-  B --> C[generated tokens.css<br/>--ah-* CSS variables]
+  B --> C[generated tokens.css<br/>--pm-* CSS variables]
   B --> X[generated xterm theme<br/>from color.terminal.*]
   V --> A[Vue components]
   C --> A
-  X --> P[AhTerminalPane]
+  X --> P[PmTerminalPane]
 ```
 
 1. `tokens.json` is edited by hand (and only here).
 2. The build script resolves aliases, then emits:
-   - `theme.ts` with `dark` and `light` Vuetify themes, using the mapping in the root `$extensions["dev.agenthub.vuetify"]`. The generator sets `defaultTheme: 'dark'`, `dark: true` on the dark theme and `dark: false` on the light theme.
+   - `theme.ts` with `dark` and `light` Vuetify themes, using the mapping in the root `$extensions["dev.paneful-manager.vuetify"]`. The generator sets `defaultTheme: 'dark'`, `dark: true` on the dark theme and `dark: false` on the light theme.
    - `tokens.css` with one CSS variable per token.
    - an xterm.js `ITheme` per theme from `color.terminal.*`.
 3. Generated files are never edited by hand and carry a "generated" header.
@@ -77,22 +77,22 @@ Dimensions and durations use the pre-2025 DTCG string form (not the stable spec'
 
 ### CSS variable naming
 
-`--ah-` + token path with `.` replaced by `-`. Themed tokens drop the theme suffix.
+`--pm-` + token path with `.` replaced by `-`. Themed tokens drop the theme suffix.
 
 | Token | CSS variable |
 | --- | --- |
-| `color.bg.canvas` | `--ah-color-bg-canvas` |
-| `space.4` | `--ah-space-4` |
-| `font.line-height.normal` | `--ah-font-line-height-normal` |
-| `motion.easing.standard` | `--ah-motion-easing-standard` (emitted as `cubic-bezier(...)`) |
-| `shadow.2` | `--ah-shadow-2` (emitted as `x y blur spread color`) |
-| `opacity.disabled` | `--ah-opacity-disabled` |
+| `color.bg.canvas` | `--pm-color-bg-canvas` |
+| `space.4` | `--pm-space-4` |
+| `font.line-height.normal` | `--pm-font-line-height-normal` |
+| `motion.easing.standard` | `--pm-motion-easing-standard` (emitted as `cubic-bezier(...)`) |
+| `shadow.2` | `--pm-shadow-2` (emitted as `x y blur spread color`) |
+| `opacity.disabled` | `--pm-opacity-disabled` |
 
 `tokens.css` declares dark values on `:root, .v-theme--dark` and light values on `.v-theme--light`, so the variables follow the active Vuetify theme.
 
 ### Vuetify mapping
 
-Defined in the root `$extensions["dev.agenthub.vuetify"]` as `colors` and `variables`; the build script reads it, so this table is informative only.
+Defined in the root `$extensions["dev.paneful-manager.vuetify"]` as `colors` and `variables`; the build script reads it, so this table is informative only.
 Every key Vuetify 4 ships a default for is mapped, because Vuetify deep-merges its defaults and unmapped keys would leak stock colors.
 
 | Vuetify key | Token |

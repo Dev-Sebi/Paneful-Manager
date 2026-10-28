@@ -5,11 +5,11 @@
 
 ## Context
 
-[ADR 0010](0010-agent-teams.md) allows T51 to launch an agent team from a YAML template. Claude Code has no API or CLI flag that creates a team or pre-defines teammates: the lead spawns teammates itself (via the `Agent` tool) when asked in natural language. Agent Hub can only start the lead with the right flags and a first prompt. The lead's team name (`session-<first 8 characters of the lead's Claude session id>`) is needed to link the launch to the task board.
+[ADR 0010](0010-agent-teams.md) allows T51 to launch an agent team from a YAML template. Claude Code has no API or CLI flag that creates a team or pre-defines teammates: the lead spawns teammates itself (via the `Agent` tool) when asked in natural language. Paneful Manager can only start the lead with the right flags and a first prompt. The lead's team name (`session-<first 8 characters of the lead's Claude session id>`) is needed to link the launch to the task board.
 
 ## Decision
 
-- Templates are `~/.config/agent-hub/teams/<name>.yaml` (`TeamTemplateSchema` in `packages/shared/src/team-templates.ts`), example in `examples/teams/`. The store reuses the preset rules through a shared named-YAML store (`apps/server/src/files/yaml-store.ts`): name regex and length cap, realpath confinement, atomic `0600` writes, backups, `404`/`409`.
+- Templates are `~/.config/paneful-manager/teams/<name>.yaml` (`TeamTemplateSchema` in `packages/shared/src/team-templates.ts`), example in `examples/teams/`. The store reuses the preset rules through a shared named-YAML store (`apps/server/src/files/yaml-store.ts`): name regex and length cap, realpath confinement, atomic `0600` writes, backups, `404`/`409`.
 - Shape: `name`, `description?` (max 500 characters), `experimental: true` (required marker), `goal?`, `lead { cwd, command (claude), args ([]), model? }`, `teammates[1-8] { name, prompt, cwd?, model? }`, `env {}`.
 - `env` only accepts an allowlist of keys (`TEAM_TEMPLATE_ENV_KEYS`: model, token and timeout tuning, telemetry switches). The allowlist only guards the env passed in the `--settings` JSON, so the team's Claude Code env stays predictable. It is no sandbox: `lead.command` and `lead.args` have the same trust level as preset pane commands (user-owned files, token-protected API).
 - `lead.args` must not contain `--`, flags the launch sets or that stop teammates (`--teammate-mode`, `--session-id`, `--settings`, `--model`, `-p`/`--print`, `-r`/`--resume`, `-c`/`--continue`, `--fork-session`, also with `=value`), or short option groups that contain `p`, `c` or `r` (e.g. `-cp`, `-rX`).
@@ -35,7 +35,7 @@ sequenceDiagram
     U->>S: POST /api/team-templates/review-team/launch
     S->>S: flag on? template valid? claude --version >= 2.1.309
     S->>E: create(cwd, claude, args + --session-id uuid + first prompt)
-    E->>L: tmux new-session (ah-id)
+    E->>L: tmux new-session (pm-id)
     S->>S: record launch in team-launches.json
     S-->>U: sessionId, team session-xxxxxxxx
     U->>U: open tab with the lead
@@ -45,7 +45,7 @@ sequenceDiagram
 
 ## Limits
 
-- Teammates are spawned by Claude Code, not by Agent Hub. Names, models and working directories in the prompt are requests; the lead may deviate, and a model is still checked against `availableModels`.
+- Teammates are spawned by Claude Code, not by Paneful Manager. Names, models and working directories in the prompt are requests; the lead may deviate, and a model is still checked against `availableModels`.
 - Claude Code spawns teammates in the lead's directory; a teammate `cwd` is only an instruction.
 - No per-teammate tools or permission mode (ADR 0010: teammates start in the lead's mode).
 - A trailing template arg that expects a value (e.g. `--add-dir` with nothing after it) takes `--teammate-mode` as its value and breaks the launch. The schema cannot tell which flags take values, so this is not checked.

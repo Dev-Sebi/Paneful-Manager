@@ -1,18 +1,18 @@
 /** danger: destructive confirmation; title icon and confirm button use danger tokens. */
-export type AhDialogTone = 'default' | 'danger'
+export type PmDialogTone = 'default' | 'danger'
 
 /** Max width: sm 400px, md 560px, lg 800px. */
-export type AhDialogSize = 'sm' | 'md' | 'lg'
+export type PmDialogSize = 'sm' | 'md' | 'lg'
 
-export interface AhDialogProps {
+export interface PmDialogProps {
   /** Open state (v-model). */
   modelValue: boolean
   /** Visible heading; also the accessible name via aria-labelledby. */
   title: string
   /** @default 'default' */
-  tone?: AhDialogTone
+  tone?: PmDialogTone
   /** @default 'md' */
-  size?: AhDialogSize
+  size?: PmDialogSize
   /** Scrim click and Escape do not close; the blocked-close helper line shows and a headShake plays. @default false */
   persistent?: boolean
   /** Helper line shown under the title when a close is blocked. @default 'Finish or cancel the running action first' */
@@ -29,19 +29,19 @@ export interface AhDialogProps {
   closable?: boolean
 }
 
-export type AhDialogCloseReason = 'confirm' | 'cancel' | 'escape' | 'scrim' | 'close-button'
+export type PmDialogCloseReason = 'confirm' | 'cancel' | 'escape' | 'scrim' | 'close-button'
 
-export interface AhDialogEmits {
+export interface PmDialogEmits {
   (e: 'update:modelValue', value: boolean): void
   (e: 'confirm'): void
-  (e: 'cancel', reason: Exclude<AhDialogCloseReason, 'confirm'>): void
+  (e: 'cancel', reason: Exclude<PmDialogCloseReason, 'confirm'>): void
   /** Escape or scrim click on a persistent dialog. */
   (e: 'close-blocked'): void
   /** Leave animation finished; focus has returned to the opener. */
   (e: 'after-leave'): void
 }
 
-export interface AhDialogSlots {
+export interface PmDialogSlots {
   /** Body content. */
   default?: () => unknown
   /** Replaces the title text (keep it short). */

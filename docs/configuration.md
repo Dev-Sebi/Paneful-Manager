@@ -1,6 +1,6 @@
 # Configuration
 
-Agent Hub reads one app config file and one preset file per workspace. The server validates both with zod schemas from `packages/shared`. A missing config file means the defaults. An invalid `config.yaml` stops the server at startup with the path and the failing keys, so a typo is never ignored. An invalid preset file does not stop the server: it is left out of the preset list and answers `409` when it is opened.
+Paneful Manager reads one app config file and one preset file per workspace. The server validates both with zod schemas from `packages/shared`. A missing config file means the defaults. An invalid `config.yaml` stops the server at startup with the path and the failing keys, so a typo is never ignored. An invalid preset file does not stop the server: it is left out of the preset list and answers `409` when it is opened.
 
 Related: [Install guide](install.md), [Troubleshooting](troubleshooting.md).
 
@@ -10,20 +10,20 @@ Related: [Install guide](install.md), [Troubleshooting](troubleshooting.md).
 
 | File or directory | Content | Written by |
 | --- | --- | --- |
-| `~/.config/agent-hub/config.yaml` | app config (keys below) | you, and the server on `PATCH /api/config` |
-| `~/.config/agent-hub/workspaces/<name>.yaml` | one workspace preset per file; the file name is the preset `name` | you, and the server through the preset API |
-| `~/.local/state/agent-hub/` | runtime state, mode `0700` | server only |
-| `~/.local/state/agent-hub/sessions/<id>.json` | one record per session | server |
-| `~/.config/agent-hub/teams/<name>.yaml` | team templates (experimental), see [Team templates](#team-templates) | you, and the server through the team template API |
-| `~/.local/state/agent-hub/preset-launches.json` | preset name to the session ids it launched (autostart guard) | server |
-| `~/.local/state/agent-hub/team-launches.json` | team template launches whose lead session is still live | server |
-| `~/.local/state/agent-hub/hook-token` | hook token, mode `0600`; renewed when the Agent Hub version changes and rotated when the hooks are installed or removed in Settings | server |
-| `~/.local/state/agent-hub/hook-token.version` | version that wrote `hook-token` | server |
-| `~/.local/state/agent-hub/tmux.conf` | tmux config for the Agent Hub tmux server | installer |
-| `~/.local/state/agent-hub/backups/<encoded-path>/<timestamp>` | backups of Claude settings, CLAUDE.md, skills and presets before they are overwritten or deleted (mode `0600`, last 20 per file, at most 50 MB in total) | server |
-| `$CLAUDE_CONFIG_DIR/settings.json` (default `~/.claude/settings.json`) | Claude Code settings; Agent Hub only adds or removes its own `hooks` entries | server, on hook install |
+| `~/.config/paneful-manager/config.yaml` | app config (keys below) | you, and the server on `PATCH /api/config` |
+| `~/.config/paneful-manager/workspaces/<name>.yaml` | one workspace preset per file; the file name is the preset `name` | you, and the server through the preset API |
+| `~/.local/state/paneful-manager/` | runtime state, mode `0700` | server only |
+| `~/.local/state/paneful-manager/sessions/<id>.json` | one record per session | server |
+| `~/.config/paneful-manager/teams/<name>.yaml` | team templates (experimental), see [Team templates](#team-templates) | you, and the server through the team template API |
+| `~/.local/state/paneful-manager/preset-launches.json` | preset name to the session ids it launched (autostart guard) | server |
+| `~/.local/state/paneful-manager/team-launches.json` | team template launches whose lead session is still live | server |
+| `~/.local/state/paneful-manager/hook-token` | hook token, mode `0600`; renewed when the Paneful Manager version changes and rotated when the hooks are installed or removed in Settings | server |
+| `~/.local/state/paneful-manager/hook-token.version` | version that wrote `hook-token` | server |
+| `~/.local/state/paneful-manager/tmux.conf` | tmux config for the Paneful Manager tmux server | installer |
+| `~/.local/state/paneful-manager/backups/<encoded-path>/<timestamp>` | backups of Claude settings, CLAUDE.md, skills and presets before they are overwritten or deleted (mode `0600`, last 20 per file, at most 50 MB in total) | server |
+| `$CLAUDE_CONFIG_DIR/settings.json` (default `~/.claude/settings.json`) | Claude Code settings; Paneful Manager only adds or removes its own `hooks` entries | server, on hook install |
 | `~/.claude.json` (`$CLAUDE_CONFIG_DIR/.claude.json` when set), `<project>/.mcp.json` | MCP server entries | server, through the `claude` CLI or a file edit |
-| journald (`journalctl --user -u agent-hub`) | server logs | server |
+| journald (`journalctl --user -u paneful-manager`) | server logs | server |
 
 The config and state directories follow `XDG_CONFIG_HOME` and `XDG_STATE_HOME` when they are set to absolute paths. A relative value is ignored.
 
@@ -35,7 +35,7 @@ Keys, types and defaults come from `AppConfigSchema` in `packages/shared/src/con
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `port` | integer, 1 to 65535 | `7337` | Port of the server on `127.0.0.1`. `AGENT_HUB_PORT` overrides it. A changed value takes effect after a restart. The installed unit always sets `AGENT_HUB_PORT`, so change the port there with `install.sh --port` (see [Port](install.md#port)). |
+| `port` | integer, 1 to 65535 | `7337` | Port of the server on `127.0.0.1`. `PANEFUL_MANAGER_PORT` overrides it. A changed value takes effect after a restart. The installed unit always sets `PANEFUL_MANAGER_PORT`, so change the port there with `install.sh --port` (see [Port](install.md#port)). |
 | `experimental.agentTeams` | boolean | `false` | Enables the experimental agent-team views (see [Agent teams](#agent-teams-experimental)). |
 | `confirmCloseTab` | boolean | `true` | Ask for confirmation before closing a tab that still has running sessions (closing kills them). Also available as a switch in the Settings view. |
 | `projects` | list of paths | `[]` | Project directories. Each project and its git worktrees become scopes for CLAUDE.md, skills and MCP servers. A leading `~` is expanded. |
@@ -51,7 +51,7 @@ Rules:
 Example (`examples/config.yaml`):
 
 ```yaml
-# Example app config. Copy to ~/.config/agent-hub/config.yaml and adapt.
+# Example app config. Copy to ~/.config/paneful-manager/config.yaml and adapt.
 port: 7337
 theme: dark
 confirmCloseTab: true
@@ -65,22 +65,22 @@ projects:
 
 | Variable | Read by | Effect |
 | --- | --- | --- |
-| `AGENT_HUB_PORT` | server, Vite dev server | Port; overrides `port` in `config.yaml`. Only digits, 1 to 65535; any other value stops the server at startup. The Vite dev proxy forwards `/api` and `/ws` to this port (default `7337`) and does not read `config.yaml`. |
-| `AGENT_HUB_DEV_ORIGINS` | server | Comma-separated extra Origins, each `http://localhost:<port>` or `http://127.0.0.1:<port>`. Honored only when `NODE_ENV=development`; other entries are logged and ignored. |
-| `AGENT_HUB_WEB_DIST` | server | Directory of the built web app. Default: `apps/web/dist` next to the server. Without an `index.html` there, only the API is served. |
+| `PANEFUL_MANAGER_PORT` | server, Vite dev server | Port; overrides `port` in `config.yaml`. Only digits, 1 to 65535; any other value stops the server at startup. The Vite dev proxy forwards `/api` and `/ws` to this port (default `7337`) and does not read `config.yaml`. |
+| `PANEFUL_MANAGER_DEV_ORIGINS` | server | Comma-separated extra Origins, each `http://localhost:<port>` or `http://127.0.0.1:<port>`. Honored only when `NODE_ENV=development`; other entries are logged and ignored. |
+| `PANEFUL_MANAGER_WEB_DIST` | server | Directory of the built web app. Default: `apps/web/dist` next to the server. Without an `index.html` there, only the API is served. |
 | `XDG_CONFIG_HOME` | server, installer | Base of the config directory (absolute values only). |
 | `XDG_STATE_HOME` | server, installer | Base of the state directory (absolute values only). |
 | `XDG_DATA_HOME` | installer | Base of the default install prefix (absolute values only). |
 | `CLAUDE_CONFIG_DIR` | server | Claude Code config directory; default `~/.claude`. |
 | `NODE_ENV` | server | `development` enables the Vite origins (`localhost:3000`, `127.0.0.1:3000`) and pretty logs. The systemd unit sets `production`. |
 | `TMUX_TMPDIR` | server | Passed to tmux calls, so tmux finds the socket directory. |
-| `AGENT_HUB_REPO` | installer | GitHub `<owner>/<repo>` to download releases from (default `Dev-Sebi/Paneful-Manager`). |
+| `PANEFUL_MANAGER_REPO` | installer | GitHub `<owner>/<repo>` to download releases from (default `Dev-Sebi/Paneful-Manager`). |
 
-The server also sets these variables in every session it starts: `AGENT_HUB_SESSION_ID`, `AGENT_HUB_HOOK_TOKEN` and `AGENT_HUB_URL`. The hook handler in Claude Code uses them to report session state.
+The server also sets these variables in every session it starts: `PANEFUL_MANAGER_SESSION_ID`, `PANEFUL_MANAGER_HOOK_TOKEN` and `PANEFUL_MANAGER_URL`. The hook handler in Claude Code uses them to report session state.
 
 ## Workspace presets
 
-A preset describes tabs with panes. Each pane starts one command in one directory. Presets are files in `~/.config/agent-hub/workspaces/`, validated by `WorkspacePresetSchema` in `packages/shared/src/preset.ts`.
+A preset describes tabs with panes. Each pane starts one command in one directory. Presets are files in `~/.config/paneful-manager/workspaces/`, validated by `WorkspacePresetSchema` in `packages/shared/src/preset.ts`.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -164,13 +164,13 @@ With the flag on, the server reads, without writing:
 - team configs in `$CLAUDE_CONFIG_DIR/teams/<team>/config.json`, and
 - task files in `$CLAUDE_CONFIG_DIR/tasks/<task-list-id>/*.json`.
 
-It shows them as a task board and links team members to Agent Hub sessions by tmux pane. With the flag off, `GET /api/teams` returns `enabled: false` and reads no files; team tabs are hidden. The lowest Claude Code version tested with agent teams is 2.1.309.
+It shows them as a task board and links team members to Paneful Manager sessions by tmux pane. With the flag off, `GET /api/teams` returns `enabled: false` and reads no files; team tabs are hidden. The lowest Claude Code version tested with agent teams is 2.1.309.
 
 ### Team templates
 
 A team template is a YAML file that starts a lead Claude Code session with a generated first prompt. Claude Code spawns the teammates from that prompt, so names, models and directories are requests, not guarantees. Team templates depend on the same experimental feature as the board. [ADR 0012](adr/0012-team-templates.md) describes the design; [ADR 0010](adr/0010-agent-teams.md) is `proposed`.
 
-File: `~/.config/agent-hub/teams/<name>.yaml` (`$XDG_CONFIG_HOME/agent-hub/teams/` when set). The directory is created on the first write. Files are validated by `TeamTemplateSchema` in `packages/shared/src/team-templates.ts`. Example: `examples/teams/review-team.yaml`.
+File: `~/.config/paneful-manager/teams/<name>.yaml` (`$XDG_CONFIG_HOME/paneful-manager/teams/` when set). The directory is created on the first write. Files are validated by `TeamTemplateSchema` in `packages/shared/src/team-templates.ts`. Example: `examples/teams/review-team.yaml`.
 
 | Key | Type | Default | Limits and rules |
 | --- | --- | --- | --- |
@@ -197,7 +197,7 @@ Launch (`POST /api/team-templates/<name>/launch`, returns `201`):
 2. `<lead.command> --version` must report Claude Code 2.1.309 or later, otherwise `409`. Versions above 2.1.311 are launched with `untestedVersion: true`, and the UI shows a warning.
 3. The server picks the lead's session id (a UUID, passed as `--session-id`), so the team name is known before Claude Code starts. The team name is `session-` followed by the first 8 characters of that id.
 4. One session is created with the command `lead.command`, the arguments `lead.args`, `--teammate-mode tmux`, `--session-id <uuid>`, `--settings` with the env (template `env` plus `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` and `CLAUDE_CODE_TASK_LIST_ID=<team name>`), optional `--model`, and the first prompt. The template args come first, so a variadic option ends before `--teammate-mode`.
-5. The launch (`template`, `sessionId`, `team`, `launchedAt`) is appended to `~/.local/state/agent-hub/team-launches.json`. Entries whose lead session has exited or is gone are dropped on the next write.
+5. The launch (`template`, `sessionId`, `team`, `launchedAt`) is appended to `~/.local/state/paneful-manager/team-launches.json`. Entries whose lead session has exited or is gone are dropped on the next write.
 6. If the launch record cannot be built after the lead has started, the lead session is killed and nothing is recorded. If only writing `team-launches.json` fails, a warning is logged and the launch still succeeds.
 
 No `.claude/agents/` files are written. Teammate roles travel in the first prompt only.

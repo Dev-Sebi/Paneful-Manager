@@ -5,7 +5,7 @@
 
 ## Context
 
-Agent Hub is built in parallel tasks by several contributors. Decisions made in one task (process model, protocol, security) constrain many others and must not be re-argued or silently changed.
+Paneful Manager is built in parallel tasks by several contributors. Decisions made in one task (process model, protocol, security) constrain many others and must not be re-argued or silently changed.
 
 ## Decision
 

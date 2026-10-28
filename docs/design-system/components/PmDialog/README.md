@@ -1,4 +1,4 @@
-# AhDialog
+# PmDialog
 
 Modal dialog for confirmations and short forms (close dirty session, delete preset, edit MCP server). Wraps `v-dialog`. Contract: `index.d.ts`.
 
@@ -20,14 +20,14 @@ The close (x) button is the last element in the DOM so that DOM order, focus ord
 - **Header**: padding `space.4` `space.4` `space.2`, title `font.size.lg`, `font.weight.semibold`, `color.fg.primary`.
 - **Blocked-close helper**: one line under the title, `font.size.sm`, `color.fg.muted`, text from `blockedMessage` (default "Finish or cancel the running action first"), `role="status"`.
 - **Body**: padding x `space.4`, text `font.size.md`, `font.line-height.normal`, secondary text `color.fg.muted`.
-- **Actions**: padding `space.4`, gap `space.2`, `AhButton` size `md`.
+- **Actions**: padding `space.4`, gap `space.2`, `PmButton` size `md`.
 
 ## States and tones
 
 | State | Visual / behavior |
 | --- | --- |
-| `tone: default` | Confirm is `AhButton variant="primary"` |
-| `tone: danger` | Header icon in `color.danger.default`; confirm is `AhButton variant="danger"`; initial focus on cancel |
+| `tone: default` | Confirm is `PmButton variant="primary"` |
+| `tone: danger` | Header icon in `color.danger.default`; confirm is `PmButton variant="danger"`; initial focus on cancel |
 | `persistent` / `loading` close attempt | Escape and scrim click emit `close-blocked`, show the blocked-close helper line (static, stays until the dialog closes) and play `headShake` once on the panel; close (x) hidden when persistent |
 | `loading` | Confirm shows spinner, all close paths blocked, body `aria-busy="true"` |
 | Body overflow | Body scrolls; header and actions stay fixed; divider `color.border.default` appears |

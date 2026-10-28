@@ -1,4 +1,4 @@
-# AhStatusBadge
+# PmStatusBadge
 
 Shows the state of an agent session: working, waiting for input, error or idle. Used in tabs, pane headers, lists and team views. Contract: `index.d.ts`.
 

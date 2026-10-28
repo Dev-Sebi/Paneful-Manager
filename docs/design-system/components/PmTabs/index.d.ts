@@ -1,17 +1,17 @@
-import type { AhStatusBadgeState } from '../AhStatusBadge'
+import type { PmStatusBadgeState } from '../PmStatusBadge'
 
 /*
  * Id convention (wired by the components, never passed by hand):
- *   tab element:      id="ah-tab-<value>"       aria-controls="ah-tabpanel-<value>"
- *   AhTabPanel:       id="ah-tabpanel-<value>"  aria-labelledby="ah-tab-<value>"
+ *   tab element:      id="pm-tab-<value>"       aria-controls="pm-tabpanel-<value>"
+ *   PmTabPanel:       id="pm-tabpanel-<value>"  aria-labelledby="pm-tab-<value>"
  * `value` must be unique per page and contain only [A-Za-z0-9_-].
  */
 
-/* ---------- AhTabs (tablist container) ---------- */
+/* ---------- PmTabs (tablist container) ---------- */
 
-export type AhTabsDensity = 'compact' | 'default'
+export type PmTabsDensity = 'compact' | 'default'
 
-export interface AhTabsProps {
+export interface PmTabsProps {
   /** Value of the active tab (v-model). */
   modelValue?: string
   /** Accessible name of the tablist, e.g. 'Sessions'. */
@@ -23,43 +23,43 @@ export interface AhTabsProps {
   /** Shows the "new tab" button in the append area. @default false */
   addable?: boolean
   /** compact 28px, default 32px tab height. @default 'default' */
-  density?: AhTabsDensity
+  density?: PmTabsDensity
 }
 
-export interface AhTabsReorderPayload {
+export interface PmTabsReorderPayload {
   value: string
   from: number
   to: number
 }
 
-export interface AhTabsEmits {
+export interface PmTabsEmits {
   (e: 'update:modelValue', value: string): void
   /** Parent owns the order and applies the move. */
-  (e: 'reorder', payload: AhTabsReorderPayload): void
-  /** Parent decides; dirty tabs should be confirmed with AhDialog first. */
+  (e: 'reorder', payload: PmTabsReorderPayload): void
+  /** Parent decides; dirty tabs should be confirmed with PmDialog first. */
   (e: 'close', value: string): void
   (e: 'add'): void
 }
 
-export interface AhTabsSlots {
-  /** AhTab children. */
+export interface PmTabsSlots {
+  /** PmTab children. */
   default?: () => unknown
   /** Actions after the last tab (new tab, overflow menu); outside the tablist element. */
   append?: () => unknown
 }
 
-/* ---------- AhTab (one tab: wrapper li > tab element + close button) ---------- */
+/* ---------- PmTab (one tab: wrapper li > tab element + close button) ---------- */
 
-export interface AhTabProps {
-  /** Unique id; drives `ah-tab-<value>` / `ah-tabpanel-<value>`. */
+export interface PmTabProps {
+  /** Unique id; drives `pm-tab-<value>` / `pm-tabpanel-<value>`. */
   value: string
   /** Visible label; truncated with ellipsis, full text in tooltip. */
   title: string
   /** Optional session state shown as a dot badge before the title. */
-  status?: AhStatusBadgeState
+  status?: PmStatusBadgeState
   /** Unsaved or unacknowledged changes; shows a dot in place of the close icon. @default false */
   dirty?: boolean
-  /** Overrides AhTabs `closable`. */
+  /** Overrides PmTabs `closable`. */
   closable?: boolean
   /** @default false */
   disabled?: boolean
@@ -67,26 +67,26 @@ export interface AhTabProps {
   icon?: string
 }
 
-export interface AhTabEmits {
+export interface PmTabEmits {
   (e: 'close', value: string): void
 }
 
-export interface AhTabSlots {
+export interface PmTabSlots {
   /** Replaces icon / status badge. */
   prepend?: () => unknown
   /** Replaces the title text. */
   default?: () => unknown
 }
 
-/* ---------- AhTabPanel (content controlled by a tab) ---------- */
+/* ---------- PmTabPanel (content controlled by a tab) ---------- */
 
-export interface AhTabPanelProps {
-  /** Same value as the controlling AhTab. */
+export interface PmTabPanelProps {
+  /** Same value as the controlling PmTab. */
   value: string
   /** Keep the panel mounted while inactive (terminal panes must stay mounted). @default true */
   keepAlive?: boolean
 }
 
-export interface AhTabPanelSlots {
+export interface PmTabPanelSlots {
   default?: () => unknown
 }

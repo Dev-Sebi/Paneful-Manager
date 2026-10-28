@@ -1,6 +1,6 @@
-# Agent Hub architecture
+# Paneful Manager architecture
 
-Agent Hub is a local web app running inside WSL that manages Claude Code sessions. Each session runs in its own tmux session; the browser shows them as terminal panes arranged in tabs. Decisions behind this document are recorded in [`adr/`](adr/).
+Paneful Manager is a local web app running inside WSL that manages Claude Code sessions. Each session runs in its own tmux session; the browser shows them as terminal panes arranged in tabs. Decisions behind this document are recorded in [`adr/`](adr/).
 
 Statements about Claude Code behavior that could not be verified from its documentation are marked **assumed** together with the task that has to verify them.
 
@@ -13,7 +13,7 @@ flowchart LR
     XT[xterm.js panes]
   end
   subgraph WSL["WSL (systemd user session)"]
-    subgraph Server["agent-hub.service (Node 22)"]
+    subgraph Server["paneful-manager.service (Node 22)"]
       HTTP[Fastify REST /api]
       WS[ws endpoint /ws]
       ENG[Session engine]
@@ -21,7 +21,7 @@ flowchart LR
       CFG[Config + preset loader]
     end
     PTY[node-pty: tmux attach]
-    TMUX[("tmux server -L agent-hub")]
+    TMUX[("tmux server -L paneful-manager")]
     CC[claude processes]
     CONF[("config dir: config.yaml, workspaces/*.yaml")]
     STATE[("state dir: sessions, launch ledgers, hook token, backups")]
@@ -54,34 +54,34 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-  SD["systemd --user"] --> TU["agent-hub-tmux.service (Type=forking)"]
-  SD --> SVC["agent-hub.service: node server"]
+  SD["systemd --user"] --> TU["paneful-manager-tmux.service (Type=forking)"]
+  SD --> SVC["paneful-manager.service: node server"]
   SVC -.->|"Wants + After"| TU
-  TU --> TS["tmux server, socket name agent-hub"]
-  TS --> S1["tmux session ah-id1: claude"]
-  TS --> S2["tmux session ah-id2: claude"]
+  TU --> TS["tmux server, socket name paneful-manager"]
+  TS --> S1["tmux session pm-id1: claude"]
+  TS --> S2["tmux session pm-id2: claude"]
   SVC -.->|"node-pty: tmux attach-session"| S1
   SVC -.->|"execFile: new-session, kill-session, ls, capture-pane"| TS
 ```
 
-- **Server.** Runs as the systemd user service `agent-hub.service` inside WSL (`Restart=on-failure`, `Wants=` and `After=agent-hub-tmux.service`), installed by `install.sh` ([install guide](install.md)). `ExecStart` is the absolute `node` found at install time (node-pty is a Node-API addon, prebuilt in the release or compiled on install) running `<prefix>/current/apps/server/dist/index.js`; the unit sets `AGENT_HUB_PORT`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and the installer's `PATH`. It binds `127.0.0.1:<port>` only (`BIND_HOST`, `resolvePort`) and serves the built web app (`apps/web/dist`, or `AGENT_HUB_WEB_DIST`) with SPA fallback and a strict CSP. In development `pnpm dev` runs it with `tsx watch` instead.
-- **One tmux server** with the dedicated socket name `agent-hub` (`tmux -L agent-hub ...`), so the user's own tmux sessions are never listed, touched or killed. It is owned by its own user unit `agent-hub-tmux.service` (`Type=forking`, `ExecStart=tmux -L agent-hub -f $STATE/tmux.conf start-server` with the absolute state path, `ExecStop=tmux -L agent-hub kill-server`), so restarting or stopping `agent-hub.service` never kills sessions. The unit carries the installer's `PATH`, because sessions inherit the tmux server environment and need to find `claude`; it has no sandboxing options, since sessions are the user's interactive shells (`sudo` must keep working).
-- **tmux.conf** (`$STATE/tmux.conf`, copied by the installer from `packaging/tmux.conf`): `exit-empty off` (server stays up without sessions), `remain-on-exit on` (exit codes stay readable), status line off, `history-limit 50000` for scrollback, `window-size latest`, and the `terminal-overrides` entry below. tmux reads it only when the tmux server starts; changes need a restart of `agent-hub-tmux.service`.
+- **Server.** Runs as the systemd user service `paneful-manager.service` inside WSL (`Restart=on-failure`, `Wants=` and `After=paneful-manager-tmux.service`), installed by `install.sh` ([install guide](install.md)). `ExecStart` is the absolute `node` found at install time (node-pty is a Node-API addon, prebuilt in the release or compiled on install) running `<prefix>/current/apps/server/dist/index.js`; the unit sets `PANEFUL_MANAGER_PORT`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME` and the installer's `PATH`. It binds `127.0.0.1:<port>` only (`BIND_HOST`, `resolvePort`) and serves the built web app (`apps/web/dist`, or `PANEFUL_MANAGER_WEB_DIST`) with SPA fallback and a strict CSP. In development `pnpm dev` runs it with `tsx watch` instead.
+- **One tmux server** with the dedicated socket name `paneful-manager` (`tmux -L paneful-manager ...`), so the user's own tmux sessions are never listed, touched or killed. It is owned by its own user unit `paneful-manager-tmux.service` (`Type=forking`, `ExecStart=tmux -L paneful-manager -f $STATE/tmux.conf start-server` with the absolute state path, `ExecStop=tmux -L paneful-manager kill-server`), so restarting or stopping `paneful-manager.service` never kills sessions. The unit carries the installer's `PATH`, because sessions inherit the tmux server environment and need to find `claude`; it has no sandboxing options, since sessions are the user's interactive shells (`sudo` must keep working).
+- **tmux.conf** (`$STATE/tmux.conf`, copied by the installer from `packaging/tmux.conf`): `exit-empty off` (server stays up without sessions), `remain-on-exit on` (exit codes stay readable), status line off, `history-limit 50000` for scrollback, `window-size latest`, and the `terminal-overrides` entry below. tmux reads it only when the tmux server starts; changes need a restart of `paneful-manager-tmux.service`.
 - **The engine never starts the tmux server.** Every `execFile` call passes `tmux -N` (never start a server). If the socket is missing it reports `tmux_unavailable` (`ApiErrorCodeSchema`, HTTP 503), refuses to create sessions and keeps retrying the listing. In development the developer starts it with the same command.
 - **No alternate screen.** When the tmux server becomes available, the engine appends `xterm-256color:smcup@:rmcup@` to the server option `terminal-overrides` (once), so the attach pty never switches xterm.js to the alternate buffer and scrollback written before the redraw stays visible.
 - **Requirements:** tmux 3.2 or later (`new-session -e`); the installer checks `tmux -V`. The installer runs `loginctl enable-linger` so user units start at boot and run without a login session.
 - **WSL lifetime.** systemd services do not keep a WSL instance alive: WSL stops an idle distro (`instanceIdleTimeout` in `.wslconfig`, default 15 s) and the VM (`vmIdleTimeout`), which ends all sessions. The [install guide](install.md#keeping-wsl-running) covers the optional Windows logon task that boots the distro and how to keep it running.
-- **One tmux session per Agent Hub session**, running exactly one command (default `claude`) in one window and pane. Agent Hub layouts (splits, tabs) are drawn in the browser, never with tmux panes.
-- **One pty per attached session.** When the first client attaches, the engine spawns `tmux -L agent-hub attach-session -t =ah-<id>` with node-pty and fans its output out to every attached WS client. When the last client detaches, the pty is closed; the tmux session keeps running. tmux therefore only ever sees one client per session, and the pty size is the session size.
-- **All other tmux calls** (`new-session`, `kill-session`, `list-sessions`, `list-clients`, `display-message`, `capture-pane`, `refresh-client`, `show-options`, `set-option`) use `execFile` with argument arrays. Targets use the exact-match form because tmux otherwise prefix-matches names: `=ah-<id>` for session targets (`kill-session`, `attach-session`), `=ah-<id>:` for window and pane targets (`display-message`, `capture-pane`, `list-clients`).
+- **One tmux session per Paneful Manager session**, running exactly one command (default `claude`) in one window and pane. Paneful Manager layouts (splits, tabs) are drawn in the browser, never with tmux panes.
+- **One pty per attached session.** When the first client attaches, the engine spawns `tmux -L paneful-manager attach-session -t =pm-<id>` with node-pty and fans its output out to every attached WS client. When the last client detaches, the pty is closed; the tmux session keeps running. tmux therefore only ever sees one client per session, and the pty size is the session size.
+- **All other tmux calls** (`new-session`, `kill-session`, `list-sessions`, `list-clients`, `display-message`, `capture-pane`, `refresh-client`, `show-options`, `set-option`) use `execFile` with argument arrays. Targets use the exact-match form because tmux otherwise prefix-matches names: `=pm-<id>` for session targets (`kill-session`, `attach-session`), `=pm-<id>:` for window and pane targets (`display-message`, `capture-pane`, `list-clients`).
 
 ### Lifecycle operations
 
 | Operation | What happens |
 | --- | --- |
-| Create (REST or preset autostart) | Generate id, write metadata (`lifecycle: starting`), `new-session -d -s ah-<id> -c <cwd> -x <cols> -y <rows> -e AGENT_HUB_URL=http://127.0.0.1:<port> -e AGENT_HUB_SESSION_ID=<id> -- env -- <command> <args...>` (`env --` because tmux runs a single-word command through `sh -c`), preceded in the same tmux call by `source-file $STATE/session-env.tmux ;`, an owner-only (`0600`) file with `set-environment -g AGENT_HUB_HOOK_TOKEN '<token>'`, so the token never appears in a process's argv, then `running`; broadcast `session.created`. `cwd` must be an existing directory (`400 bad_request`). Failure: `session_spawn_failed`, metadata removed. |
+| Create (REST or preset autostart) | Generate id, write metadata (`lifecycle: starting`), `new-session -d -s pm-<id> -c <cwd> -x <cols> -y <rows> -e PANEFUL_MANAGER_URL=http://127.0.0.1:<port> -e PANEFUL_MANAGER_SESSION_ID=<id> -- env -- <command> <args...>` (`env --` because tmux runs a single-word command through `sh -c`), preceded in the same tmux call by `source-file $STATE/session-env.tmux ;`, an owner-only (`0600`) file with `set-environment -g PANEFUL_MANAGER_HOOK_TOKEN '<token>'`, so the token never appears in a process's argv, then `running`; broadcast `session.created`. `cwd` must be an existing directory (`400 bad_request`). Failure: `session_spawn_failed`, metadata removed. |
 | Browser closed | Nothing. Sessions keep running; the pty closes when no client is attached. |
-| Close app tab | Client asks for confirmation (`confirmCloseTab`), then `DELETE /api/sessions/:id` per pane: `kill-session -t =ah-<id>`, metadata deleted, `session.removed` broadcast. |
+| Close app tab | Client asks for confirmation (`confirmCloseTab`), then `DELETE /api/sessions/:id` per pane: `kill-session -t =pm-<id>`, metadata deleted, `session.removed` broadcast. |
 | Command exits | Pane stays dead (`remain-on-exit`); engine sets `lifecycle: exited` with `exitCode` from `#{pane_dead_status}`. The session stays visible until the user closes it. |
 | Server restart | Re-adoption, see below. |
 
@@ -89,16 +89,16 @@ Exit detection polls one `list-sessions` call (the re-adoption format below, whi
 
 ### Re-adoption after restart
 
-On startup the engine runs `tmux -L agent-hub list-sessions -F '#{session_name}\t#{session_created}\t#{session_path}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_dead_signal}\t#{pane_start_command}'` (no server running = `tmux_unavailable`) and reconciles it with `$STATE/sessions/*.json`:
+On startup the engine runs `tmux -L paneful-manager list-sessions -F '#{session_name}\t#{session_created}\t#{session_path}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_dead_signal}\t#{pane_start_command}'` (no server running = `tmux_unavailable`) and reconciles it with `$STATE/sessions/*.json`:
 
 | tmux session | Metadata | Result |
 | --- | --- | --- |
-| `ah-<id>` exists | `sessions/<id>.json` exists | Adopted: `lifecycle` from `pane_dead`, `state` reset to `idle` until the next hook arrives. |
-| `ah-<id>` exists | missing (orphan) | Adopted with reconstructed metadata (below). Never killed automatically. |
+| `pm-<id>` exists | `sessions/<id>.json` exists | Adopted: `lifecycle` from `pane_dead`, `state` reset to `idle` until the next hook arrives. |
+| `pm-<id>` exists | missing (orphan) | Adopted with reconstructed metadata (below). Never killed automatically. |
 | missing | `sessions/<id>.json` exists | Stale record deleted. Clients still referencing the id get `unknown_session` and drop the pane. |
-| name without `ah-` prefix | - | Ignored, never touched (someone used the socket manually). |
+| name without `pm-` prefix | - | Ignored, never touched (someone used the socket manually). |
 
-Reconstructed orphan record: `cwd` from `session_path`, `createdAt` from `session_created`, `title: "Recovered"`. `pane_start_command` is a shell-quoted string that cannot be split back reliably, so it is only logged and the record stores `command: 'tmux'`, `args: []`. Required fields without a source get defaults: `cols` 80, `rows` 24, `state: idle`, `lastEventAt` now, `hostId: local`. Recovered sessions are not opened in a tab automatically; `GET /api/sessions` lists them. Tabs live in the browser (`localStorage`, `agent-hub.tabs.v1`), not on the server.
+Reconstructed orphan record: `cwd` from `session_path`, `createdAt` from `session_created`, `title: "Recovered"`. `pane_start_command` is a shell-quoted string that cannot be split back reliably, so it is only logged and the record stores `command: 'tmux'`, `args: []`. Required fields without a source get defaults: `cols` 80, `rows` 24, `state: idle`, `lastEventAt` now, `hostId: local`. Recovered sessions are not opened in a tab automatically; `GET /api/sessions` lists them. Tabs live in the browser (`localStorage`, `paneful-manager.tabs.v1`), not on the server.
 
 Re-adopted sessions keep the environment they were created with, which is why the hook token is persisted and not per boot (see [Security model](#security-model)).
 
@@ -107,27 +107,27 @@ Re-adopted sessions keep the environment they were created with, which is why th
 ### Session ids and tmux names
 
 - Session ids are generated by the server: 12 characters of `crypto.randomBytes(9).toString('base64url')`, so the charset is `[A-Za-z0-9_-]`, the same as `TmuxSessionNameSchema`.
-- tmux session name: `ah-<sessionId>` (`Session.tmuxSession`). The prefix marks sessions as ours during re-adoption and guarantees a name never starts with `-`.
+- tmux session name: `pm-<sessionId>` (`Session.tmuxSession`). The prefix marks sessions as ours during re-adoption and guarantees a name never starts with `-`.
 - `SessionIdSchema` enforces the charset above, so every valid id yields a valid `tmuxSession`.
 
 ### Where things live
 
 | Path | Content | Writer |
 | --- | --- | --- |
-| `$XDG_CONFIG_HOME/agent-hub/config.yaml` (default `~/.config/agent-hub/`) | `AppConfigSchema` | user + server (`PATCH /api/config`) |
-| `.../agent-hub/workspaces/<name>.yaml` | `WorkspacePresetSchema`, file name = `name` | user + server (preset API) |
-| `.../agent-hub/teams/<name>.yaml` | `TeamTemplateSchema` (experimental), file name = `name` | user + server (team template API) |
-| `$XDG_STATE_HOME/agent-hub/` (default `~/.local/state/agent-hub/`, called `$STATE`) | runtime state, mode `0700` | server only |
+| `$XDG_CONFIG_HOME/paneful-manager/config.yaml` (default `~/.config/paneful-manager/`) | `AppConfigSchema` | user + server (`PATCH /api/config`) |
+| `.../paneful-manager/workspaces/<name>.yaml` | `WorkspacePresetSchema`, file name = `name` | user + server (preset API) |
+| `.../paneful-manager/teams/<name>.yaml` | `TeamTemplateSchema` (experimental), file name = `name` | user + server (team template API) |
+| `$XDG_STATE_HOME/paneful-manager/` (default `~/.local/state/paneful-manager/`, called `$STATE`) | runtime state, mode `0700` | server only |
 | `$STATE/sessions/<id>.json` | one `Session` record, rewritten on every lifecycle or state change | server |
 | `$STATE/preset-launches.json` | preset name to the ids of the sessions it launched (autostart guard, see [Workspace presets](#workspace-presets)) | server |
 | `$STATE/team-launches.json` | team template launches: template, lead session id, expected team name (see [Agent teams](#agent-teams-experimental)) | server |
 | `$STATE/hook-token` | hook token, mode `0600`; created, replaced (corrupt file) or rotated only while holding `$STATE/hook-token.lock`, so concurrent starts agree on one token; temp files of interrupted writes older than 60 s are removed on start | server |
 | `$STATE/hook-token.version` | release version (root `package.json`) that wrote `hook-token`; a different or missing version renews the token on start | server |
-| `$STATE/tmux.conf` | tmux config, read by `agent-hub-tmux.service` at tmux start | installer |
+| `$STATE/tmux.conf` | tmux config, read by `paneful-manager-tmux.service` at tmux start | installer |
 | `$STATE/backups/<encoded-path>/<timestamp>` | backups before overwriting or deleting files (see below) | server |
-| journald (`journalctl --user -u agent-hub`) | logs (pino to stdout) | server |
+| journald (`journalctl --user -u paneful-manager`) | logs (pino to stdout) | server |
 
-The state directory follows the XDG base directory spec the same way `resolveConfigDir` does for config: `$XDG_STATE_HOME/agent-hub` when set, otherwise `~/.local/state/agent-hub` (`resolveStateDir(env)` in `packages/shared`).
+The state directory follows the XDG base directory spec the same way `resolveConfigDir` does for config: `$XDG_STATE_HOME/paneful-manager` when set, otherwise `~/.local/state/paneful-manager` (`resolveStateDir(env)` in `packages/shared`).
 
 ## WebSocket runtime behavior
 
@@ -139,22 +139,22 @@ The frame catalogue is in [Shared contracts](#websocket-protocol). This section 
 sequenceDiagram
     participant C as Browser
     participant S as Server
-    C->>S: GET /api/session-token, X-Agent-Hub-Key (session key)
+    C->>S: GET /api/session-token, X-Paneful-Key (session key)
     S-->>C: token
-    C->>S: GET /ws?v=1, Sec-WebSocket-Protocol agent-hub.v1 + token.t
+    C->>S: GET /ws?v=1, Sec-WebSocket-Protocol paneful-manager.v1 + token.t
     Note over S: Host, Origin, token, version checked before upgrade
     alt check fails
         S-->>C: HTTP 403 (bad Host/Origin/token)
     else version mismatch
         S-->>C: upgrade, error protocol_mismatch, close 4001
     else ok
-        S-->>C: 101, Sec-WebSocket-Protocol agent-hub.v1
+        S-->>C: 101, Sec-WebSocket-Protocol paneful-manager.v1
         C->>S: attach (one per visible pane)
         S-->>C: scrollback, then output ...
     end
 ```
 
-1. Before every connect the client fetches the current per-boot token from `GET /api/session-token` (route name fixed, added to `API_ROUTES` in T11), sending the browser's session key (see Device login). It opens one socket per browser tab at `/ws?v=<WS_PROTOCOL_VERSION>` with the subprotocols `agent-hub.v1`, `token.<token>` and `key.<session key>` (`new WebSocket(url, ['agent-hub.v1', 'token.' + token, 'key.' + sessionKey])`). The server validates both entries and echoes only `agent-hub.v1`. Browsers cannot set other headers on WebSocket requests; the subprotocol header keeps the token out of URLs and access logs.
+1. Before every connect the client fetches the current per-boot token from `GET /api/session-token` (route name fixed, added to `API_ROUTES` in T11), sending the browser's session key (see Device login). It opens one socket per browser tab at `/ws?v=<WS_PROTOCOL_VERSION>` with the subprotocols `paneful-manager.v1`, `token.<token>` and `key.<session key>` (`new WebSocket(url, ['paneful-manager.v1', 'token.' + token, 'key.' + sessionKey])`). The server validates both entries and echoes only `paneful-manager.v1`. Browsers cannot set other headers on WebSocket requests; the subprotocol header keeps the token out of URLs and access logs.
 2. It sends `attach` for every pane that is visible. Hidden app tabs are detached to save bandwidth and re-attached when shown.
 3. `session.created`, `session.removed` and `state` frames are broadcast to every connection, attached or not, so sidebars stay current.
 4. Invalid frames get `error bad_message` and are ignored; the connection stays open.
@@ -166,8 +166,8 @@ For each `attach {sessionId, cols, rows, scrollback}`:
 1. Unknown id: `error unknown_session`.
 2. Register the client on the session; spawn the pty if it is the first client. Live output for this client is buffered from now on.
 3. Apply the size (resize rule below).
-4. If `scrollback` is `true`: read `#{history_size}` (`display-message -p -t =ah-<id>:`); if it is not 0, `capture-pane -p -e -J -S -<min(history_size, 10000)> -E -1 -t =ah-<id>:` (history above the visible screen, with escape sequences; tmux swaps `-S`/`-E` on an empty history, hence the check). Line feeds become `\r\n` and the result is sent as one `scrollback` frame. The client resets its xterm before writing it.
-5. Ask tmux to redraw the visible screen: read the pty's client tty with `list-clients -t =ah-<id>: -F '#{client_tty}'`, then `execFile tmux refresh-client -t <client_tty>`. Flush the buffered output and stream `output` frames. The redraw goes through the shared pty, so every viewer of that session receives it; it is a harmless repaint.
+4. If `scrollback` is `true`: read `#{history_size}` (`display-message -p -t =pm-<id>:`); if it is not 0, `capture-pane -p -e -J -S -<min(history_size, 10000)> -E -1 -t =pm-<id>:` (history above the visible screen, with escape sequences; tmux swaps `-S`/`-E` on an empty history, hence the check). Line feeds become `\r\n` and the result is sent as one `scrollback` frame. The client resets its xterm before writing it.
+5. Ask tmux to redraw the visible screen: read the pty's client tty with `list-clients -t =pm-<id>: -F '#{client_tty}'`, then `execFile tmux refresh-client -t <client_tty>`. Flush the buffered output and stream `output` frames. The redraw goes through the shared pty, so every viewer of that session receives it; it is a harmless repaint.
 
 The visible screen always comes from tmux's redraw, so it is never duplicated. Lines that scroll off the screen exactly between capture and redraw may be missing from history; this is accepted for v1.
 
@@ -205,9 +205,9 @@ The policy is coalesce, then close with `4008`; output is never dropped, because
 
 ### Split layouts (web)
 
-`AhSplitLayout` renders a tab's `Layout` with `splitpanes`: `single`, `row`, `column`, `grid-2x2` and `custom` are all expanded into one node tree (`layoutTree.ts`) and drawn recursively by `AhSplitNode`; leaves are filled through the `pane` slot (`AhTerminalPane` in the workspace view). Default sizes come from the optional `size` weights of panes and nodes, otherwise equal shares.
+`PmSplitLayout` renders a tab's `Layout` with `splitpanes`: `single`, `row`, `column`, `grid-2x2` and `custom` are all expanded into one node tree (`layoutTree.ts`) and drawn recursively by `PmSplitNode`; leaves are filled through the `pane` slot (`PmTerminalPane` in the workspace view). Default sizes come from the optional `size` weights of panes and nodes, otherwise equal shares.
 
-Dragged sizes are kept per tab and per split node path in `localStorage` (`agent-hub.layout-sizes.v1`, `stores/layoutSizes.ts`, validated with zod on load; entries that no longer fit the node's pane count are ignored). "Reset layout" drops a tab's entries; entries of closed tabs are pruned. Splitters are focusable separators with `aria-label`; arrow keys move them in 5% steps. After a splitter move (debounced) and when a tab is activated, the workspace view calls `fit()` on the tab's terminal panes.
+Dragged sizes are kept per tab and per split node path in `localStorage` (`paneful-manager.layout-sizes.v1`, `stores/layoutSizes.ts`, validated with zod on load; entries that no longer fit the node's pane count are ignored). "Reset layout" drops a tab's entries; entries of closed tabs are pruned. Splitters are focusable separators with `aria-label`; arrow keys move them in 5% steps. After a splitter move (debounced) and when a tab is activated, the workspace view calls `fit()` on the tab's terminal panes.
 
 ## File-write policy
 
@@ -217,25 +217,25 @@ Dragged sizes are kept per tab and per split node path in `localStorage` (`agent
 | --- | --- | --- |
 | Own config: `config.yaml`, `workspaces/*.yaml` | File service, atomic | YAML written through the `yaml` Document API so user comments and unknown keys survive. Preset file name must equal `PresetNameSchema`. |
 | Own state: `$STATE/**` | Atomic | No conflict check (server is the only writer). |
-| Claude settings: `$CLAUDE_DIR/settings.json` | Merge `hooks` key only, atomic, conflict-checked | Adds Agent Hub hook entries if missing; never changes or removes other entries or keys. Agent Hub's entries are identified by their exact URL `http://127.0.0.1:<any port>/api/hooks`, never by an extra key. Uninstall removes only those entries (and groups, event keys or the `hooks` key it emptied), so install then uninstall restores the file byte for byte when it uses one consistent indentation. The port is baked into that URL, so a port change re-merges the entries; running Claude Code sessions pick up hook edits live. Invalid JSON (including comments) is `409 conflict` and never rewritten. Symlinks are followed. |
+| Claude settings: `$CLAUDE_DIR/settings.json` | Merge `hooks` key only, atomic, conflict-checked | Adds Paneful Manager hook entries if missing; never changes or removes other entries or keys. Paneful Manager's entries are identified by their exact URL `http://127.0.0.1:<any port>/api/hooks`, never by an extra key. Uninstall removes only those entries (and groups, event keys or the `hooks` key it emptied), so install then uninstall restores the file byte for byte when it uses one consistent indentation. The port is baked into that URL, so a port change re-merges the entries; running Claude Code sessions pick up hook edits live. Invalid JSON (including comments) is `409 conflict` and never rewritten. Symlinks are followed. |
 | `CLAUDE.md` and skills | File service, atomic, conflict-checked | Only inside allowlisted scopes: global `$CLAUDE_DIR/CLAUDE.md` and `$CLAUDE_DIR/skills/**`; for each configured project and its git worktrees `<root>/CLAUDE.md`, `<root>/CLAUDE.local.md`, `<root>/.claude/skills/**`. |
 | MCP servers | `claude mcp add-json` / `claude mcp remove` via `run()`, file edit as fallback | See [MCP configuration](#mcp-configuration) and [ADR 0009](adr/0009-mcp-config-via-cli.md). |
 | Worktree helper | Copy gitignored files into a new worktree | Only after explicit confirmation, target must be inside the worktree (T34). Apply is all-or-nothing in validation, best-effort in writing. |
 
 ### Rules
 
-- **Atomic write:** write `<dir>/.<name>.agent-hub-<random>.tmp` in the same directory (same filesystem), copy the target's mode, `fsync`, `rename` over the target. A crash leaves either the old or the new file, never a partial one.
+- **Atomic write:** write `<dir>/.<name>.paneful-manager-<random>.tmp` in the same directory (same filesystem), copy the target's mode, `fsync`, `rename` over the target. A crash leaves either the old or the new file, never a partial one.
 - **Conflict detection:** every read returns `mtimeMs` and the sha256 `hash` of the content. Writes carry the hash they are based on as `expectedHash` (omitted only for a new file); the server compares it under a per-path lock and re-hashes the target once more right before the rename. Mismatch (or file created/deleted meanwhile) returns `409 conflict` with `{ currentHash }`, and the UI shows a diff or reload choice.
 - **Never silent overwrite:** there is no force flag in the API. Overwriting after a conflict needs a fresh read. External changes are pushed to the UI by a file watcher (T31).
 - **Symlinks:** the requested path must match a managed pattern. It is resolved with `realpath`, and the resolved path must stay inside the same scope root, contain no hidden segment (apart from the `.claude/skills` prefix) and be a managed file or a `.md` file, so `CLAUDE.md -> AGENTS.md` works while links to `package.json`, `.git/**` or `.claude/settings.json` are `403`. Writes go to the resolved target, so the link itself is kept; deleting a link removes only the link. New files are never created through a dangling link. Every component below the root is re-checked with `lstat` before writing, and anything but a regular file (FIFO, device) is `403`; files are opened with `O_NOFOLLOW | O_NONBLOCK`.
 - **Hard links (accepted):** a managed file that is a hard link to a file elsewhere cannot be detected by path checks; writes replace the managed name via rename, so the other name keeps the old content. Creating such a link needs local access, which is out of scope.
-- **Backups:** before the server overwrites or deletes a file it does not exclusively own (Claude settings, CLAUDE.md, skills, presets; `config.yaml` is written without a backup), the previous content is copied to `$STATE/backups/<encoded-path>/<timestamp>` with mode `0600` (default `~/.local/state/agent-hub/backups`; startup fails if it lies inside a scope). A deleted skill directory is backed up file by file; it is only removed when it holds nothing but managed files, otherwise `409 conflict` lists the blocking entries. Retention: the last 20 backups per file and at most 50 MB in total; the oldest backups are pruned first.
+- **Backups:** before the server overwrites or deletes a file it does not exclusively own (Claude settings, CLAUDE.md, skills, presets; `config.yaml` is written without a backup), the previous content is copied to `$STATE/backups/<encoded-path>/<timestamp>` with mode `0600` (default `~/.local/state/paneful-manager/backups`; startup fails if it lies inside a scope). A deleted skill directory is backed up file by file; it is only removed when it holds nothing but managed files, otherwise `409 conflict` lists the blocking entries. Retention: the last 20 backups per file and at most 50 MB in total; the oldest backups are pruned first.
 
 ### MCP configuration
 
-Claude Code keeps MCP servers in three scopes; Agent Hub maps its own scopes onto them (`toMcpScope`) and never invents a storage location.
+Claude Code keeps MCP servers in three scopes; Paneful Manager maps its own scopes onto them (`toMcpScope`) and never invents a storage location.
 
-| Agent Hub scope | Claude Code scope | Stored in |
+| Paneful Manager scope | Claude Code scope | Stored in |
 | --- | --- | --- |
 | `global` | `user` | `mcpServers` in `~/.claude.json` (`$CLAUDE_CONFIG_DIR/.claude.json` when set) |
 | `project` / `worktree`, shared | `project` | `mcpServers` in `<root>/.mcp.json` (committed) |
@@ -262,7 +262,7 @@ flowchart LR
 
 ## Security model
 
-Agent Hub is a single-user tool on loopback. The main attacker is a web page open in the same browser; other OS users on the same machine are kept out by the device login of the browser and the access key for scripts ([ADR 0013](adr/0013-access-key-against-local-users.md), [ADR 0014](adr/0014-device-login-against-origin-squatting.md)). The Origin check is the primary CSRF control; the token is defense in depth. `POST /api/hooks` takes its own path (hook token, see below). All request checks live in `apps/server/src/security/` and run in one `onRequest` hook (`registerSecurity`) before routing, so they also cover unknown routes.
+Paneful Manager is a single-user tool on loopback. The main attacker is a web page open in the same browser; other OS users on the same machine are kept out by the device login of the browser and the access key for scripts ([ADR 0013](adr/0013-access-key-against-local-users.md), [ADR 0014](adr/0014-device-login-against-origin-squatting.md)). The Origin check is the primary CSRF control; the token is defense in depth. `POST /api/hooks` takes its own path (hook token, see below). All request checks live in `apps/server/src/security/` and run in one `onRequest` hook (`registerSecurity`) before routing, so they also cover unknown routes.
 
 ```mermaid
 flowchart LR
@@ -294,16 +294,16 @@ flowchart LR
 | Loopback bind | `127.0.0.1` only (`BIND_HOST`), not configurable. After `listen`, `startServer` asserts that the bound address is `127.0.0.1` and closes the server otherwise (the process exits 1). WSL localhost forwarding makes it reachable from the Windows browser (assumed, verify in T60). |
 | Host allowlist | `localhost:<port>`, `127.0.0.1:<port>`, `[::1]:<port>` and bare `localhost` (case-insensitive), else `403 forbidden` on every route. Blocks DNS rebinding, where an attacker domain resolves to 127.0.0.1. No dev Host is allowed: in development the UI on `:3000` reaches the server only through the Vite proxy (`/api` and `/ws`, `changeOrigin: true`, `ws: true`; config lands in T22), which rewrites Host to the server's. Reusable as `isAllowedHost(host, port)`. |
 | Origin allowlist | Checked on every request that carries `Origin`, and required on every mutating request except `POST /api/hooks`. Allowed: exactly `http://localhost:<port>`, `http://127.0.0.1:<port>` or `http://[::1]:<port>`; with `NODE_ENV=development` also `http://localhost:3000` / `http://127.0.0.1:3000` (Vite). A mismatch, including `null`, is `403`; a missing `Origin` on a mutation is `401`. Reads without `Origin` pass. No CORS headers are ever sent. Reusable as `isAllowedOrigin(origin, port, dev)`. |
-| Access key | `randomBytes(32)` base64url, created once in `$STATE/access-key` (`0600`, state dir `0700`) by `loadAccessKey` and kept across restarts; for scripts only, no browser ever gets it. It or a browser session key is required as `X-Agent-Hub-Key` (`ACCESS_KEY_HEADER`) on every `/api/*` request, reads included, except `GET`/`HEAD /api/health`, `POST /api/hooks` and the three login routes; decided on the matched route (the router decodes `/%61pi/...` to `/api/...`) and on the raw path, and unmatched requests need it too (fail closed); constant-time compare; missing or wrong is `401 login_required`. Keeps other OS users out; see [ADR 0013](adr/0013-access-key-against-local-users.md). |
-| Device login | `DeviceAuth` in `apps/server/src/security/device-auth.ts`, client in `apps/web/src/api/access.ts` and `device.ts` ([ADR 0014](adr/0014-device-login-against-origin-squatting.md)). Login URL `http://127.0.0.1:<port>/#login=<code>` from `install.sh --login-url` or `pnpm login-url [--port <n>]`: a one-time code (32 random bytes, 10 minutes) in `$STATE/login-code` (`0600`). The SPA reads the fragment before the router starts and removes it, creates an ECDSA P-256 key pair (private half non-extractable, kept as `CryptoKey` in IndexedDB `agent-hub`/`device`) and registers the public key with `POST /api/auth/register` (code consumed once; devices in `$STATE/devices.json`, `0600`, at most 20). Per page load: `GET /api/auth/challenge` (nonce MAC-signed with a per-process secret, 60 s, buys one session; nothing stored until it is answered), signature over `agent-hub.session.v1\n<nonce>`, `POST /api/auth/session` returns a session key (15 minutes, memory only on both sides), renewed by a new signature after `401 login_required`. The login routes need no key or token but pass the Host/Origin checks and refuse `Sec-Fetch-Site: cross-site`. Only on `127.0.0.1` (`isTrustedHost`): under `localhost` or `[::1]` the SPA strips the fragment and does not log in, because another local user can listen on `::1` with the same port. `pnpm login-url --reset` (or deleting `devices.json`) logs every browser out; session keys are bound to their device and refused from the next request on. The SPA deletes the access key older builds stored in `localStorage` (`agent-hub.access-key.v1`). Without a login, or after `401 login_required`, the shell shows only the login hint. |
-| Per-boot token | `randomBytes(32)` base64url generated at startup, kept in memory, new on every restart. Required as `X-Agent-Hub-Token` (`SESSION_TOKEN_HEADER`) on every `POST`/`PUT`/`PATCH`/`DELETE` (except `POST /api/hooks`) and as `token.<t>` subprotocol on `/ws`; compared in constant time (SHA-256 + `timingSafeEqual`); missing or wrong is `401 unauthorized`. `GET /api/health` stays token-free. The SPA fetches it from `GET /api/session-token` (`SessionTokenResponseSchema`) before every WS connect and once more after any `401`/`403`. That route needs the access key or a session key, sits behind the Host and Origin checks and also rejects `Sec-Fetch-Site: cross-site`; without CORS headers other origins cannot read it. |
-| WebSocket upgrade | `authorizeKeyedUpgrade(req, { port, token, dev }, authenticateKey)`: Host allowed, `Origin` present and allowed, `Sec-WebSocket-Protocol` offers `agent-hub.v1` (`WS_SUBPROTOCOL`) and exactly one `token.<token>`, plus the access key as `X-Agent-Hub-Key` or a browser session key as exactly one `key.<key>` subprotocol. The server echoes only `agent-hub.v1`. A socket opened with a session key is closed with `1008` at the next heartbeat after its device was logged out. No token in the query string. |
-| Hook token | Separate random token in `$STATE/hook-token` (`0600`), stable across restarts of the same version because re-adopted sessions keep their environment. It is renewed when the installed version changes (`$STATE/hook-token.version`; older builds exposed it in tmux's argv) and rotated after an install or uninstall through the Settings switch changed the settings file; sessions started with the old token then get `401` and are listed in `staleSessions` of `GET /api/hooks/status` until they are restarted. Only valid on `POST /api/hooks` (`API_ROUTES.hooks`), which is exempt from the per-boot token (`POST` only; other methods need it) and rejects any request that carries an `Origin` header (Claude Code sends none; browsers always do). The route checks `X-Agent-Hub-Hook-Token` (`HOOK_TOKEN_HEADER`, constant time, `401` otherwise) before the body is parsed; a request with both hook headers empty comes from a Claude session not started by Agent Hub and gets `204`. |
+| Access key | `randomBytes(32)` base64url, created once in `$STATE/access-key` (`0600`, state dir `0700`) by `loadAccessKey` and kept across restarts; for scripts only, no browser ever gets it. It or a browser session key is required as `X-Paneful-Key` (`ACCESS_KEY_HEADER`) on every `/api/*` request, reads included, except `GET`/`HEAD /api/health`, `POST /api/hooks` and the three login routes; decided on the matched route (the router decodes `/%61pi/...` to `/api/...`) and on the raw path, and unmatched requests need it too (fail closed); constant-time compare; missing or wrong is `401 login_required`. Keeps other OS users out; see [ADR 0013](adr/0013-access-key-against-local-users.md). |
+| Device login | `DeviceAuth` in `apps/server/src/security/device-auth.ts`, client in `apps/web/src/api/access.ts` and `device.ts` ([ADR 0014](adr/0014-device-login-against-origin-squatting.md)). Login URL `http://127.0.0.1:<port>/#login=<code>` from `install.sh --login-url` or `pnpm login-url [--port <n>]`: a one-time code (32 random bytes, 10 minutes) in `$STATE/login-code` (`0600`). The SPA reads the fragment before the router starts and removes it, creates an ECDSA P-256 key pair (private half non-extractable, kept as `CryptoKey` in IndexedDB `paneful-manager`/`device`) and registers the public key with `POST /api/auth/register` (code consumed once; devices in `$STATE/devices.json`, `0600`, at most 20). Per page load: `GET /api/auth/challenge` (nonce MAC-signed with a per-process secret, 60 s, buys one session; nothing stored until it is answered), signature over `paneful-manager.session.v1\n<nonce>`, `POST /api/auth/session` returns a session key (15 minutes, memory only on both sides), renewed by a new signature after `401 login_required`. The login routes need no key or token but pass the Host/Origin checks and refuse `Sec-Fetch-Site: cross-site`. Only on `127.0.0.1` (`isTrustedHost`): under `localhost` or `[::1]` the SPA strips the fragment and does not log in, because another local user can listen on `::1` with the same port. `pnpm login-url --reset` (or deleting `devices.json`) logs every browser out; session keys are bound to their device and refused from the next request on. The SPA deletes the access key older builds stored in `localStorage` (`paneful-manager.access-key.v1`). Without a login, or after `401 login_required`, the shell shows only the login hint. |
+| Per-boot token | `randomBytes(32)` base64url generated at startup, kept in memory, new on every restart. Required as `X-Paneful-Token` (`SESSION_TOKEN_HEADER`) on every `POST`/`PUT`/`PATCH`/`DELETE` (except `POST /api/hooks`) and as `token.<t>` subprotocol on `/ws`; compared in constant time (SHA-256 + `timingSafeEqual`); missing or wrong is `401 unauthorized`. `GET /api/health` stays token-free. The SPA fetches it from `GET /api/session-token` (`SessionTokenResponseSchema`) before every WS connect and once more after any `401`/`403`. That route needs the access key or a session key, sits behind the Host and Origin checks and also rejects `Sec-Fetch-Site: cross-site`; without CORS headers other origins cannot read it. |
+| WebSocket upgrade | `authorizeKeyedUpgrade(req, { port, token, dev }, authenticateKey)`: Host allowed, `Origin` present and allowed, `Sec-WebSocket-Protocol` offers `paneful-manager.v1` (`WS_SUBPROTOCOL`) and exactly one `token.<token>`, plus the access key as `X-Paneful-Key` or a browser session key as exactly one `key.<key>` subprotocol. The server echoes only `paneful-manager.v1`. A socket opened with a session key is closed with `1008` at the next heartbeat after its device was logged out. No token in the query string. |
+| Hook token | Separate random token in `$STATE/hook-token` (`0600`), stable across restarts of the same version because re-adopted sessions keep their environment. It is renewed when the installed version changes (`$STATE/hook-token.version`; older builds exposed it in tmux's argv) and rotated after an install or uninstall through the Settings switch changed the settings file; sessions started with the old token then get `401` and are listed in `staleSessions` of `GET /api/hooks/status` until they are restarted. Only valid on `POST /api/hooks` (`API_ROUTES.hooks`), which is exempt from the per-boot token (`POST` only; other methods need it) and rejects any request that carries an `Origin` header (Claude Code sends none; browsers always do). The route checks `X-Paneful-Hook-Token` (`HOOK_TOKEN_HEADER`, constant time, `401` otherwise) before the body is parsed; a request with both hook headers empty comes from a Claude session not started by Paneful Manager and gets `204`. |
 | Process spawning | `run(file, args, { cwd, timeoutMs, maxBuffer, env })` in `src/process/exec.ts`: `spawn` with an argument array, `shell: false` and `detached: true` (own process group); on timeout or output overflow the whole group gets `SIGKILL`. Rejects with `RunError` (`exit`/`signal`/`timeout`/`max-buffer`/`spawn`) unless exit code 0. The child env is `PATH`, `HOME`, `LANG`, `LC_ALL`, `USER`, `TMPDIR`, `SHELL` from the server env, overridden by the caller's `env`. node-pty also takes argument arrays only; commands after `--` in `new-session`. ESLint bans in `apps/server`: `exec`/`execSync` imports, default/namespace/dynamic `child_process` imports, a `shell` option other than `false` in `spawn`/`execFile`/`fork` calls, and options passed as a variable or spread there. |
 | Path allowlist | `createAllowlist(roots).resolveInside(candidate)` in `src/fs/allowlist.ts`: rejects empty, relative and NUL-byte paths, `~`-expands, `path.resolve`s, then `realpath`s the candidate (or its nearest existing parent for new files) and checks it against the `realpath` of each root (`path.relative`, no `..` segment). `..` and symlink escapes, and paths through dangling links, fail with `403 forbidden`. Callers must use the returned path; writers use temp file + rename in the resolved directory (TOCTOU). |
 | Security headers | Every response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`; `/api/*` also `Cache-Control: no-store`. HTML responses of the SPA carry a strict CSP (`contentSecurityPolicy(port)` in `apps/server/src/static.ts`); `connect-src` is `'self'` plus `ws://localhost:<port>`, `ws://127.0.0.1:<port>` and `ws://[::1]:<port>` for the listening port only, so injected script cannot reach other loopback services. In development the Vite dev server serves the HTML without this CSP and proxies `/ws`, so the page only ever connects to its own origin. |
 | No secrets to the browser | MCP `env` and `headers` values are masked as `{ masked: true, set }` in API responses (except `PATH`, `HOME`, `NODE_ENV`, `LOG_LEVEL`); `{ keep: true }` on save keeps the stored value. Secret-looking parts of `args` and the URL are shown as `<masked>` and kept when sent back unchanged. |
-| Logging | pino `redact` removes the `authorization`, `x-agent-hub-key`, `x-agent-hub-token`, `x-agent-hub-hook-token` and `sec-websocket-protocol` request headers. Query strings carry no secrets. |
+| Logging | pino `redact` removes the `authorization`, `x-paneful-key`, `x-paneful-token`, `x-paneful-hook-token` and `sec-websocket-protocol` request headers. Query strings carry no secrets. |
 | Validation | Every REST body and WS frame is parsed with strict zod schemas; unknown keys fail. |
 
 ### Threats
@@ -322,7 +322,7 @@ flowchart LR
 | Exposure to the LAN | yes | Loopback bind only, asserted after listen; user-made port proxies are out of scope |
 | Other local processes of the same user | no | They can already read `~/.claude` and run `claude` |
 | Other OS users on a shared machine | yes | Device login or the access key from an owner-only file on every API request; the per-boot token is only handed out with them ([ADR 0013](adr/0013-access-key-against-local-users.md)) |
-| Another local user serves a page on the owner's origin while Agent Hub is down | partly | No secret in browser storage: a non-extractable device key that only signs nonces of the running server ([ADR 0014](adr/0014-device-login-against-origin-squatting.md)). Residual: squatter code still running once Agent Hub is back (open tab, service worker, cached page) can act through the API and take out a session key, valid at most 15 minutes and only until logout |
+| Another local user serves a page on the owner's origin while Paneful Manager is down | partly | No secret in browser storage: a non-extractable device key that only signs nonces of the running server ([ADR 0014](adr/0014-device-login-against-origin-squatting.md)). Residual: squatter code still running once Paneful Manager is back (open tab, service worker, cached page) can act through the API and take out a session key, valid at most 15 minutes and only until logout |
 | Malicious repository content (CLAUDE.md, skills, MCP servers in a project) | no | Claude Code's own trust model applies |
 | Supply-chain attacks on dependencies | partly | Lockfile with `--frozen-lockfile` in CI, Dependabot update PRs |
 
@@ -355,21 +355,21 @@ stateDiagram-v2
 
 ### Hook mapping
 
-Claude Code supports `http` hooks that POST the hook input JSON (`Content-Type: application/json`) to a URL, configured in `$CLAUDE_DIR/settings.json`. Agent Hub installs one matcher group per event below into the user settings, each with this handler:
+Claude Code supports `http` hooks that POST the hook input JSON (`Content-Type: application/json`) to a URL, configured in `$CLAUDE_DIR/settings.json`. Paneful Manager installs one matcher group per event below into the user settings, each with this handler:
 
 ```json
 {
   "type": "http",
   "url": "http://127.0.0.1:<port>/api/hooks",
-  "headers": { "X-Agent-Hub-Session-Id": "$AGENT_HUB_SESSION_ID", "X-Agent-Hub-Hook-Token": "$AGENT_HUB_HOOK_TOKEN" },
-  "allowedEnvVars": ["AGENT_HUB_SESSION_ID", "AGENT_HUB_HOOK_TOKEN"],
+  "headers": { "X-Paneful-Hook-Session": "$PANEFUL_MANAGER_SESSION_ID", "X-Paneful-Hook-Token": "$PANEFUL_MANAGER_HOOK_TOKEN" },
+  "allowedEnvVars": ["PANEFUL_MANAGER_SESSION_ID", "PANEFUL_MANAGER_HOOK_TOKEN"],
   "timeout": 5
 }
 ```
 
-The `Notification` group carries `"matcher": "permission_prompt|elicitation_dialog|elicitation_url_dialog|idle_prompt"` (exact match), all other groups have no matcher. `SessionStart` is not installed: it supports only `command` and `mcp_tool` hooks, not `http`. `SubagentStop` is not installed either, since a subagent finishing says nothing about the main agent. Install removes Agent Hub entries from any event that is no longer in the list. Installing is explicit (`POST /api/hooks/install`, the "Claude Code session status" switch in Settings) and idempotent; `POST /api/hooks/uninstall` removes only these handlers; both back up the previous file first (see [File-write policy](#file-write-policy)). `GET /api/hooks/status` reports `installed`, `portMatches`, `installedEvents` and `statusAvailable` with `reasons`, plus `staleSessions` (running sessions with an outdated hook token).
+The `Notification` group carries `"matcher": "permission_prompt|elicitation_dialog|elicitation_url_dialog|idle_prompt"` (exact match), all other groups have no matcher. `SessionStart` is not installed: it supports only `command` and `mcp_tool` hooks, not `http`. `SubagentStop` is not installed either, since a subagent finishing says nothing about the main agent. Install removes Paneful Manager entries from any event that is no longer in the list. Installing is explicit (`POST /api/hooks/install`, the "Claude Code session status" switch in Settings) and idempotent; `POST /api/hooks/uninstall` removes only these handlers; both back up the previous file first (see [File-write policy](#file-write-policy)). `GET /api/hooks/status` reports `installed`, `portMatches`, `installedEvents` and `statusAvailable` with `reasons`, plus `staleSessions` (running sessions with an outdated hook token).
 
-New sessions get `AGENT_HUB_SESSION_ID` and `AGENT_HUB_URL` through `tmux new-session -e`, and `AGENT_HUB_HOOK_TOKEN` from the tmux server's global environment, set from the owner-only `$STATE/session-env.tmux` by `source-file` in the same tmux call (no argv exposure). Re-adopted sessions keep the environment they were started with; sessions started before the hook token existed or was renewed or rotated, or whose server port changed, report nothing until they are restarted. A running process's environment cannot be changed from outside, so after a rotation old sessions fail closed: their hooks get `401`, which Claude Code treats as a non-blocking error, the session keeps its last state and the server is unaffected. Such sessions (running at rotation, or a known session id arriving with a wrong token) are listed in `staleSessions` of `GET /api/hooks/status` and the Settings view asks for a restart; a later hook with the current token removes the entry. New sessions get the current token because `session-env.tmux` is rewritten before every `new-session`. Claude sessions not started by Agent Hub resolve both headers to empty strings and get `204`; they change nothing.
+New sessions get `PANEFUL_MANAGER_SESSION_ID` and `PANEFUL_MANAGER_URL` through `tmux new-session -e`, and `PANEFUL_MANAGER_HOOK_TOKEN` from the tmux server's global environment, set from the owner-only `$STATE/session-env.tmux` by `source-file` in the same tmux call (no argv exposure). Re-adopted sessions keep the environment they were started with; sessions started before the hook token existed or was renewed or rotated, or whose server port changed, report nothing until they are restarted. A running process's environment cannot be changed from outside, so after a rotation old sessions fail closed: their hooks get `401`, which Claude Code treats as a non-blocking error, the session keeps its last state and the server is unaffected. Such sessions (running at rotation, or a known session id arriving with a wrong token) are listed in `staleSessions` of `GET /api/hooks/status` and the Settings view asks for a restart; a later hook with the current token removes the entry. New sessions get the current token because `session-env.tmux` is rewritten before every `new-session`. Claude sessions not started by Paneful Manager resolve both headers to empty strings and get `204`; they change nothing.
 
 `POST /api/hooks` always answers fast and without a body: `204` (accepted, unknown session, invalid session id or unparseable payload, all ignored) or `401` (wrong hook token). An empty 2xx is a plain success for Claude Code; a JSON body would be parsed as hook output. Its body limit is 16 MiB because tool payloads can exceed the global 1 MiB.
 
@@ -393,7 +393,7 @@ Verified in the Claude Code hooks and settings references (2026-10-27):
 - `SessionStart` and `Setup` support only `command` and `mcp_tool` hooks.
 - `http` handler fields `url`, `headers` (`$VAR` / `${VAR}` interpolation), `allowedEnvVars` (unlisted variables become empty strings), `timeout` (seconds; default 600), the event names and `Notification` matcher values used above.
 - Non-2xx, connection failure and timeout are non-blocking errors; an empty 2xx is success.
-- Settings files are strict JSON; a value the schema rejects is a Settings Error for the whole file, so Agent Hub adds no marker keys to handlers.
+- Settings files are strict JSON; a value the schema rejects is a Settings Error for the whole file, so Paneful Manager adds no marker keys to handlers.
 - Identical handlers defined in several settings files run once; settings edits, including hooks, apply to running sessions.
 
 Assumed, verify in T50 or with a live session:
@@ -406,7 +406,7 @@ Assumed, verify in T50 or with a live session:
 
 ## Workspace presets
 
-See [ADR 0011](adr/0011-preset-launch-ledger.md). Presets are `~/.config/agent-hub/workspaces/<name>.yaml` (`WorkspacePresetSchema`); the file name is the preset name.
+See [ADR 0011](adr/0011-preset-launch-ledger.md). Presets are `~/.config/paneful-manager/workspaces/<name>.yaml` (`WorkspacePresetSchema`); the file name is the preset name.
 
 - Store (`presets/store.ts`, built on the generic `files/yaml-store.ts` that team templates share): list, get, create, update, delete. Names must match `PresetNameSchema`; a symlinked file must resolve inside the real workspaces directory. Create answers `409` for an existing name, get, update and delete answer `404` for a missing one, update cannot rename (`400`). A file that is invalid YAML, fails the schema or declares another name is skipped in the listing and answers `409` on direct access. Writes are atomic (mode `0600`), serialized, and back up the previous content (see the file-write policy). Updates are merged into the existing YAML document, so top-level comments survive; keys missing from the replacement are removed, unknown keys sent back by the client are kept. Defaults the schema fills in (`args: []`, object-form layouts without options) are not written.
 - Launch (`POST /api/presets/:name/launch`): every pane is validated as a `CreateSessionRequest` first, then sessions are created one after another through the engine. A failure kills the sessions created so far and rethrows the original error. The response lists the tabs (title, layout, panes with session ids); the web adds the ids and opens them through the tabs store. An untitled tab is named after the preset (with its position when the preset has several tabs).
@@ -417,14 +417,14 @@ See [ADR 0011](adr/0011-preset-launch-ledger.md). Presets are `~/.config/agent-h
 
 Behind `experimental.agentTeams` (default off) and Claude Code `>= 2.1.309` (lowest tested), see [ADR 0010](adr/0010-agent-teams.md).
 
-- Templates (T51, [ADR 0012](adr/0012-team-templates.md)): `~/.config/agent-hub/teams/<name>.yaml` (`TeamTemplateSchema`: `experimental: true`, `goal?`, `lead`, 1-8 `teammates`, `env` limited to `TEAM_TEMPLATE_ENV_KEYS`, reserved lead args refused, generated lead command capped at `MAX_LEAD_COMMAND_BYTES` because tmux refuses commands above about 16 KB). Store `team-templates/store.ts` with the preset rules. Every `/api/team-templates` route answers `404` while the flag is off.
+- Templates (T51, [ADR 0012](adr/0012-team-templates.md)): `~/.config/paneful-manager/teams/<name>.yaml` (`TeamTemplateSchema`: `experimental: true`, `goal?`, `lead`, 1-8 `teammates`, `env` limited to `TEAM_TEMPLATE_ENV_KEYS`, reserved lead args refused, generated lead command capped at `MAX_LEAD_COMMAND_BYTES` because tmux refuses commands above about 16 KB). Store `team-templates/store.ts` with the preset rules. Every `/api/team-templates` route answers `404` while the flag is off.
 - Launch (`team-templates/launch.ts`): version gate on `<lead command> --version`, then one lead session through the engine with `--teammate-mode tmux`, `--session-id <uuid>` (team name `session-<first 8>` known up front), `--settings` env `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, `CLAUDE_CODE_ENABLE_TODO_TOOLS=1`, `CLAUDE_CODE_TASK_LIST_ID=<team name>` (so teammates inherit it), optional `--model`, and a generated first prompt naming every teammate. Claude Code spawns the teammates; no agent files are written. Launches are recorded in `$STATE/team-launches.json`; a failure after the lead start kills the lead.
 - Web: "Templates" section in the Teams view (`TeamTemplatesPanel`, `TeamTemplateDialog`, `stores/teamTemplates.ts`): list, create/edit, delete confirm, launch into a tab with the lead, "View board" once the team's board exists.
 - Task board: read-only, tolerant parse of `~/.claude/tasks/<task-list-id>/*.json`, refreshed by a chokidar watcher (`team.changed` WS frame, 200 ms debounce) plus a 10 s poll fallback, both active only while the flag is on. `GET /api/teams` returns `enabled: false` without file access when the flag is off.
-- Pane map (T53): `members[].tmuxPaneId` from `~/.claude/teams/<team>/config.json` is looked up in `tmux -L agent-hub list-panes -a`; a pane inside an `ah-<id>` session links the member to that Agent Hub session, unless the member's `cwd` lies outside the session's `cwd` (pane ids are only unique per tmux server). A lead without a pane id inherits the session when all linked teammates share one. In-process members never get a pane. Each member in `GET /api/teams` carries an optional `link` (`linked` with `sessionId` and `via: pane | lead-window`, or `unlinked` with a `reason`). Links are recomputed on every read and by the poll; a changed link, or a session created or removed, sends `team.changed`. Works only while the lead runs (the config is removed at session end).
-- Web: pane headers show the linked member's name and role (`AhStatusBadge`); "Open as tab" on a team builds a tab with one pane per member (lead first, max 6, layout `single`/`row`/`grid-2x2`/two-row `custom`). Members sharing a tmux window with an already shown member get no extra pane (named in the header); members without a session get a placeholder pane (`AppPane.placeholder`) with the reason. Closing a team tab (`team-` id) kills no sessions, and any tab close spares sessions another tab still shows. Team tabs are hidden while the flag is off.
+- Pane map (T53): `members[].tmuxPaneId` from `~/.claude/teams/<team>/config.json` is looked up in `tmux -L paneful-manager list-panes -a`; a pane inside a `pm-<id>` session links the member to that Paneful Manager session, unless the member's `cwd` lies outside the session's `cwd` (pane ids are only unique per tmux server). A lead without a pane id inherits the session when all linked teammates share one. In-process members never get a pane. Each member in `GET /api/teams` carries an optional `link` (`linked` with `sessionId` and `via: pane | lead-window`, or `unlinked` with a `reason`). Links are recomputed on every read and by the poll; a changed link, or a session created or removed, sends `team.changed`. Works only while the lead runs (the config is removed at session end).
+- Web: pane headers show the linked member's name and role (`PmStatusBadge`); "Open as tab" on a team builds a tab with one pane per member (lead first, max 6, layout `single`/`row`/`grid-2x2`/two-row `custom`). Members sharing a tmux window with an already shown member get no extra pane (named in the header); members without a session get a placeholder pane (`AppPane.placeholder`) with the reason. Closing a team tab (`team-` id) kills no sessions, and any tab close spares sessions another tab still shows. Team tabs are hidden while the flag is off.
 - Teammate hook events carry their own `session_id`; only the lead's drive session status, others feed a per-teammate status map.
-- Agent Hub never writes team or task files.
+- Paneful Manager never writes team or task files.
 
 ## Repo layout and build
 
@@ -433,7 +433,7 @@ apps/
   server/          Fastify server (TS, tsx in dev, tsc build to dist/)
   web/             Vue 3 + Vuetify SPA (Vite, port 3000 in dev)
 packages/
-  shared/          zod schemas, types, defaults (@agent-hub/shared, built to dist/)
+  shared/          zod schemas, types, defaults (@paneful-manager/shared, built to dist/)
 docs/
   architecture.md  this file
   adr/             architecture decision records
@@ -443,7 +443,7 @@ examples/          config.yaml and preset examples, validated by tests
 
 | Command | Effect |
 | --- | --- |
-| `pnpm dev` | Builds `@agent-hub/shared`, then runs in parallel: shared `tsc --watch`, server `tsx watch`, web Vite dev server. Vite proxies `/api` and `/ws` to the server port (set up with the server skeleton). |
+| `pnpm dev` | Builds `@paneful-manager/shared`, then runs in parallel: shared `tsc --watch`, server `tsx watch`, web Vite dev server. Vite proxies `/api` and `/ws` to the server port (set up with the server skeleton). |
 | `pnpm login-url [--port <n>] [--reset]` | Writes a one-time login code to the server's state directory and prints its login URL; `--port 3000` for the Vite dev server. `--reset` logs every browser out instead. |
 | `pnpm build` | `tsc` for shared and server, `vite build` for web. In production the server serves `apps/web/dist` and the SPA uses relative URLs, so one origin serves everything. |
 | `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint (flat config, `eslint-config-vuetify` + `typescript-eslint`), `tsc`/`vue-tsc --noEmit`, vitest per package. |
@@ -458,17 +458,17 @@ Design tokens flow from `docs/design-system/tokens.json` through a build script 
 | Job | Steps |
 | --- | --- |
 | `check` | install tmux, `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` |
-| `e2e` (after `check`) | install tmux, install, cached Playwright Chromium, build `@agent-hub/shared`, `pnpm e2e`; uploads the Playwright report on failure |
+| `e2e` (after `check`) | install tmux, install, cached Playwright Chromium, build `@paneful-manager/shared`, `pnpm e2e`; uploads the Playwright report on failure |
 
 ### Running the e2e suite
 
-Install the browser once with `pnpm --dir apps/web exec playwright install chromium`, then run `pnpm e2e`. Playwright builds the server and starts it on port 7340 together with Vite on 3001, using a private tmux socket and temporary state and config directories, so a running Agent Hub is never touched. Specs that need sessions require `tmux` on the `PATH` and skip without it. Specs reach the server through `apps/web/e2e/support.ts`, which also reads the hook token from the isolated state directory. The e2e server gets a fixed access key (`apps/web/e2e/access.ts`, written into the temporary state directory before start); every page sends it as an extra header like a script would (`extraHTTPHeaders`), and `login.spec.ts` covers the device login itself: it writes login codes into the state directory and runs without that header.
+Install the browser once with `pnpm --dir apps/web exec playwright install chromium`, then run `pnpm e2e`. Playwright builds the server and starts it on port 7340 together with Vite on 3001, using a private tmux socket and temporary state and config directories, so a running Paneful Manager is never touched. Specs that need sessions require `tmux` on the `PATH` and skip without it. Specs reach the server through `apps/web/e2e/support.ts`, which also reads the hook token from the isolated state directory. The e2e server gets a fixed access key (`apps/web/e2e/access.ts`, written into the temporary state directory before start); every page sends it as an extra header like a script would (`extraHTTPHeaders`), and `login.spec.ts` covers the device login itself: it writes login codes into the state directory and runs without that header.
 
 Dependabot (`.github/dependabot.yml`) opens dependency update pull requests. Required status checks for merging are a repository setting, not part of the repo.
 
 ## Shared contracts
 
-All contracts live in `packages/shared` (`@agent-hub/shared`) as zod schemas. Every schema is exported as `XSchema` with its inferred type `X` (and `XInput` where defaults make input and output differ). Server and web client import the same schemas, so validation and types never drift.
+All contracts live in `packages/shared` (`@paneful-manager/shared`) as zod schemas. Every schema is exported as `XSchema` with its inferred type `X` (and `XInput` where defaults make input and output differ). Server and web client import the same schemas, so validation and types never drift.
 
 ### Strict vs. passthrough
 
@@ -483,16 +483,16 @@ The REST wrappers around presets (`{ preset }`) are strict, but the preset itsel
 
 | Constant | Value |
 | --- | --- |
-| `DEFAULT_PORT` | `7337` (env `AGENT_HUB_PORT` overrides: digits only, 1-65535, otherwise startup fails; see `resolvePort`) |
+| `DEFAULT_PORT` | `7337` (env `PANEFUL_MANAGER_PORT` overrides: digits only, 1-65535, otherwise startup fails; see `resolvePort`) |
 | `BIND_HOST` | `127.0.0.1` (never configurable) |
 | `DEFAULT_HOST_ID` | `local` (single user in v1, field kept for multi-user later) |
 | `DEFAULT_COMMAND` | `claude` |
 | `DEFAULT_COLS` / `DEFAULT_ROWS` | `120` / `30` |
 | `MAX_TERMINAL_SIZE` | `1000` cols/rows |
 | `MAX_PANES_PER_TAB` | `6` |
-| `CONFIG_FILE` | `~/.config/agent-hub/config.yaml` |
-| `WORKSPACES_DIR` | `~/.config/agent-hub/workspaces/*.yaml` |
-| `resolveConfigDir(env)` | `$XDG_CONFIG_HOME/agent-hub` when set, otherwise `~/.config/agent-hub`; the constants above are the fallback |
+| `CONFIG_FILE` | `~/.config/paneful-manager/config.yaml` |
+| `WORKSPACES_DIR` | `~/.config/paneful-manager/workspaces/*.yaml` |
+| `resolveConfigDir(env)` | `$XDG_CONFIG_HOME/paneful-manager` when set, otherwise `~/.config/paneful-manager`; the constants above are the fallback |
 | `DEFAULT_CONFIG` | equals `AppConfigSchema.parse({})` |
 | `EXAMPLE_PRESET` | preset `project1`: 4 panes side by side in `~/git/project1` |
 
@@ -506,7 +506,7 @@ Paths may start with `~`; the server expands them.
 | | `ScopeKindSchema`, `ScopeSchema` | `{ kind: global \| project \| worktree, path, branch?, projectPath? }`; `branch`/`projectPath` only for worktrees. |
 | `config.ts` | `AppConfigSchema` | `config.yaml`: `port`, `experimental.agentTeams` (false), `confirmCloseTab` (true), `projects` (paths), `logLevel` (`info`), `theme` (`dark` \| `light` \| `system`, default `dark`). |
 | | `ConfigPatchSchema` | Partial update; nested objects merge, arrays replace (`applyConfigPatch`). |
-| | `PortSchema`, `LogLevelSchema`, `ThemeSchema` | Building blocks; `resolvePort(configPort, env)` applies `AGENT_HUB_PORT`, `resolveConfigDir(env)` applies `XDG_CONFIG_HOME`. |
+| | `PortSchema`, `LogLevelSchema`, `ThemeSchema` | Building blocks; `resolvePort(configPort, env)` applies `PANEFUL_MANAGER_PORT`, `resolveConfigDir(env)` applies `XDG_CONFIG_HOME`. |
 | `session.ts` | `SessionSchema` | One session = one tmux session: `id`, `hostId`, `title?`, `cwd`, `command`, `args`, `tmuxSession`, `createdAt`, `state`, `lifecycle`, `exitCode?` (only when exited), `lastEventAt`, `stateSince?` (when `state` last changed; optional only for records written before it existed), `cols`, `rows`. Timestamps are ISO 8601 strings. |
 | | `SessionStateSchema` | `working \| waiting \| error \| idle`, derived from Claude Code hooks. |
 | | `SessionLifecycleSchema` | `starting \| running \| exited`. |
@@ -517,14 +517,14 @@ Paths may start with `~`; the server expands them.
 | | `TeamLaunchSchema`, `buildLeadPrompt`, `teamNameFor` | Recorded launch; first prompt for the lead; `session-<first 8>` team name rule. |
 | `preset.ts` | `WorkspacePresetSchema` | Preset file: `name` (also the file name), `description?`, `autostart` (false), `tabs[]`. |
 | | `PresetTabSchema`, `PresetPaneSchema` | Tab: `title?`, `layout` (default `row`; string shorthand `single \| row \| column \| grid-2x2` or the object form, `custom` needs the object), 1-6 panes. Pane: `cwd`, `command` (`claude`), `args` (`[]`), `title?`, `size?`. |
-| `mcp.ts` | `McpServerConfigSchema`, `McpServerEntrySchema` | Config discriminated by `transport`: `stdio` (`command`, `args`, `env`) or `http`/`sse` (`url`, `headers`); entry = `name`, `scope` (`user` \| `project` \| `local`, with `projectPath` for the last two), `config`, `source` (`cli` \| `file`). `toMcpScope` maps Agent Hub scopes, `maskMcpEntry` masks secrets. |
+| `mcp.ts` | `McpServerConfigSchema`, `McpServerEntrySchema` | Config discriminated by `transport`: `stdio` (`command`, `args`, `env`) or `http`/`sse` (`url`, `headers`); entry = `name`, `scope` (`user` \| `project` \| `local`, with `projectPath` for the last two), `config`, `source` (`cli` \| `file`). `toMcpScope` maps Paneful Manager scopes, `maskMcpEntry` masks secrets. |
 | `api.ts` | `ApiErrorSchema` | Every non-2xx body: `{ code, message, details? }`; `validation_failed` requires `details: { path, message }[]` (`toValidationError`). |
 | | REST schemas | See table below. |
 | `hooks.ts` | `HookPayloadSchema`, `mapHookEvent` | Claude Code hook input (loose: only `hook_event_name`, `session_id?`, `notification_type?` are validated) and the event-to-state mapping, see [Hook mapping](#hook-mapping). |
 | | `HookStatusSchema`, `HookChangeResponseSchema` | Hook install status and install/uninstall results. |
 | `ws.ts` | `ClientMessageSchema`, `ServerMessageSchema` | WebSocket protocol, see below. |
 
-Minimal preset (`~/.config/agent-hub/workspaces/project1.yaml`; full examples in `examples/`, validated by `examples.test.ts`):
+Minimal preset (`~/.config/paneful-manager/workspaces/project1.yaml`; full examples in `examples/`, validated by `examples.test.ts`):
 
 ```yaml
 name: project1
@@ -565,7 +565,7 @@ All routes live under `/api` (`API_ROUTES`).
 | `POST /api/team-templates/:name/launch` | `TeamTemplateParamsSchema` | `LaunchTeamTemplateResponseSchema` (`launch`: template, sessionId, team; `claudeVersion`, `untestedVersion`) |
 | `GET /api/config` | - | `GetConfigResponseSchema` |
 | `PATCH /api/config` | `PatchConfigRequestSchema` | `PatchConfigResponseSchema` (`config`, `restartRequired`) |
-| `POST /api/hooks` | Claude Code hook input (`HookPayloadSchema`), headers `X-Agent-Hub-Hook-Token`, `X-Agent-Hub-Session-Id` | `204` without body, or `401` |
+| `POST /api/hooks` | Claude Code hook input (`HookPayloadSchema`), headers `X-Paneful-Hook-Token`, `X-Paneful-Hook-Session` | `204` without body, or `401` |
 | `GET /api/hooks/status` | - | `HookStatusSchema` |
 | `POST /api/hooks/install` | `HookChangeRequestSchema` (empty) | `HookChangeResponseSchema` (`changed`, `status`) |
 | `POST /api/hooks/uninstall` | `HookChangeRequestSchema` (empty) | `HookChangeResponseSchema` |
@@ -599,7 +599,7 @@ Terminal data (`input`, `output`, `scrollback`) is a plain UTF-8 string, not bas
 ```mermaid
 sequenceDiagram
     participant C as Browser (xterm.js)
-    participant S as Agent Hub server
+    participant S as Paneful Manager server
     participant T as tmux session
     C->>S: attach {sessionId, cols, rows, scrollback: true}
     S->>T: resize window to cols x rows

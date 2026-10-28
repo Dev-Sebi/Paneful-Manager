@@ -1,14 +1,14 @@
 /** Visual emphasis of the button. */
-export type AhButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
+export type PmButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 /** Height: sm 24px, md 28px, lg 32px. */
-export type AhButtonSize = 'sm' | 'md' | 'lg'
+export type PmButtonSize = 'sm' | 'md' | 'lg'
 
-export interface AhButtonProps {
+export interface PmButtonProps {
   /** @default 'secondary' */
-  variant?: AhButtonVariant
+  variant?: PmButtonVariant
   /** @default 'md' */
-  size?: AhButtonSize
+  size?: PmButtonSize
   /** Native button type. @default 'button' */
   type?: 'button' | 'submit' | 'reset'
   /** @default false */
@@ -31,12 +31,12 @@ export interface AhButtonProps {
   block?: boolean
 }
 
-export interface AhButtonEmits {
+export interface PmButtonEmits {
   /** Not emitted while disabled or loading. */
   (e: 'click', event: MouseEvent | KeyboardEvent): void
 }
 
-export interface AhButtonSlots {
+export interface PmButtonSlots {
   /** Label content. */
   default?: () => unknown
   /** Replaces `prependIcon`. */
