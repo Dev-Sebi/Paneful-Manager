@@ -26,7 +26,7 @@ let app: FastifyInstance
 function send(options: InjectOptions) {
   return app.inject({
     ...options,
-    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN, ...options.headers },
+    headers: { host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN, ...options.headers },
   })
 }
 
@@ -116,7 +116,7 @@ describe('file routes', () => {
 
   it('is not registered without a file service', async () => {
     const bare = buildApp({ config: DEFAULT_CONFIG, logger: silentLogger, sessionToken: TOKEN, accessKey: TOKEN, dev: false })
-    const response = await bare.inject({ method: 'GET', url: API_ROUTES.files, headers: { host: `localhost:${PORT}`, 'x-paneful-key': TOKEN } })
+    const response = await bare.inject({ method: 'GET', url: API_ROUTES.files, headers: { host: `127.0.0.1:${PORT}`, 'x-paneful-key': TOKEN } })
     expect(response.statusCode).toBe(404)
     await bare.close()
   })

@@ -15,8 +15,8 @@ let dir: string
 let app: FastifyInstance
 const TOKEN = 'test-token'
 const local = {
-  host: `localhost:${DEFAULT_CONFIG.port}`,
-  origin: `http://localhost:${DEFAULT_CONFIG.port}`,
+  host: `127.0.0.1:${DEFAULT_CONFIG.port}`,
+  origin: `http://127.0.0.1:${DEFAULT_CONFIG.port}`,
   'x-paneful-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN,
 }
 

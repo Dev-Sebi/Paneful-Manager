@@ -22,7 +22,7 @@ import { TeamLaunchLedger } from './ledger.js'
 import { createTeamTemplateStore } from './store.js'
 
 const TOKEN = 'test-token'
-const local = { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, 'x-paneful-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
+const local = { host: `127.0.0.1:${DEFAULT_CONFIG.port}`, origin: `http://127.0.0.1:${DEFAULT_CONFIG.port}`, 'x-paneful-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
 const template = { name: 'alpha', experimental: true, lead: { cwd: tmpdir() }, teammates: [{ name: 'tester', prompt: 'Test it' }] }
 const body = { template }
 let root: string

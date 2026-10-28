@@ -22,8 +22,8 @@ function patch(payload: unknown) {
     url: API_ROUTES.config,
     payload: payload as object,
     headers: {
-      host: `localhost:${DEFAULT_CONFIG.port}`,
-      origin: `http://localhost:${DEFAULT_CONFIG.port}`,
+      host: `127.0.0.1:${DEFAULT_CONFIG.port}`,
+      origin: `http://127.0.0.1:${DEFAULT_CONFIG.port}`,
       'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN,
     },
   })
@@ -47,7 +47,7 @@ describe('config routes', () => {
     const response = await app.inject({
       method: 'GET',
       url: API_ROUTES.config,
-      headers: { host: `localhost:${DEFAULT_CONFIG.port}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN },
+      headers: { host: `127.0.0.1:${DEFAULT_CONFIG.port}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN },
     })
     expect(GetConfigResponseSchema.parse(response.json()).config.confirmCloseTab).toBe(true)
   })

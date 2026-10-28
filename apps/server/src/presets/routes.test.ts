@@ -22,7 +22,7 @@ import { LaunchLedger } from './ledger.js'
 import { createPresetStore } from './store.js'
 
 const TOKEN = 'test-token'
-const local = { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, 'x-paneful-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
+const local = { host: `127.0.0.1:${DEFAULT_CONFIG.port}`, origin: `http://127.0.0.1:${DEFAULT_CONFIG.port}`, 'x-paneful-key': TOKEN, [SESSION_TOKEN_HEADER]: TOKEN }
 const body = { preset: { name: 'alpha', description: 'demo', tabs: [{ layout: 'row', panes: [{ cwd: '/work/app' }, { cwd: '/work/app' }] }] } }
 let root: string
 let app: FastifyInstance

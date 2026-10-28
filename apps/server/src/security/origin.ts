@@ -31,23 +31,33 @@ export function assertLoopbackAddress(address: AddressInfo | string | null): voi
   }
 }
 
-/** Host header check against DNS rebinding: loopback names with the server port, or bare `localhost`. */
-export function isAllowedHost(host: string | undefined, port: number): boolean {
+/**
+ * Host header check against DNS rebinding: `127.0.0.1:<port>` only, the address the server binds to; in `dev` also the
+ * other loopback names with the port and bare `localhost`.
+ */
+export function isAllowedHost(host: string | undefined, port: number, dev = false): boolean {
   if (host === undefined) {
     return false
   }
   const value = host.toLowerCase()
+  if (!dev) {
+    return value === `${BIND_HOST}:${port}`
+  }
   return value === 'localhost' || LOOPBACK_NAMES.some(name => value === `${name}:${port}`)
 }
 
-/** Exact match against the loopback origins of the server port, plus the Vite and `devOrigins` origins when `dev`. */
+/**
+ * Exact match against `http://127.0.0.1:<port>`; in `dev` also the other loopback origins of the server port, the Vite
+ * origins and `devOrigins`.
+ */
 export function isAllowedOrigin(origin: string | undefined, port: number, dev: boolean, devOrigins: readonly string[] = []): boolean {
   if (origin === undefined) {
     return false
   }
-  const allowed = LOOPBACK_NAMES.map(name => `http://${name}:${port}`)
-  if (dev) {
-    allowed.push(`http://localhost:${DEV_ORIGIN_PORT}`, `http://127.0.0.1:${DEV_ORIGIN_PORT}`, ...devOrigins)
+  if (!dev) {
+    return origin === `http://${BIND_HOST}:${port}`
   }
+  const allowed = LOOPBACK_NAMES.map(name => `http://${name}:${port}`)
+  allowed.push(`http://localhost:${DEV_ORIGIN_PORT}`, `http://127.0.0.1:${DEV_ORIGIN_PORT}`, ...devOrigins)
   return allowed.includes(origin)
 }

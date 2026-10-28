@@ -47,7 +47,7 @@ export function upgradeKey(headers: IncomingHttpHeaders): string | undefined {
  * and `Sec-WebSocket-Protocol` must offer `paneful-manager.v1` plus `token.<token>`. Only `paneful-manager.v1` is echoed back.
  */
 export function authorizeUpgrade(req: { headers: IncomingHttpHeaders }, { port, token, dev, devOrigins = [] }: SecurityContext): UpgradeDecision {
-  if (!isAllowedHost(req.headers.host, port)) {
+  if (!isAllowedHost(req.headers.host, port, dev)) {
     return deny(403, 'Host not allowed')
   }
   if (!isAllowedOrigin(req.headers.origin, port, dev, devOrigins)) {

@@ -29,7 +29,7 @@ const fakeRunner: HealthRunner = {
 function send(options: InjectOptions, token = TOKEN) {
   return app.inject({
     ...options,
-    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-paneful-key': TOKEN, ...(token ? { 'x-paneful-token': token } : {}), ...options.headers },
+    headers: { host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}`, 'x-paneful-key': TOKEN, ...(token ? { 'x-paneful-token': token } : {}), ...options.headers },
   })
 }
 

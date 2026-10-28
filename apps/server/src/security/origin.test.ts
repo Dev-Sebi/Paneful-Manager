@@ -15,23 +15,38 @@ describe('assertLoopbackAddress', () => {
 })
 
 describe('isAllowedHost', () => {
-  it('allows loopback names with the port and bare localhost', () => {
+  it('allows only 127.0.0.1 with the port in production', () => {
+    expect(isAllowedHost('127.0.0.1:7337', 7337)).toBe(true)
+    for (const host of ['localhost:7337', '[::1]:7337', 'localhost', 'LocalHost:7337']) {
+      expect(isAllowedHost(host, 7337)).toBe(false)
+    }
+  })
+
+  it('allows loopback names with the port and bare localhost in dev mode', () => {
     for (const host of ['localhost:7337', '127.0.0.1:7337', '[::1]:7337', 'localhost', 'LocalHost:7337']) {
-      expect(isAllowedHost(host, 7337)).toBe(true)
+      expect(isAllowedHost(host, 7337, true)).toBe(true)
     }
   })
 
   it('rejects other hosts, ports and missing values', () => {
     for (const host of [undefined, '', '127.0.0.1', '[::1]', 'localhost:80', 'localhost.:7337', 'evil.localhost:7337', 'a.example:7337']) {
       expect(isAllowedHost(host, 7337)).toBe(false)
+      expect(isAllowedHost(host, 7337, true)).toBe(false)
     }
   })
 })
 
 describe('isAllowedOrigin', () => {
-  it('allows the loopback origins of the port', () => {
+  it('allows only the 127.0.0.1 origin of the port in production', () => {
+    expect(isAllowedOrigin('http://127.0.0.1:7337', 7337, false)).toBe(true)
+    for (const origin of ['http://localhost:7337', 'http://[::1]:7337']) {
+      expect(isAllowedOrigin(origin, 7337, false)).toBe(false)
+    }
+  })
+
+  it('allows the loopback origins of the port in dev mode', () => {
     for (const origin of ['http://localhost:7337', 'http://127.0.0.1:7337', 'http://[::1]:7337']) {
-      expect(isAllowedOrigin(origin, 7337, false)).toBe(true)
+      expect(isAllowedOrigin(origin, 7337, true)).toBe(true)
     }
   })
 

@@ -3,8 +3,8 @@ import { authorizeKeyedUpgrade, authorizeUpgrade, upgradeKey } from './upgrade.j
 
 const context = { port: 7337, token: 'secret-token', dev: false }
 const valid = {
-  host: 'localhost:7337',
-  origin: 'http://localhost:7337',
+  host: '127.0.0.1:7337',
+  origin: 'http://127.0.0.1:7337',
   'sec-websocket-protocol': 'paneful-manager.v1, token.secret-token',
 }
 
@@ -20,6 +20,13 @@ describe('authorizeUpgrade', () => {
   it('rejects a bad Host or Origin with 403', () => {
     for (const overrides of [{ host: 'evil.example:7337' }, { origin: 'https://evil.example' }, { origin: undefined }]) {
       expect(decide(overrides)).toMatchObject({ ok: false, status: 403, code: 'forbidden' })
+    }
+  })
+
+  it('allows only the 127.0.0.1 Host and Origin in production', () => {
+    for (const overrides of [{ host: 'localhost:7337' }, { origin: 'http://localhost:7337' }, { origin: 'http://[::1]:7337' }]) {
+      expect(decide(overrides)).toMatchObject({ ok: false, status: 403 })
+      expect(decide(overrides, true).ok).toBe(true)
     }
   })
 

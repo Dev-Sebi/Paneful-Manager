@@ -40,7 +40,7 @@ function write(root: string, rel: string, content: string | Buffer): void {
 function send(options: InjectOptions) {
   return app.inject({
     ...options,
-    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN, ...options.headers },
+    headers: { host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN, ...options.headers },
   })
 }
 
@@ -145,7 +145,7 @@ describe('copy plan', () => {
     const response = await app.inject({
       method: 'POST',
       url: API_ROUTES.worktreeCopyPlan,
-      headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}` },
+      headers: { host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}` },
       payload: { worktreePath: wt },
     })
     expect(response.statusCode).toBe(401)

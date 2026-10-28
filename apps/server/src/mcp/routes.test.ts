@@ -41,7 +41,7 @@ function start(fake: FakeRun, overrides: Partial<McpServiceOptions> & { logger?:
 function send(target: FastifyInstance, options: InjectOptions) {
   return target.inject({
     ...options,
-    headers: { host: `localhost:${PORT}`, origin: `http://localhost:${PORT}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN, ...options.headers },
+    headers: { host: `127.0.0.1:${PORT}`, origin: `http://127.0.0.1:${PORT}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN, ...options.headers },
   })
 }
 

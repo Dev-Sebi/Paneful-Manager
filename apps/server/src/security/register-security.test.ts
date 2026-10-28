@@ -61,8 +61,16 @@ describe('Host check', () => {
     }
   })
 
-  it('accepts the loopback names', async () => {
+  it('accepts only 127.0.0.1 with the port in production', async () => {
     const target = build()
+    expect((await send(target, 'GET', API_ROUTES.health, { host: HOST })).statusCode).toBe(200)
+    for (const host of [`localhost:${PORT}`, `LOCALHOST:${PORT}`, 'localhost', `[::1]:${PORT}`]) {
+      await expectError(await send(target, 'GET', API_ROUTES.health, { host }), 403, 'forbidden')
+    }
+  })
+
+  it('accepts the loopback names in dev mode', async () => {
+    const target = build(true)
     for (const host of [`localhost:${PORT}`, `LOCALHOST:${PORT}`, 'localhost', HOST, `[::1]:${PORT}`]) {
       expect((await send(target, 'GET', API_ROUTES.health, { host })).statusCode).toBe(200)
     }
@@ -70,6 +78,19 @@ describe('Host check', () => {
 })
 
 describe('Origin check', () => {
+  it('allows only the 127.0.0.1 origin in production and the other loopback origins in dev mode', async () => {
+    const prod = build()
+    expect((await send(prod, 'GET', API_ROUTES.health, { origin: ORIGIN })).statusCode).toBe(200)
+    for (const origin of [`http://localhost:${PORT}`, `http://[::1]:${PORT}`]) {
+      await expectError(await send(prod, 'GET', API_ROUTES.health, { origin }), 403, 'forbidden')
+    }
+    await prod.close()
+    const dev = build(true)
+    for (const origin of [ORIGIN, `http://localhost:${PORT}`, `http://[::1]:${PORT}`]) {
+      expect((await send(dev, 'GET', API_ROUTES.health, { origin, host: `localhost:${PORT}` })).statusCode).toBe(200)
+    }
+  })
+
   it('allows GET without Origin', async () => {
     expect((await send(build(), 'GET', API_ROUTES.health, {})).statusCode).toBe(200)
   })

@@ -16,8 +16,8 @@ function build(): FastifyInstance {
   const inject = app.inject.bind(app)
   const local = (options: InjectOptions) =>
     inject({ ...options, headers: {
-        host: `localhost:${DEFAULT_CONFIG.port}`,
-        origin: `http://localhost:${DEFAULT_CONFIG.port}`,
+        host: `127.0.0.1:${DEFAULT_CONFIG.port}`,
+        origin: `http://127.0.0.1:${DEFAULT_CONFIG.port}`,
         'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN,
         ...options.headers,
       },

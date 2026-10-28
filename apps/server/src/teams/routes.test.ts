@@ -23,7 +23,7 @@ function build(): FastifyInstance {
 const get = () => app.inject({
   method: 'GET',
   url: API_ROUTES.teams,
-  headers: { host: `localhost:${DEFAULT_CONFIG.port}`, origin: `http://localhost:${DEFAULT_CONFIG.port}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN },
+  headers: { host: `127.0.0.1:${DEFAULT_CONFIG.port}`, origin: `http://127.0.0.1:${DEFAULT_CONFIG.port}`, 'x-paneful-key': TOKEN, 'x-paneful-token': TOKEN },
 })
 
 beforeEach(() => {

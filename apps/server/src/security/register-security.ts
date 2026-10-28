@@ -78,7 +78,7 @@ export function registerSecurity(app: FastifyInstance, { getPort, token, accessK
       reply.header('cache-control', 'no-store')
     }
     const port = getPort()
-    if (!isAllowedHost(request.headers.host, port)) {
+    if (!isAllowedHost(request.headers.host, port, dev)) {
       throw new AppError('Host not allowed', 403, 'forbidden')
     }
     const origin = single(request.headers.origin)
