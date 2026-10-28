@@ -10,7 +10,7 @@ Agent Hub can spawn processes and write files as the user. v1 is single-user wit
 ## Decision
 
 - Bind `127.0.0.1` only; not configurable. `hostId` stays reserved for a later multi-host model.
-- Host header allowlist (`127.0.0.1:<port>`, `localhost:<port>`, dev port) on every request.
+- Host header allowlist on every request: `localhost:<port>`, `127.0.0.1:<port>`, `[::1]:<port>`, and bare `localhost` (`isAllowedHost` in `apps/server/src/security/origin.ts`). The Vite dev port is not part of it; in development the UI reaches the server through the Vite proxy, which rewrites Host.
 - Origin allowlist on mutating requests and WS upgrades; no CORS headers.
 - The Origin check is the primary CSRF control; the token is defense in depth.
 - Per-boot random token, new on every restart, required on every mutating request (`X-Agent-Hub-Token`). The client fetches it from `GET /api/session-token` before every WS connect and refetches once after any `401`/`403`.
