@@ -284,11 +284,13 @@ install_windows_task() {
   fi
 }
 
+# remove_windows_task [name-prefix]: the current task, or the one named <name-prefix><distro>.
 remove_windows_task() {
   is_wsl || return 0
   distro=$(distro_name) || return 0
   command -v powershell.exe >/dev/null 2>&1 || return 0
-  task=$(windows_task_name "$distro")
+  task=${1:+$1$distro}
+  task=${task:-$(windows_task_name "$distro")}
   if [ "$DRY_RUN" -eq 0 ] && ! windows_task_exists "$task"; then
     return 0
   fi
@@ -851,6 +853,7 @@ do_install() {
     say "  - user units $TMUX_UNIT + $SERVER_UNIT in $UNIT_DIR, enabled and started; lingering enabled"
   fi
   say "  - port $EFFECTIVE_PORT"
+  if legacy=$(legacy_install_dir); then say "  - stop and remove the pre-rename install in $legacy (it may hold the port)"; fi
   if [ "$NEED_RELEASE" -eq 1 ] && [ -z "$FROM_SOURCE" ]; then say "  - source: https://github.com/$PANEFUL_MANAGER_REPO/releases/tag/$TAG"; fi
   if [ "$NEED_RELEASE" -eq 1 ] || [ ! -f "$CONFIG_FILE" ]; then
     confirm "Continue?" y || die "Aborted"
@@ -871,6 +874,9 @@ do_install() {
   info "Config and state"
   write_config
   write_state
+  if legacy=$(legacy_install_dir) && confirm "Stop and remove the pre-rename install in $legacy (ends its sessions)?" y; then
+    remove_legacy_install
+  fi
 
   if [ "$NO_SYSTEMD" -eq 0 ]; then
     if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then
@@ -922,10 +928,16 @@ do_rollback() {
 
 # ---------- uninstall ----------
 
-# Removes a pre-rename agent-hub install (units and prefix); only when its install marker exists.
+# Prints the pre-rename agent-hub prefix: a real directory (never a symlink) that holds its install marker.
+legacy_install_dir() {
+  legacy_dir=$DATA_HOME/agent-hub
+  [ -d "$legacy_dir" ] && [ ! -L "$legacy_dir" ] && [ -f "$legacy_dir/.agent-hub-install" ] || return 1
+  printf '%s' "$legacy_dir"
+}
+
+# Removes a pre-rename agent-hub install (units, logon task and prefix); only when its install marker exists.
 remove_legacy_install() {
-  legacy_prefix=$DATA_HOME/agent-hub
-  [ -f "$legacy_prefix/.agent-hub-install" ] || return 0
+  legacy_prefix=$(legacy_install_dir) || return 0
   info "Leftover agent-hub install in $legacy_prefix"
   if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then
     run systemctl --user disable --now agent-hub.service agent-hub-tmux.service || warn "Disabling the old units failed"
@@ -935,7 +947,9 @@ remove_legacy_install() {
     run systemctl --user daemon-reload || true
   fi
   run rm -rf "$legacy_prefix/releases"
-  run rm -f "$legacy_prefix/current" "$legacy_prefix/previous" "$legacy_prefix/.agent-hub-install"
+  run rm -f "$legacy_prefix/current" "$legacy_prefix/previous" "$legacy_prefix/current.tmp" "$legacy_prefix/previous.tmp" \
+    "$legacy_prefix/.agent-hub-install"
+  remove_windows_task AgentHub-
   [ "$DRY_RUN" -eq 1 ] || rmdir "$legacy_prefix" 2>/dev/null || say "  kept $legacy_prefix (it contains other files)"
 }
 
@@ -949,6 +963,7 @@ do_uninstall() {
   say "  - remove releases/, current, previous and the install marker from $PREFIX (and $PREFIX if then empty)"
   say "  - ask whether to remove config ($CONFIG_DIR) and state ($STATE_DIR)"
   is_wsl && say "  - remove the Windows logon task if present"
+  if legacy=$(legacy_install_dir); then say "  - remove the pre-rename install in $legacy (its units, logon task and releases)"; fi
   confirm "Uninstall Paneful Manager?" n || die "Aborted"
 
   if [ "$DRY_RUN" -eq 1 ] || systemd_user_available; then

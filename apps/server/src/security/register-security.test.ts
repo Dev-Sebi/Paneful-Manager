@@ -69,6 +69,20 @@ describe('Host check', () => {
     }
   })
 
+  it('serves a static 127.0.0.1 hint for page loads on localhost in production', async () => {
+    const target = build()
+    const response = await send(target, 'GET', '/', { host: `localhost:${PORT}`, [ACCESS_KEY_HEADER]: undefined })
+    expect(response.statusCode).toBe(403)
+    expect(response.headers['content-type']).toContain('text/html')
+    expect(response.headers['content-security-policy']).toContain("default-src 'none'")
+    expect(response.body).toContain(`href="http://127.0.0.1:${PORT}/"`)
+    expect(response.body).not.toContain(KEY)
+    expect(response.body).not.toContain(TOKEN)
+    await expectError(await send(target, 'GET', '/', { host: `[::1]:${PORT}` }), 403, 'forbidden')
+    await expectError(await send(target, 'GET', API_ROUTES.health, { host: `localhost:${PORT}` }), 403, 'forbidden')
+    await expectError(await send(target, 'GET', '/', { host: `evil.example:${PORT}` }), 403, 'forbidden')
+  })
+
   it('accepts the loopback names in dev mode', async () => {
     const target = build(true)
     for (const host of [`localhost:${PORT}`, `LOCALHOST:${PORT}`, 'localhost', HOST, `[::1]:${PORT}`]) {
