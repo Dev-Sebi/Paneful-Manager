@@ -101,12 +101,100 @@ function maskMap(values: Record<string, string>): Record<string, string | McpMas
   )
 }
 
-/** Replaces env and header values by `{ masked: true, set }`, except for `MCP_PLAIN_KEYS`. */
+/** Stands in for a secret part of an argument or URL in responses; sent back unchanged, it keeps the stored value. */
+export const MCP_MASKED_PLACEHOLDER = '<masked>'
+
+/** Flag, variable, header or query names whose value is treated as a secret. */
+const SECRET_NAME = /token|secret|passw(?:or)?d|pwd|api[-_]?key|apikey|auth|credential|bearer|private[-_]?key|access[-_]?key|^-{0,2}key$/i
+/** Well-known token formats (GitHub, GitLab, OpenAI-style, Stripe, Slack, AWS, Google, JWT), recognized without a name. */
+const KNOWN_TOKEN = /^(?:gh[pousr]_\w{20,}|github_pat_\w{20,}|glpat-[\w-]{20,}|sk-[\w-]{20,}|[rs]k_(?:live|test)_\w{10,}|xox[abeprs]-[\w-]{10,}|AKIA[0-9A-Z]{16}|AIza[\w-]{30,}|ya29\.[\w-]{10,}|eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]*)$/
+/** `$VAR` or `${VAR}`: expanded by Claude Code at run time, not a secret itself. */
+const REFERENCE = /^(?:\$\{[^}]+\}|\$[A-Za-z_]\w*)$/
+const URL_PREFIX = /^[a-z][a-z\d+.-]*:\/\//i
+const AUTH_SCHEME = /^((?:Bearer|Basic|Token)\s+)(.+)$/i
+
+const isSecretValue = (value: string): boolean => value !== '' && value !== MCP_MASKED_PLACEHOLDER && !REFERENCE.test(value)
+
+/** Masks the password (or a lone user name, usually a token) in the userinfo, secret query values and token-like path segments. */
+export function maskMcpUrl(url: string): string {
+  const prefix = URL_PREFIX.exec(url)?.[0]
+  if (prefix === undefined) {
+    return url
+  }
+  let rest = url.slice(prefix.length)
+  const at = /^([^@/?#]*)@/.exec(rest)
+  if (at) {
+    const userinfo = at[1] ?? ''
+    const colon = userinfo.indexOf(':')
+    const user = colon === -1 ? userinfo : userinfo.slice(0, colon)
+    const password = colon === -1 ? '' : userinfo.slice(colon + 1)
+    const masked = colon === -1
+      ? (isSecretValue(user) ? MCP_MASKED_PLACEHOLDER : user)
+      : `${user}:${isSecretValue(password) ? MCP_MASKED_PLACEHOLDER : password}`
+    rest = `${masked}@${rest.slice(at[0].length)}`
+  }
+  rest = rest.replaceAll(/\/([^/?#]+)/g, (segment, part: string) => KNOWN_TOKEN.test(part) ? `/${MCP_MASKED_PLACEHOLDER}` : segment)
+  rest = rest.replaceAll(/([?&])([^=&#]+)=([^&#]*)/g, (pair, separator: string, key: string, value: string) =>
+    isSecretValue(value) && (SECRET_NAME.test(key) || KNOWN_TOKEN.test(value)) ? `${separator}${key}=${MCP_MASKED_PLACEHOLDER}` : pair)
+  return `${prefix}${rest}`
+}
+
+function maskNamed(value: string): string {
+  if (!isSecretValue(value)) {
+    return value
+  }
+  const scheme = AUTH_SCHEME.exec(value)
+  if (scheme) {
+    const secret = scheme[2] ?? ''
+    return `${scheme[1] ?? ''}${isSecretValue(secret) ? MCP_MASKED_PLACEHOLDER : secret}`
+  }
+  return MCP_MASKED_PLACEHOLDER
+}
+
+/** A value without a secret name of its own: `Name: value` headers, URLs and well-known token formats. */
+function maskUnnamed(value: string): string {
+  const header = /^([A-Za-z][\w-]*):(?!\/\/)\s*(.+)$/s.exec(value)
+  if (header && SECRET_NAME.test(header[1] ?? '')) {
+    const secret = header[2] ?? ''
+    return `${value.slice(0, value.length - secret.length)}${maskNamed(secret)}`
+  }
+  if (URL_PREFIX.test(value)) {
+    return maskMcpUrl(value)
+  }
+  return isSecretValue(value) && KNOWN_TOKEN.test(value) ? MCP_MASKED_PLACEHOLDER : value
+}
+
+/**
+ * Masks secret-looking parts of command arguments: values of `--token=x`, `--api-key x`, `GITHUB_TOKEN=x` and
+ * `Authorization: Bearer x`, URL credentials and well-known token formats. `$VAR` references stay visible.
+ */
+export function maskMcpArgs(args: readonly string[]): string[] {
+  const masked = [...args]
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index] ?? ''
+    const assignment = /^(-{0,2}[\w.-]+)=(.*)$/s.exec(arg)
+    if (assignment) {
+      const [, name = '', value = ''] = assignment
+      masked[index] = `${name}=${SECRET_NAME.test(name) ? maskNamed(value) : maskUnnamed(value)}`
+      continue
+    }
+    const next = args[index + 1]
+    if (/^-{1,2}[\w.-]+$/.test(arg) && SECRET_NAME.test(arg) && next !== undefined && !next.startsWith('-')) {
+      masked[index + 1] = maskNamed(next)
+      index++
+      continue
+    }
+    masked[index] = maskUnnamed(arg)
+  }
+  return masked
+}
+
+/** Replaces env and header values by `{ masked: true, set }` (except `MCP_PLAIN_KEYS`) and secret parts of args and the URL by `MCP_MASKED_PLACEHOLDER`. */
 export function maskMcpEntry(entry: McpServerEntry, approved: boolean): McpServerEntryMasked {
   const { config } = entry
   const masked: McpServerConfigMasked = config.transport === 'stdio'
-    ? { ...config, env: maskMap(config.env) }
-    : { ...config, headers: maskMap(config.headers) }
+    ? { ...config, args: maskMcpArgs(config.args), env: maskMap(config.env) }
+    : { ...config, url: maskMcpUrl(config.url), headers: maskMap(config.headers) }
   return { ...entry, config: masked, approved }
 }
 

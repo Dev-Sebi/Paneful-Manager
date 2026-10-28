@@ -78,7 +78,7 @@
           v-model="form.argsText"
           density="compact"
           hide-details="auto"
-          hint="One argument per line"
+          :hint="maskedHint(form.argsText, 'One argument per line')"
           label="Arguments"
           persistent-hint
           rows="3"
@@ -94,7 +94,9 @@
         density="compact"
         :error-messages="errors.url"
         hide-details="auto"
+        :hint="maskedHint(form.url)"
         label="URL"
+        persistent-hint
         variant="outlined"
       />
 
@@ -158,7 +160,7 @@
 <script lang="ts" setup>
   import type { KvRow } from './mcpForm'
   import type { McpScope, McpServerEntryMasked, McpTransport } from '@agent-hub/shared'
-  import { MCP_PLAIN_KEYS } from '@agent-hub/shared'
+  import { MCP_MASKED_PLACEHOLDER, MCP_PLAIN_KEYS } from '@agent-hub/shared'
   import { computed, reactive, ref, watch } from 'vue'
   import { ApiClientError } from '@/api/client'
   import { AhButton, AhDialog } from '@/components/ah'
@@ -239,6 +241,15 @@
       form.rows = []
       pendingTransport.value = undefined
     }
+  }
+
+  /** Masked secrets in args or the URL stay stored as long as the placeholder is left as it is. */
+  function maskedHint (text: string, base = '') {
+    if (!text.includes(MCP_MASKED_PLACEHOLDER)) {
+      return base
+    }
+    const keep = `${MCP_MASKED_PLACEHOLDER} keeps the stored secret; replace it to change the value`
+    return base === '' ? keep : `${base}; ${keep}`
   }
 
   function isPlain (row: KvRow) {

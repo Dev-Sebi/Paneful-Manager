@@ -114,6 +114,17 @@ describe('McpServerDialog', () => {
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([false])
   })
 
+  it('sends masked args back unchanged and explains the placeholder', async () => {
+    mcpApi.upsert.mockResolvedValue({ server: makeMcpEntry('a'), created: false })
+    const config = { transport: 'stdio' as const, command: 'npx', args: ['--token', '<masked>'], env: {} }
+    mountWithVuetify(McpServerDialog, { props: { modelValue: true, entry: makeMcpEntry('a', { config }) }, ...stubs })
+    await flushPromises()
+    expect(dialogText()).toContain('<masked> keeps the stored secret')
+    button('Save')?.click()
+    await flushPromises()
+    expect(mcpApi.upsert.mock.calls[0]?.[0]).toMatchObject({ config: { args: ['--token', '<masked>'] } })
+  })
+
   it('shows the API error inline and keeps the dialog open', async () => {
     mcpApi.upsert.mockRejectedValue(new ApiClientError(409, 'conflict', 'Server a already exists'))
     const wrapper = mountWithVuetify(McpServerDialog, { props: { modelValue: true }, ...stubs })
