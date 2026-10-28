@@ -140,7 +140,7 @@ normalize_path() {
       console.log(path.join(fs.realpathSync(dir), rest).replace(/(.)\/$/, "$1"))
     ' "$1"
   else
-    die "realpath -m (GNU coreutils) or Node.js is required"
+    die "Node.js $MIN_NODE_MAJOR or later is required (macOS: brew install node, or https://nodejs.org)"
   fi
 }
 
@@ -437,7 +437,7 @@ check_requirements() {
   info "Checking requirements"
   if is_macos; then
     say "  macOS detected"
-    hint_node="brew install node@$MIN_NODE_MAJOR (then follow brew's PATH hint), or https://nodejs.org"
+    hint_node="brew install node, or https://nodejs.org"
     hint_tmux="brew install tmux"
   else
     if is_wsl; then

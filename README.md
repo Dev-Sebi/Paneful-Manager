@@ -32,7 +32,7 @@ Agent teams build on an experimental Claude Code feature (Claude Code 2.1.309 or
 Prerequisites:
 
 - **Linux / WSL2:** systemd (WSL: `systemd=true` in `/etc/wsl.conf`; the installer offers to set it), Node.js 22 or later, tmux 3.2 or later (`sudo apt-get install -y tmux`), git, the Claude Code CLI (`claude`).
-- **macOS:** Node.js 22 or later (`brew install node@22`), tmux 3.2 or later (`brew install tmux`), git (`xcode-select --install`), the Claude Code CLI. Runs as launchd user agents, so it starts when you log in.
+- **macOS:** Node.js 22 or later (`brew install node`; `node@22` is keg-only and not on `PATH`), tmux 3.2 or later (`brew install tmux`), git (`xcode-select --install`), the Claude Code CLI. Runs as launchd user agents, so it starts when you log in.
 - **Windows:** Windows 10 2004 or later, or Windows 11. The script checks WSL 2 (and tells you how to install it, which needs an administrator PowerShell and a restart), picks or installs an Ubuntu distro, enables systemd there and runs the Linux installer inside it. Node.js, tmux and the Claude Code CLI are needed inside the distro. Options are environment variables, for example `$env:PANEFUL_MANAGER_PORT = '7400'` before the command.
 
 On x64 and arm64 (Linux and macOS) the release ships a prebuilt node-pty, so no compiler is needed; anything else compiles it on install. Every installer shows a plan and asks before it changes anything.

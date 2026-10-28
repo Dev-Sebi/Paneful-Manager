@@ -18,7 +18,7 @@ Related: [Configuration](configuration.md), [Troubleshooting](troubleshooting.md
 | --- | --- | --- |
 | Linux or WSL2 with systemd | the services are systemd user units | `systemctl --user status` |
 | macOS 13 or later | the services are launchd user agents; Apple silicon and Intel | `sw_vers` |
-| Node.js 22 or later | server runtime (`engines.node` is `>=22`) | `node -v` (macOS: `brew install node@22`) |
+| Node.js 22 or later | server runtime (`engines.node` is `>=22`) | `node -v` (macOS: `brew install node`) |
 | pnpm 11 or later | only when node-pty has to be compiled (see below); installed with corepack if missing, version from `packageManager` | `pnpm -v` |
 | tmux 3.2 or later | session backbone (`new-session -e`) | `tmux -V` (`sudo apt-get install -y tmux`, macOS: `brew install tmux`) |
 | `make`, `g++`, `python3` | only when the release has no prebuilt node-pty for your system, or it does not load (an older glibc than Ubuntu 24.04); node-pty is then compiled on install | `sudo apt-get install -y build-essential python3`; macOS: `xcode-select --install` |
