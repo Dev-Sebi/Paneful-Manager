@@ -29,6 +29,15 @@ Inside WSL2 with systemd, Node.js 22 or later and tmux 3.2 or later (on x64 the 
 curl -fsSL https://github.com/Dev-Sebi/Paneful-Manager/releases/latest/download/install.sh | sh
 ```
 
+The repository is private for now, so the anonymous URL answers 404. Get `install.sh` with the GitHub CLI and pass a token (a fine-grained token with read-only Contents access, or none when `gh` is logged in):
+
+```bash
+gh release download --repo Dev-Sebi/Paneful-Manager --pattern install.sh
+GITHUB_TOKEN=<token> sh install.sh
+```
+
+Or download the release with `gh release download --repo Dev-Sebi/Paneful-Manager --pattern 'agent-hub-*.tar.gz*'` and run `sh install.sh --from-source agent-hub-<tag>.tar.gz`. Details: [Private repository](docs/install.md#private-repository).
+
 The installer shows a plan and asks before it changes anything. It sets up the systemd user services `agent-hub-tmux.service` and `agent-hub.service`. Then open the login URL it prints in your browser (in WSL: your Windows browser). Each login URL works once, within 10 minutes; `install.sh --login-url` prints a new one, for example for another browser.
 
 Flags, the list of changes, upgrade, rollback and uninstall are in the [install guide](docs/install.md).

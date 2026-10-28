@@ -33,6 +33,10 @@ export default defineConfig({
       '.vue',
     ],
   },
+  optimizeDeps: {
+    // Used only by lazy views and auto-imported by Vuetify, so Vite finds them late and reloads the page mid-load on a cold cache.
+    include: ['VCheckbox', 'VProgressCircular', 'VRadio', 'VRadioGroup', 'VSelect', 'VSwitch', 'VTextField', 'VTextarea'].map(name => `vuetify/components/${name}`),
+  },
   server: {
     // The bound address, not `localhost`: another local user could listen on `::1` with the same port.
     host: '127.0.0.1',

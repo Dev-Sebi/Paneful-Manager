@@ -1,6 +1,7 @@
 #!/bin/sh
 # Agent Hub installer for WSL2 (Linux works too, without the WSL steps).
 #   curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/install.sh | sh
+# Private repository: GITHUB_TOKEN=<token> sh install.sh (or log in with gh), see docs/install.md
 # Run with -h for all options. Docs: docs/install.md
 set -eu
 
@@ -8,6 +9,8 @@ AGENT_HUB_REPO=${AGENT_HUB_REPO:-Dev-Sebi/Paneful-Manager}
 DEFAULT_PORT=7337
 MIN_NODE_MAJOR=22
 MIN_TMUX_VERSION=3.2
+# Reads headers from stdin (7.55) and keeps a custom Authorization header off redirect hosts (7.58).
+MIN_CURL_TOKEN_VERSION=7.58
 TMUX_UNIT=agent-hub-tmux.service
 SERVER_UNIT=agent-hub.service
 HEALTH_TIMEOUT_SEC=20
@@ -55,6 +58,8 @@ Options:
 
 Environment:
   AGENT_HUB_REPO          GitHub <owner>/<repo> to download releases from
+  GITHUB_TOKEN, GH_TOKEN  Token for a private repository (read-only Contents access); without one,
+                          'gh auth token' is used when gh is logged in, otherwise downloads are anonymous
 EOF
 }
 
@@ -166,6 +171,13 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+
+# Read once and unset, so no child process (curl, pnpm, node, systemctl) inherits the token.
+# API_TOKEN is unset first: one imported from the environment would stay exported.
+unset API_TOKEN TOKEN_SOURCE
+API_TOKEN=${GITHUB_TOKEN:-${GH_TOKEN:-}}
+if [ -n "${GITHUB_TOKEN:-}" ]; then TOKEN_SOURCE=GITHUB_TOKEN; else TOKEN_SOURCE=GH_TOKEN; fi
+unset GITHUB_TOKEN GH_TOKEN
 
 [ -n "${HOME:-}" ] || die "HOME is not set"
 case "$HOME" in /*) ;; *) die "HOME must be an absolute path" ;; esac
@@ -440,6 +452,84 @@ ensure_pnpm() {
 
 # ---------- release fetching ----------
 
+# Falls back to 'gh auth token' when no token came from the environment; true when a token is available.
+load_token() {
+  if [ -z "$API_TOKEN" ] && command -v gh >/dev/null 2>&1; then
+    API_TOKEN=$(gh auth token --hostname github.com 2>/dev/null) || API_TOKEN=""
+    TOKEN_SOURCE="gh auth token"
+  fi
+  [ -n "$API_TOKEN" ] || return 1
+  case "$API_TOKEN" in
+    *[!A-Za-z0-9_.-]*) die "The token from $TOKEN_SOURCE contains unexpected characters" ;;
+  esac
+  curl_version=$(curl --version 2>/dev/null | sed -n '1s/^curl \([0-9][0-9.]*\).*/\1/p')
+  if [ -z "$curl_version" ] || ! version_ge "$curl_version" "$MIN_CURL_TOKEN_VERSION"; then
+    die "curl $MIN_CURL_TOKEN_VERSION or later is required to download with a token (found '${curl_version:-unknown}'); without a token: see 'Private repository' in docs/install.md"
+  fi
+}
+
+# gh_curl <curl args...>: the token header goes in on stdin, so it never shows up in a process list.
+# curl sends a custom Authorization header only to the original host, not to the asset redirect target.
+gh_curl() {
+  printf 'Authorization: Bearer %s\n' "$API_TOKEN" |
+    curl -H @- --proto '=https' --proto-redir '=https' --tlsv1.2 "$@"
+}
+
+die_private_hint() {
+  printf '%s\n' "Error: $1 (HTTP 404)" \
+    "  $AGENT_HUB_REPO may be private: GitHub answers 404 to anonymous requests for private repositories." \
+    "  Set GITHUB_TOKEN to a fine-grained token with read-only Contents access to $AGENT_HUB_REPO," \
+    "  or log in with 'gh auth login', then re-run the installer. Without a token: download the release" \
+    "  with 'gh release download' and pass the tarball to --from-source (see docs/install.md)." >&2
+  exit 1
+}
+
+# Looks the release up through the GitHub API; sets TAG, TARBALL_URL and SHA_URL (asset API URLs).
+resolve_release_api() {
+  if [ "$VERSION" = latest ]; then
+    path=releases/latest
+  else
+    case "$VERSION" in
+      ''|*[!A-Za-z0-9._-]*) die "Invalid release tag: '$VERSION'" ;;
+    esac
+    path=releases/tags/$VERSION
+  fi
+  info "Looking up the release through the GitHub API (token from $TOKEN_SOURCE)"
+  json=$(mktemp)
+  code=$(gh_curl -sSL -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' \
+    -o "$json" -w '%{http_code}' "https://api.github.com/repos/$AGENT_HUB_REPO/$path") || code=000
+  case "$code" in
+    200) ;;
+    401) rm -f "$json"; die "GitHub rejected the token from $TOKEN_SOURCE (HTTP 401): it is invalid or expired" ;;
+    403|404)
+      rm -f "$json"
+      die "No release '$VERSION' found in $AGENT_HUB_REPO (HTTP $code). The token from $TOKEN_SOURCE needs read access to it (fine-grained: Contents read-only)"
+      ;;
+    *) rm -f "$json"; die "GitHub API request for $AGENT_HUB_REPO failed (HTTP $code)" ;;
+  esac
+  parsed=$(node -e '
+    const release = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))
+    const tag = String(release.tag_name || "")
+    const url = name => String(((release.assets || []).find(a => a.name === name) || {}).url || "")
+    console.log([tag, url(`agent-hub-${tag}.tar.gz`), url(`agent-hub-${tag}.tar.gz.sha256`)].join("\n"))
+  ' "$json") || { rm -f "$json"; die "Cannot read the GitHub API answer for $AGENT_HUB_REPO"; }
+  rm -f "$json"
+  TAG=$(printf '%s\n' "$parsed" | sed -n 1p)
+  TARBALL_URL=$(printf '%s\n' "$parsed" | sed -n 2p)
+  SHA_URL=$(printf '%s\n' "$parsed" | sed -n 3p)
+  case "$TAG" in
+    ''|*[!A-Za-z0-9._-]*) die "Invalid release tag in the GitHub API answer: '$TAG'" ;;
+  esac
+  [ -n "$TARBALL_URL" ] || die "Release '$TAG' of $AGENT_HUB_REPO has no asset agent-hub-$TAG.tar.gz"
+  for asset_url in "$TARBALL_URL" "$SHA_URL"; do
+    case "$asset_url" in
+      ''|https://api.github.com/repos/*/*/releases/assets/[0-9]*) ;;
+      *) die "Unexpected asset URL in the GitHub API answer: $asset_url" ;;
+    esac
+    case "${asset_url##*/}" in *[!0-9]*) die "Unexpected asset URL in the GitHub API answer: $asset_url" ;; esac
+  done
+}
+
 resolve_tag() {
   if [ -n "$FROM_SOURCE" ]; then
     if [ -d "$FROM_SOURCE" ]; then
@@ -453,10 +543,17 @@ resolve_tag() {
     else
       die "--from-source path not found: $FROM_SOURCE"
     fi
+  elif ! command -v curl >/dev/null 2>&1; then
+    die "curl is required"
+  elif load_token; then
+    resolve_release_api
   elif [ "$VERSION" = latest ]; then
-    command -v curl >/dev/null 2>&1 || die "curl is required"
-    url=$(curl -fsSLI --proto '=https' --tlsv1.2 -o /dev/null -w '%{url_effective}' "https://github.com/$AGENT_HUB_REPO/releases/latest") ||
+    out=$(curl -sSLI --proto '=https' --tlsv1.2 -o /dev/null -w '%{http_code} %{url_effective}' "https://github.com/$AGENT_HUB_REPO/releases/latest") ||
       die "Cannot resolve the latest release of $AGENT_HUB_REPO"
+    code=${out%% *}
+    [ "$code" != 404 ] || die_private_hint "Cannot resolve the latest release of $AGENT_HUB_REPO"
+    [ "$code" = 200 ] || die "Cannot resolve the latest release of $AGENT_HUB_REPO (HTTP $code)"
+    url=${out#* }
     TAG=${url##*/}
   else
     TAG=$VERSION
@@ -478,10 +575,18 @@ fetch_tarball() {
   elif [ -n "$FROM_SOURCE" ]; then
     cp "$FROM_SOURCE" "$1/$name"
     [ ! -f "$FROM_SOURCE.sha256" ] || cp "$FROM_SOURCE.sha256" "$1/$name.sha256"
+  elif [ -n "$API_TOKEN" ]; then
+    say "  Downloading $name through the GitHub API"
+    gh_curl -fSL -H 'Accept: application/octet-stream' -o "$1/$name" "$TARBALL_URL" || die "Download failed: $name"
+    if [ -n "$SHA_URL" ]; then
+      gh_curl -fsSL -H 'Accept: application/octet-stream' -o "$1/$name.sha256" "$SHA_URL" 2>/dev/null || rm -f "$1/$name.sha256"
+    fi
   else
     base="https://github.com/$AGENT_HUB_REPO/releases/download/$TAG"
     say "  Downloading $base/$name"
-    curl -fSL --proto '=https' --tlsv1.2 -o "$1/$name" "$base/$name" || die "Download failed: $base/$name"
+    code=$(curl -SL --proto '=https' --tlsv1.2 -o "$1/$name" -w '%{http_code}' "$base/$name") || die "Download failed: $base/$name"
+    [ "$code" != 404 ] || die_private_hint "Download failed: $base/$name"
+    [ "$code" = 200 ] || die "Download failed: $base/$name (HTTP $code)"
     curl -fsSL --proto '=https' --tlsv1.2 -o "$1/$name.sha256" "$base/$name.sha256" 2>/dev/null || rm -f "$1/$name.sha256"
   fi
   if [ -f "$1/$name.sha256" ]; then

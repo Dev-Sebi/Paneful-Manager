@@ -31,7 +31,7 @@ The smoke test extracts the tarball, installs it with its own `install.sh --from
 
 | Asset | Used by `install.sh` |
 | --- | --- |
-| `agent-hub-<tag>.tar.gz` | downloaded from `releases/download/<tag>/`; `<tag>` comes from the redirect of `releases/latest` or from `--version` |
+| `agent-hub-<tag>.tar.gz` | downloaded from `releases/download/<tag>/`; `<tag>` comes from the redirect of `releases/latest` or from `--version`. With a token (private repository) both come from the GitHub API instead, see [Private repository](install.md#private-repository) |
 | `agent-hub-<tag>.tar.gz.sha256` | checksum of the tarball; without it a download is refused unless `--no-verify` is given |
 | `install.sh` | the `curl ... releases/latest/download/install.sh \| sh` entry point |
 
